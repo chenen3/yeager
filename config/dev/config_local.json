@@ -1,11 +1,20 @@
 {
-    "inbound": {
-        "protocol": "socks",
-        "setting": {
-            "host": "0.0.0.0",
-            "port": 1080
+    "inbounds": [
+        {
+            "protocol": "socks",
+            "setting": {
+                "host": "0.0.0.0",
+                "port": 1080
+            }
+        },
+        {
+            "protocol": "http",
+            "setting": {
+                "host": "0.0.0.0",
+                "port": 8000
+            }
         }
-    },
+    ],
     "outbound": {
         "protocol": "yeager",
         "setting": {

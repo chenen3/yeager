@@ -14,23 +14,9 @@ import (
 	"yeager/protocol"
 )
 
-// Conn is an implementation of the protocol.Conn interface for network connections.
-type Conn struct {
-	net.Conn
-	dstAddr net.Addr
-}
-
-func NewConn(conn net.Conn, dstAddr net.Addr) *Conn {
-	return &Conn{Conn: conn, dstAddr: dstAddr}
-}
-
-func (c *Conn) DstAddr() net.Addr {
-	return c.dstAddr
-}
-
 type Server struct {
 	conf   *Config
-	connCh chan *Conn
+	connCh chan protocol.Conn
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -38,7 +24,7 @@ type Server struct {
 func NewServer(config *Config) (*Server, error) {
 	s := &Server{
 		conf:   config,
-		connCh: make(chan *Conn, 32),
+		connCh: make(chan protocol.Conn, 32),
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -49,29 +35,18 @@ func NewServer(config *Config) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) Accept() (protocol.Conn, error) {
-	select {
-	case <-s.ctx.Done():
-		// 以防信道里面还有连接未取走
-		select {
-		case conn := <-s.connCh:
-			return conn, nil
-		default:
-			return nil, errors.New("server closed")
-		}
-	case conn := <-s.connCh:
-		return conn, nil
-	}
+func (s *Server) Accept() <-chan protocol.Conn {
+	return s.connCh
 }
 
 func (s *Server) Close() error {
 	s.cancel()
+	close(s.connCh)
 	return nil
 }
 
 func (s *Server) listenAndServe() error {
-	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 	if err != nil {
 		return err
 	}
@@ -100,7 +75,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	s.connCh <- NewConn(conn, dstAddr)
+
+	// in case send on closed channel
+	select {
+	case <-s.ctx.Done():
+		conn.Close()
+		return
+	case s.connCh <- protocol.NewConn(conn, dstAddr):
+	}
 }
 
 func (s *Server) handshake(conn net.Conn) (dst net.Addr, err error) {
@@ -173,7 +155,7 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
 		return nil, fmt.Errorf("unsupported CMD: %d", buf[1])
 	}
 
-	var addr string
+	var host string
 	switch atyp {
 	case atypIPv4:
 		var buf [4]byte
@@ -181,7 +163,7 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
 		if err != nil {
 			return nil, err
 		}
-		addr = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
+		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case atypDomain:
 		var buf [1]byte
 		_, err = io.ReadFull(conn, buf[:])
@@ -195,7 +177,7 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
 		if err != nil {
 			return nil, err
 		}
-		addr = string(bs)
+		host = string(bs)
 	case atypIPv6:
 		return nil, errors.New("IPv6 not supported yet")
 	default:
@@ -209,7 +191,7 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
 	}
 	port := binary.BigEndian.Uint16(portBuf[:])
 
-	dstAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", addr, port))
+	dstAddr, err = net.ResolveTCPAddr("tcp", net.JoinHostPort(host, strconv.Itoa(int(port))))
 	if err != nil {
 		return nil, err
 	}

@@ -6,8 +6,8 @@ import (
 )
 
 type Config struct {
-	Inbound  Proto `json:"inbound,omitempty"`
-	Outbound Proto `json:"outbound,omitempty"`
+	Inbounds []Proto `json:"inbounds,omitempty"`
+	Outbound Proto   `json:"outbound,omitempty"`
 }
 
 type Proto struct {

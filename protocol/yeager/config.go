@@ -35,6 +35,7 @@ func (s *ServerConfig) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	s.Host = a.Host
 	s.Port = a.Port
 	s.UUID = a.UUID

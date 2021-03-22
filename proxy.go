@@ -9,6 +9,7 @@ import (
 	"yeager/log"
 	"yeager/protocol"
 	_ "yeager/protocol/freedom"
+	_ "yeager/protocol/http"
 	_ "yeager/protocol/socks"
 	_ "yeager/protocol/yeager"
 )
@@ -19,20 +20,23 @@ func NewProxy(c config.Config) (*Proxy, error) {
 		ctx:    ctx,
 		cancel: cancel,
 	}
-	buildInbound, ok := protocol.InboundBuilder(c.Inbound.Protocol)
-	if !ok {
-		return nil, errors.New("unknown protocol: " + c.Inbound.Protocol)
-	}
-	var err error
-	p.inbound, err = buildInbound(c.Inbound.Setting)
-	if err != nil {
-		return nil, err
+	for _, inboundConf := range c.Inbounds {
+		buildInbound, ok := protocol.InboundBuilder(inboundConf.Protocol)
+		if !ok {
+			return nil, errors.New("unknown protocol: " + inboundConf.Protocol)
+		}
+		inbound, err := buildInbound(inboundConf.Setting)
+		if err != nil {
+			return nil, err
+		}
+		p.inbounds = append(p.inbounds, inbound)
 	}
 
 	buildOutbound, ok := protocol.OutboundBuilder(c.Outbound.Protocol)
 	if !ok {
-		return nil, errors.New("unknown protocol: " + c.Inbound.Protocol)
+		return nil, errors.New("unknown protocol: " + c.Outbound.Protocol)
 	}
+	var err error
 	p.outbound, err = buildOutbound(c.Outbound.Setting)
 	if err != nil {
 		return nil, err
@@ -41,26 +45,40 @@ func NewProxy(c config.Config) (*Proxy, error) {
 }
 
 type Proxy struct {
-	inbound  protocol.Inbound
+	inbounds []protocol.Inbound
 	outbound protocol.Outbound
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
 
 func (p *Proxy) Start() error {
-	for {
-		inConn, err := p.inbound.Accept()
-		if err != nil {
-			return err
-		}
-		go p.handleConnection(inConn)
+	connCh := make(chan protocol.Conn, 32)
+	for _, inbound := range p.inbounds {
+		go func(inbound protocol.Inbound, connCh chan<- protocol.Conn) {
+			for {
+				conn, ok := <-inbound.Accept()
+				if !ok {
+					// inbound server closed
+					return
+				}
+				connCh <- conn
+			}
+		}(inbound, connCh)
 	}
-}
 
-func ioCopy(dst io.Writer, src io.Reader) {
-	_, err := io.Copy(dst, src)
-	if err != nil {
-		log.Error(err)
+	for {
+		select {
+		case conn := <-connCh:
+			go p.handleConnection(conn)
+		case <-p.ctx.Done():
+			// in case connections left unhandled
+			select {
+			case conn := <-connCh:
+				conn.Close()
+			default:
+				return p.ctx.Err()
+			}
+		}
 	}
 }
 
@@ -73,13 +91,14 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 	}
 	defer outConn.Close()
 
-	go ioCopy(outConn, inConn)
-	ioCopy(inConn, outConn)
-	return
+	go io.Copy(outConn, inConn)
+	io.Copy(inConn, outConn)
 }
 
 func (p *Proxy) Close() error {
-	p.inbound.Close()
+	for _, inbound := range p.inbounds {
+		inbound.Close()
+	}
 	p.cancel()
 	return nil
 }

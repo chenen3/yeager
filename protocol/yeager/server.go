@@ -4,34 +4,19 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"io"
 	"net"
 	"strconv"
-	"yeager/log"
 
+	"github.com/google/uuid"
+	"yeager/log"
 	"yeager/protocol"
 )
 
-// Conn is an implementation of the protocol.Conn interface for network connections.
-type Conn struct {
-	net.Conn
-	dstAddr net.Addr
-}
-
-func NewConn(conn net.Conn, dstAddr net.Addr) *Conn {
-	return &Conn{Conn: conn, dstAddr: dstAddr}
-}
-
-func (c *Conn) DstAddr() net.Addr {
-	return c.dstAddr
-}
-
 type Server struct {
 	conf   *ServerConfig
-	connCh chan *Conn
+	connCh chan protocol.Conn
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -39,7 +24,7 @@ type Server struct {
 func NewServer(config *ServerConfig) (*Server, error) {
 	s := &Server{
 		conf:   config,
-		connCh: make(chan *Conn, 32),
+		connCh: make(chan protocol.Conn, 32),
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -50,23 +35,13 @@ func NewServer(config *ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) Accept() (protocol.Conn, error) {
-	select {
-	case <-s.ctx.Done():
-		// 以防信道里面还有连接未取走
-		select {
-		case conn := <-s.connCh:
-			return conn, nil
-		default:
-			return nil, errors.New("server closed")
-		}
-	case conn := <-s.connCh:
-		return conn, nil
-	}
+func (s *Server) Accept() <-chan protocol.Conn {
+	return s.connCh
 }
 
 func (s *Server) Close() error {
 	s.cancel()
+	close(s.connCh)
 	return nil
 }
 
@@ -108,7 +83,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	s.connCh <- NewConn(conn, dstAddr)
+
+	// in case send on closed channel
+	select {
+	case <-s.ctx.Done():
+		conn.Close()
+		return
+	case s.connCh <- protocol.NewConn(conn, dstAddr):
+	}
 }
 
 func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
@@ -131,7 +113,7 @@ func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO 如果认证失败，如何恰当回应客户端
+	// TODO fallback
 	if gotUUID != wantUUID {
 		return nil, fmt.Errorf("want uuid: %s, got: %s", wantUUID, gotUUID)
 	}

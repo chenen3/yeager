@@ -6,18 +6,19 @@ import (
 	"net"
 )
 
+// Conn is the interface that wrap net.Conn with destination address method
 type Conn interface {
 	net.Conn
-	DstAddr() net.Addr // 入站连接的目标地址
+	DstAddr() net.Addr
 }
 
 type Inbound interface {
-	Accept() (Conn, error)
+	// TODO: Start() ?
+	Accept() <-chan Conn
 	io.Closer
 }
 
 type Outbound interface {
-	// Dial 接收入站连接的目标地址 dstAddr 作为参数
 	Dial(dstAddr net.Addr) (net.Conn, error)
 }
 
@@ -47,4 +48,18 @@ func RegisterOutboundBuilder(name string, b OutboundBuilderFunc) {
 func OutboundBuilder(name string) (OutboundBuilderFunc, bool) {
 	b, ok := outboundBuilders[name]
 	return b, ok
+}
+
+// Connection is an implementation of the Conn interface
+type Connection struct {
+	net.Conn
+	dstAddr net.Addr
+}
+
+func NewConn(conn net.Conn, dstAddr net.Addr) *Connection {
+	return &Connection{Conn: conn, dstAddr: dstAddr}
+}
+
+func (c *Connection) DstAddr() net.Addr {
+	return c.dstAddr
 }
