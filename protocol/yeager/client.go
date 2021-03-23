@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
+	"yeager/protocol"
 
 	"github.com/google/uuid"
 )
@@ -20,7 +20,7 @@ func NewClient(config *ClientConfig) *Client {
 	return &Client{conf: config}
 }
 
-func (c *Client) Dial(dstAddr net.Addr) (net.Conn, error) {
+func (c *Client) Dial(dstAddr *protocol.Address) (net.Conn, error) {
 	conf := &tls.Config{
 		ServerName:         c.conf.Host,
 		InsecureSkipVerify: c.conf.InsecureSkipVerify,
@@ -45,7 +45,7 @@ const (
 	responseSuccess = 0x00
 )
 
-func (c *Client) handshake(conn net.Conn, dstAddr net.Addr) error {
+func (c *Client) handshake(conn net.Conn, dstAddr *protocol.Address) error {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -61,20 +61,19 @@ func (c *Client) handshake(conn net.Conn, dstAddr net.Addr) error {
 	buf.WriteString(sendUUID.String())
 
 	// write destination address
-	addr := newAddress(dstAddr)
-	switch addr.type_ {
-	case addrIPv4:
+	switch dstAddr.Type {
+	case protocol.AddrIPv4:
 		buf.WriteByte(addressIPv4)
-		buf.Write(addr.ip)
-	case addrDomainName:
+		buf.Write(dstAddr.IP)
+	case protocol.AddrDomainName:
 		buf.WriteByte(addressDomain)
-		buf.WriteByte(byte(len(addr.host)))
-		buf.Write([]byte(addr.host))
+		buf.WriteByte(byte(len(dstAddr.Host)))
+		buf.Write([]byte(dstAddr.Host))
 	default:
 		return errors.New("unsupported address type")
 	}
 	var b [2]byte
-	binary.BigEndian.PutUint16(b[:], uint16(addr.port))
+	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
 	buf.Write(b[:])
 
 	_, err = conn.Write(buf.Bytes())
@@ -98,43 +97,4 @@ func (c *Client) handshake(conn net.Conn, dstAddr net.Addr) error {
 	}
 
 	return nil
-}
-
-type addrType int
-
-const (
-	addrIPv4 = iota
-	addrIPv6
-	addrDomainName
-)
-
-type address struct {
-	type_ addrType
-	host  string
-	port  int
-	ip    net.IP
-}
-
-func newAddress(addr net.Addr) *address {
-	host, sport, _ := net.SplitHostPort(addr.String())
-	port, _ := strconv.Atoi(sport)
-
-	ip := net.ParseIP(host)
-	var at addrType
-	if ip == nil {
-		at = addrDomainName
-	} else if ipv4 := ip.To4(); ipv4 != nil {
-		at = addrIPv4
-		ip = ipv4
-	} else {
-		at = addrIPv6
-		ip = ip.To16()
-	}
-
-	return &address{
-		type_: at,
-		host:  host,
-		port:  port,
-		ip:    ip,
-	}
 }

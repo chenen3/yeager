@@ -10,8 +10,5 @@
                 "KeyFile": "/Users/aha/code/yeager/config/dev/key.pem"
             }
         }
-    ],
-    "outbound": {
-        "protocol": "freedom"
-    }
+    ]
 }

@@ -3,6 +3,7 @@ package http
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -96,27 +97,47 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 		return nil, err
 	}
 
-	var addr string
 	if req.Method == "CONNECT" { // https
-		addr = req.Host // 这里host包含端口
-		_, err = fmt.Fprintf(conn, "HTTP/%d.%d 200 Connection established\r\n\r\n", req.ProtoMajor, req.ProtoMinor)
+		// req.host可能包含端口
+		host, port, err := net.SplitHostPort(req.Host)
+		if err != nil {
+			host = req.Host
+			port = "443"
+		}
+		portnum, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, errors.New("invalid port: " + port)
+		}
+		dstAddr := protocol.NewAddress(host, portnum)
+
+		_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
 		if err != nil {
 			return nil, err
 		}
-		// TODO 解析域名的工作留给"按规则分流"做
-		a, _ := net.ResolveTCPAddr("tcp", addr)
-		newConn := protocol.NewConn(conn, a)
+		newConn := protocol.NewConn(conn, dstAddr)
 		return newConn, nil
 	} else { // http
-		addr = net.JoinHostPort(req.Host, "80")
+		// req.host可能包含端口
+		host, port, err := net.SplitHostPort(req.Host)
+		if err != nil {
+			host = req.Host
+			port = "80"
+		}
+		portnum, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, errors.New("invalid port: " + port)
+		}
+		dstAddr := protocol.NewAddress(host, portnum)
+
 		pipeReader, pipeWriter := io.Pipe()
-		newConn := &Conn{
+		newConn := &pipeConn{
 			Conn:       conn,
-			dstAddr:    addr,
+			dstAddr:    dstAddr,
 			pipeReader: pipeReader,
 			pipeWriter: pipeWriter,
 		}
-		go func(newConn *Conn) {
+		go func(newConn *pipeConn) {
+			// 对于HTTP代理请求，需要先行把请求数据转发一遍
 			if err := req.Write(newConn.pipeWriter); err != nil {
 				log.Error(err)
 			}
@@ -126,21 +147,19 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 	}
 }
 
-type Conn struct {
+type pipeConn struct {
 	net.Conn
-	dstAddr    string
+	dstAddr    *protocol.Address
 	pipeReader *io.PipeReader
 	pipeWriter *io.PipeWriter
 	pipeDone   bool
 }
 
-func (c *Conn) DstAddr() net.Addr {
-	// TODO: do not resolve domain
-	a, _ := net.ResolveTCPAddr("tcp", c.dstAddr)
-	return a
+func (c *pipeConn) DstAddr() *protocol.Address {
+	return c.dstAddr
 }
 
-func (c *Conn) Read(p []byte) (n int, err error) {
+func (c *pipeConn) Read(p []byte) (n int, err error) {
 	if c.pipeDone {
 		return c.Conn.Read(p)
 	}
@@ -161,7 +180,7 @@ func (c *Conn) Read(p []byte) (n int, err error) {
 	}
 }
 
-func (c *Conn) Close() error {
+func (c *pipeConn) Close() error {
 	c.pipeWriter.Close()
 	c.pipeReader.Close()
 	return c.Conn.Close()

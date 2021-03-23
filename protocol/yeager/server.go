@@ -93,7 +93,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
+func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -118,7 +118,7 @@ func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
 		return nil, fmt.Errorf("want uuid: %s, got: %s", wantUUID, gotUUID)
 	}
 
-	var addr string
+	var host string
 	switch atyp {
 	case addressIPv4:
 		var buf [4]byte
@@ -126,7 +126,7 @@ func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
 		if err != nil {
 			return nil, err
 		}
-		addr = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
+		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case addressDomain:
 		var buf [1]byte
 		_, err = io.ReadFull(conn, buf[:])
@@ -140,7 +140,7 @@ func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
 		if err != nil {
 			return nil, err
 		}
-		addr = string(bs)
+		host = string(bs)
 	default:
 		return nil, fmt.Errorf("unsupported address type: %x", atyp)
 	}
@@ -152,10 +152,6 @@ func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
 	}
 	port := binary.BigEndian.Uint16(bs[:])
 
-	dstAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", addr, port))
-	if err != nil {
-		return nil, err
-	}
 	/*
 		服务端回应格式(以字节为单位):
 		VER	REP
@@ -166,5 +162,6 @@ func (s *Server) handshake(conn net.Conn) (dstAddr net.Addr, err error) {
 		return nil, err
 	}
 
+	dstAddr = protocol.NewAddress(host, int(port))
 	return dstAddr, nil
 }

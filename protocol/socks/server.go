@@ -85,7 +85,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) handshake(conn net.Conn) (dst net.Addr, err error) {
+func (s *Server) handshake(conn net.Conn) (dst *protocol.Address, err error) {
 	err = s.socksAuth(conn)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (s *Server) socksAuth(conn net.Conn) error {
 	return nil
 }
 
-func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
+func (s *Server) socksConnect(conn net.Conn) (dstAddr *protocol.Address, err error) {
 	var buf [4]byte
 	/*
 		客户端第二次请求格式(以字节为单位):
@@ -191,10 +191,6 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
 	}
 	port := binary.BigEndian.Uint16(portBuf[:])
 
-	dstAddr, err = net.ResolveTCPAddr("tcp", net.JoinHostPort(host, strconv.Itoa(int(port))))
-	if err != nil {
-		return nil, err
-	}
 	/*
 		服务器第二次回复格式（以字节为单位）：
 		VER	REP	RSV		ATYP	BND.ADDR	BND.PORT
@@ -205,5 +201,6 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr net.Addr, err error) {
 		return nil, err
 	}
 
+	dstAddr = protocol.NewAddress(host, int(port))
 	return dstAddr, nil
 }
