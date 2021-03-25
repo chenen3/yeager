@@ -31,11 +31,13 @@ func NewProxy(c config.Config) (*Proxy, error) {
 		p.inbounds = append(p.inbounds, inbound)
 	}
 
-	outbound, err := protocol.BuildOutbound(c.Outbound)
-	if err != nil {
-		return nil, err
+	if c.Outbound.Protocol != "" {
+		outbound, err := protocol.BuildOutbound(c.Outbound)
+		if err != nil {
+			return nil, err
+		}
+		p.outbounds[route.PolicyProxy] = outbound
 	}
-	p.outbounds[route.PolicyProxy] = outbound
 
 	// built-in proxy policy: direct and reject
 	directOutbound, err := protocol.BuildOutbound(config.Proto{Protocol: "direct"})
@@ -84,7 +86,6 @@ func (p *Proxy) Start() error {
 	for {
 		select {
 		case conn := <-connCh:
-			glog.Println("accepted", conn.DstAddr())
 			go p.handleConnection(conn)
 		case <-p.ctx.Done():
 			// in case connections left unhandled
@@ -106,6 +107,7 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 		log.Errorf("unknown outbound proxy policy: %s", policy)
 		return
 	}
+	glog.Printf("accepted %s [%s]\n", inConn.DstAddr(), policy)
 	outConn, err := outbound.Dial(inConn.DstAddr())
 	if err != nil {
 		if err != reject.Err {

@@ -3,14 +3,12 @@
         {
             "protocol": "socks",
             "setting": {
-                "host": "0.0.0.0",
                 "port": 1080
             }
         },
         {
             "protocol": "http",
             "setting": {
-                "host": "0.0.0.0",
                 "port": 8000
             }
         }
@@ -18,20 +16,17 @@
     "outbound": {
         "protocol": "yeager",
         "setting": {
-            "host": "0.0.0.0",
             "port": 3001,
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "insecureSkipVerify": true
         }
     },
     "rules": [
-        "DOMAIN,www.apple.com,direct",
-        "DOMAIN-SUFFIX,apple.com,direct",
-        "DOMAIN-KEYWORD,apple,direct",
-        "GEOSITE,private,direct",
-        "IP,127.0.0.1,DIRECT",
-        "GEOIP,cn,DIRECT",
+        "GEOSITE,private,DIRECT",
+        "GEOSITE,apple,DIRECT",
+        "GEOSITE,cn,DIRECT",
         "GEOIP,private,DIRECT",
-        "FINAL,proxy"
+        "GEOIP,cn,DIRECT",
+        "FINAL,PROXY"
     ]
 }

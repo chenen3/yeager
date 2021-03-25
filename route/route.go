@@ -19,20 +19,27 @@ const (
 type ruleType string
 
 const (
-	ruleDomain        ruleType = "DOMAIN"         // 精确域名
-	ruleDomainSuffix  ruleType = "DOMAIN-SUFFIX"  // 子域名
-	ruleDomainKeyword ruleType = "DOMAIN-KEYWORD" // 域名关键字
-	ruleGEOSITE       ruleType = "GEOSITE"        // 预定义域名，参见v2ray的domain-list-community
-	ruleIP            ruleType = "IP"             // 精确IP
-	ruleGEOIP         ruleType = "GEOIP"          // 预定义IP，参见v2ray的GEOIP
-	ruleFinal         ruleType = "FINAL"          // 最终规则
+	ruleDomain        ruleType = "domain"         // 精确域名
+	ruleDomainSuffix  ruleType = "domain-suffix"  // 根域名
+	ruleDomainKeyword ruleType = "domain-keyword" // 域名关键字
+	ruleGeoSite       ruleType = "geosite"        // 预定义域名，参考v2ray的domain-list-community
+	ruleIP            ruleType = "ip"             // 精确IP
+	ruleGeoIP         ruleType = "geoip"          // 预定义IP集，参考v2ray的geoip
+	ruleFinal         ruleType = "final"          // 最终规则
 )
+
+const (
+	geoIpFile   = "/usr/local/share/v2ray/geoip.dat"
+	geoSiteFile = "/usr/local/share/v2ray/geosite.dat"
+)
+
+var defaultFinalRule, _ = newRule(ruleFinal, "", PolicyDirect)
 
 type rule struct {
 	type_   ruleType
 	value   string
 	policy  PolicyType
-	matcher matcher // todo
+	matcher matcher
 }
 
 func newRule(rt ruleType, value string, pt PolicyType) (*rule, error) {
@@ -48,7 +55,19 @@ func newRule(rt ruleType, value string, pt PolicyType) (*rule, error) {
 }
 
 func (r *rule) Match(addr *protocol.Address) bool {
-	return r.matcher.Match(addr.Host)
+	switch r.type_ {
+	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
+		if addr.Type != protocol.AddrDomainName {
+			return false
+		}
+	case ruleIP, ruleGeoIP:
+		if addr.Type != protocol.AddrIPv4 {
+			// ipv6 not supported yet
+			return false
+		}
+	}
+
+	return r.matcher.Match(addr)
 }
 
 type Router struct {
@@ -56,10 +75,8 @@ type Router struct {
 	cache sync.Map
 }
 
-var defaultFinalRule, _ = newRule(ruleFinal, "", PolicyProxy)
-
 // 规则格式分两种：
-// - 普通规则: ruleType,value,policyType  其中value的形式参考v2ray路由规则
+// - 普通规则: ruleType,value,policyType
 // - 最终规则: FINAL,policyType
 func NewRouter(rules []string) (*Router, error) {
 	r := &Router{rules: []*rule{defaultFinalRule}}
@@ -67,16 +84,27 @@ func NewRouter(rules []string) (*Router, error) {
 		return r, nil
 	}
 
+	err := loadGeoIpFile(geoIpFile)
+	if err != nil {
+		return nil, err
+	}
+	err = loadGeoSiteFile(geoSiteFile)
+	if err != nil {
+		return nil, err
+	}
+
 	parsedRules := make([]*rule, 0, len(rules))
 	for i, rawRule := range rules {
 		var ru *rule
 		var err error
 		parts := strings.Split(rawRule, ",")
-		if i == len(rules)-1 && strings.Contains(rawRule, string(ruleFinal)) {
+		if i == len(rules)-1 && strings.Index(rawRule, string(ruleFinal)) == 0 {
 			if len(parts) != 2 {
 				return nil, errors.New("invalid final rule: " + rawRule)
 			}
-			ru, err = newRule(ruleType(parts[0]), "", PolicyType(parts[1]))
+			rawRuleType := strings.ToLower(parts[0])
+			rawPolicyType := strings.ToLower(parts[1])
+			ru, err = newRule(ruleType(rawRuleType), "", PolicyType(rawPolicyType))
 			if err != nil {
 				return nil, err
 			}
@@ -84,7 +112,13 @@ func NewRouter(rules []string) (*Router, error) {
 			if len(parts) != 3 {
 				return nil, errors.New("invalid regular rule: " + rawRule)
 			}
-			ru, err = newRule(ruleType(parts[0]), parts[1], PolicyType(parts[2]))
+			rawRuleType := strings.ToLower(parts[0])
+			rawRuleValue := parts[1]
+			if rawRuleValue == "" {
+				return nil, errors.New("empty rule value: " + rawRule)
+			}
+			rawPolicyType := strings.ToLower(parts[2])
+			ru, err = newRule(ruleType(rawRuleType), rawRuleValue, PolicyType(rawPolicyType))
 			if err != nil {
 				return nil, err
 			}

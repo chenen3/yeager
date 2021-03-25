@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-var std = log.New(os.Stderr, "", log.LstdFlags|log.Llongfile)
+var std = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
 
 func Error(v ...interface{}) {
 	nv := []interface{}{"ERROR: "}
