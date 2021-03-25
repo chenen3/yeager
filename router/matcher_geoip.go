@@ -1,34 +1,47 @@
-package route
+package router
 
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/v2fly/v2ray-core/v4/app/router"
+	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"sort"
 	"strings"
-
-	"github.com/v2fly/v2ray-core/v4/app/router"
-	"google.golang.org/protobuf/proto"
 	"yeager/protocol"
 )
 
-var geo2CIDR = make(map[string][]*router.CIDR)
+var geoIpFiles []string
 
-func loadGeoIpFile(filename string) error {
-	geoIPList := new(router.GeoIPList)
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
+func RegisterGeoIpFile(filenames ...string) {
+	geoIpFiles = append(geoIpFiles, filenames...)
+}
+
+func loadGeoIp(country string) ([]*router.CIDR, error) {
+	var data []byte
+	var err error
+	for _, filename := range geoIpFiles {
+		data, err = ioutil.ReadFile(filename)
+		if err != nil {
+			continue
+		}
 	}
-	err = proto.Unmarshal(data, geoIPList)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	var geoIPList router.GeoIPList
+	err = proto.Unmarshal(data, &geoIPList)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, geoip := range geoIPList.Entry {
-		geo2CIDR[strings.ToLower(geoip.CountryCode)] = geoip.Cidr
+		if strings.EqualFold(geoip.CountryCode, country) {
+			return geoip.Cidr, nil
+		}
 	}
-	return nil
+	return nil, errors.New("unsupported geoip country: " + country)
 }
 
 type geoIPMatcher struct {
@@ -38,9 +51,9 @@ type geoIPMatcher struct {
 }
 
 func newGeoIPMatcher(country string) (*geoIPMatcher, error) {
-	cidrs, ok := geo2CIDR[country]
-	if !ok {
-		return nil, errors.New("unsupported country code: " + country)
+	cidrs, err := loadGeoIp(country)
+	if err != nil {
+		return nil, err
 	}
 	cidrList := router.CIDRList(cidrs)
 	sort.Sort(&cidrList)

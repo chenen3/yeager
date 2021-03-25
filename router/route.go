@@ -1,4 +1,4 @@
-package route
+package router
 
 import (
 	"errors"
@@ -26,11 +26,6 @@ const (
 	ruleIP            ruleType = "ip"             // 精确IP
 	ruleGeoIP         ruleType = "geoip"          // 预定义IP集，参考v2ray的geoip
 	ruleFinal         ruleType = "final"          // 最终规则
-)
-
-const (
-	geoIpFile   = "/usr/local/share/v2ray/geoip.dat"
-	geoSiteFile = "/usr/local/share/v2ray/geosite.dat"
 )
 
 var defaultFinalRule, _ = newRule(ruleFinal, "", PolicyDirect)
@@ -84,21 +79,12 @@ func NewRouter(rules []string) (*Router, error) {
 		return r, nil
 	}
 
-	err := loadGeoIpFile(geoIpFile)
-	if err != nil {
-		return nil, err
-	}
-	err = loadGeoSiteFile(geoSiteFile)
-	if err != nil {
-		return nil, err
-	}
-
 	parsedRules := make([]*rule, 0, len(rules))
 	for i, rawRule := range rules {
 		var ru *rule
 		var err error
 		parts := strings.Split(rawRule, ",")
-		if i == len(rules)-1 && strings.Index(rawRule, string(ruleFinal)) == 0 {
+		if i == len(rules)-1 && strings.Index(strings.ToLower(rawRule), string(ruleFinal)) == 0 {
 			if len(parts) != 2 {
 				return nil, errors.New("invalid final rule: " + rawRule)
 			}

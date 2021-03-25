@@ -13,7 +13,7 @@ import (
 	"yeager/protocol/reject"
 	_ "yeager/protocol/socks"
 	_ "yeager/protocol/yeager"
-	"yeager/route"
+	"yeager/router"
 )
 
 func NewProxy(c config.Config) (*Proxy, error) {
@@ -21,7 +21,7 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	p := &Proxy{
 		ctx:       ctx,
 		cancel:    cancel,
-		outbounds: make(map[route.PolicyType]protocol.Outbound, 3),
+		outbounds: make(map[router.PolicyType]protocol.Outbound, 3),
 	}
 	for _, inboundConf := range c.Inbounds {
 		inbound, err := protocol.BuildInbound(inboundConf)
@@ -36,7 +36,7 @@ func NewProxy(c config.Config) (*Proxy, error) {
 		if err != nil {
 			return nil, err
 		}
-		p.outbounds[route.PolicyProxy] = outbound
+		p.outbounds[router.PolicyProxy] = outbound
 	}
 
 	// built-in proxy policy: direct and reject
@@ -44,14 +44,14 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.outbounds[route.PolicyDirect] = directOutbound
+	p.outbounds[router.PolicyDirect] = directOutbound
 	rejectOutbound, err := protocol.BuildOutbound(config.Proto{Protocol: "reject"})
 	if err != nil {
 		return nil, err
 	}
-	p.outbounds[route.PolicyReject] = rejectOutbound
+	p.outbounds[router.PolicyReject] = rejectOutbound
 
-	router, err := route.NewRouter(c.Rules)
+	router, err := router.NewRouter(c.Rules)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +61,8 @@ func NewProxy(c config.Config) (*Proxy, error) {
 
 type Proxy struct {
 	inbounds  []protocol.Inbound
-	outbounds map[route.PolicyType]protocol.Outbound
-	router    *route.Router
+	outbounds map[router.PolicyType]protocol.Outbound
+	router    *router.Router
 	ctx       context.Context
 	cancel    context.CancelFunc
 }

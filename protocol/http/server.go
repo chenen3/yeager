@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	glog "log"
 	"net"
 	"net/http"
 	"strconv"
@@ -21,7 +22,6 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-// TODO: 是否接收context参数？
 func NewServer(conf *Config) *Server {
 	s := &Server{
 		conf:   conf,
@@ -54,6 +54,7 @@ func (s *Server) listenAndServe() error {
 		return err
 	}
 	defer ln.Close()
+	glog.Println("http proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 
 	for {
 		select {

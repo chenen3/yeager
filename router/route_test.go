@@ -1,9 +1,16 @@
-package route
+package router
 
 import (
+	"os"
 	"testing"
 	"yeager/protocol"
 )
+
+func TestMain(m *testing.M) {
+	RegisterGeoIpFile("../release/geoip.dat")
+	RegisterGeoSiteFile("../release/geosite.dat")
+	os.Exit(m.Run())
+}
 
 func TestRouter_Dispatch(t *testing.T) {
 	type fields struct {
@@ -28,32 +35,35 @@ func TestRouter_Dispatch(t *testing.T) {
 			want: "fakepolicy",
 		},
 		{
-			name:   "domain-suffix",
-			fields: fields{rules: []string{"domain-suffix,apple.com,fakepolicy"},},
-			args:   args{addr: protocol.NewAddress("www.apple.com", 80)},
-			want:   "fakepolicy",
+			name: "domain-suffix",
+			fields: fields{rules: []string{
+				"domain-suffix,le.com,direct",
+				"final,fakepolicy",
+			}},
+			args: args{addr: protocol.NewAddress("www.google.com", 443)},
+			want: "fakepolicy",
 		},
 		{
 			name:   "domain-keyword",
-			fields: fields{rules: []string{"domain-keyword,apple,fakepolicy"},},
+			fields: fields{rules: []string{"domain-keyword,apple,fakepolicy"}},
 			args:   args{addr: protocol.NewAddress("www.apple.com", 80)},
 			want:   "fakepolicy",
 		},
 		{
 			name:   "geosite",
-			fields: fields{rules: []string{"geosite,private,fakepolicy"},},
+			fields: fields{rules: []string{"geosite,private,fakepolicy"}},
 			args:   args{addr: protocol.NewAddress("localhost", 80)},
 			want:   "fakepolicy",
 		},
 		{
 			name:   "ip",
-			fields: fields{rules: []string{"ip,127.0.0.1,fakepolicy"},},
+			fields: fields{rules: []string{"ip,127.0.0.1,fakepolicy"}},
 			args:   args{addr: protocol.NewAddress("127.0.0.1", 80)},
 			want:   "fakepolicy",
 		},
 		{
 			name:   "geoip",
-			fields: fields{rules: []string{"geoip,private,fakepolicy"},},
+			fields: fields{rules: []string{"geoip,private,fakepolicy"}},
 			args:   args{addr: protocol.NewAddress("192.168.1.1", 80)},
 			want:   "fakepolicy",
 		},
@@ -63,6 +73,7 @@ func TestRouter_Dispatch(t *testing.T) {
 			r, err := NewRouter(tt.fields.rules)
 			if err != nil {
 				t.Error(err)
+				return
 			}
 			if got := r.Dispatch(tt.args.addr); got != tt.want {
 				t.Errorf("Dispatch() = %v, want %v", got, tt.want)

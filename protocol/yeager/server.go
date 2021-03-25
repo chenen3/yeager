@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	glog "log"
 	"net"
 	"strconv"
 
@@ -59,6 +60,7 @@ func (s *Server) listenAndServe() error {
 		return err
 	}
 	defer ln.Close()
+	glog.Println("yeager proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 
 	for {
 		select {
