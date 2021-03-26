@@ -16,7 +16,6 @@ type Conn interface {
 }
 
 type Inbound interface {
-	// TODO: Start() ?
 	Accept() <-chan Conn
 	io.Closer
 }
