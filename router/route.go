@@ -129,6 +129,5 @@ func (r *Router) Dispatch(addr *protocol.Address) PolicyType {
 		}
 	}
 
-	// 为了编译成功才写这个return语句，因为r.rules的 FINAL 规则一定匹配成功，实际在上面已 return
 	return defaultFinalRule.policy
 }
