@@ -4,13 +4,23 @@ A proxy aims to bypass network restriction.  Inspired by v2ray and trojan-go, fo
 
 ## Installation
 
-### via docker
+Please ensure you have docker installed.
 
-// TODO
+For local machine, place the `config.json` in `/usr/local/etc/yeager`, then:
 
-### via brew
+```sh
+docker pull en180706/yeager
+# assuming you want to expose ports 10800 and 10801 on host
+docker run -d --name yeager -p 10800:10800 -p 10801:10801 -v /usr/local/etc/yeager:/user/local/etc/yeager en180706/yeager
+```
 
-// TODO
+For remote machine(eg. VPS), place the config files in `/usr/local/etc/yeager` , includes `config.json`, `your-certificate-file` and `your-key-file`, then:
+
+```sh
+docker pull en180706/yeager
+# assuming you want to expose port 443 on host
+docker run -d --name yeager -p 443:443 -v /usr/local/etc/yeager:/user/local/etc/yeager en180706/yeager
+```
 
 ## Configuration
 
@@ -38,7 +48,7 @@ Example for local machine:
         "protocol": "yeager",
         "setting": {
             "host": "example.com",// replace with your domain name
-            "port": 10802,
+            "port": 443,
             "uuid": "" // fill in UUID
         }
     },
@@ -77,7 +87,7 @@ Example for remote machine(eg. VPS):
         {
             "protocol": "yeager",
             "setting": {
-                "port": 10802,
+                "port": 443,
                 "uuid": "", // fill in UUID
                 "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
                 "KeyFile": "/path/to/key.pem"// replace with absolute path of key
@@ -87,5 +97,7 @@ Example for remote machine(eg. VPS):
 }
 ```
 
-The configuration file usually placed in path `/usr/local/etc/yeager/config.json`
+The configuration file usually placed in path `/usr/local/etc/yeager/config.json.`
+
+There is a simple command generating UUID: `uuidgen`
 

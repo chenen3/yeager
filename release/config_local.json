@@ -19,7 +19,7 @@
         "protocol": "yeager",
         "setting": {
             "host": "example.com",// replace with your domain name
-            "port": 10802,
+            "port": 443,
             "uuid": "" // fill in UUID
         }
     },
