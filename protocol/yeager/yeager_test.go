@@ -89,19 +89,10 @@ func TestService(t *testing.T) {
 	}
 	defer server.Close()
 
-	srvCh := make(chan protocol.Conn, 1)
-	go func() {
-		sconn, err := server.Accept()
-		if err != nil {
-			t.Error(err)
-			srvCh <- nil
-			return
-		}
-		srvCh <- sconn
-	}()
+	srvCh := server.Accept()
 
 	time.Sleep(time.Millisecond)
-	cconn, err := client.Dial(ln.Addr())
+	cconn, err := client.Dial(protocol.NewAddress(host, port))
 	if err != nil {
 		t.Fatal(err)
 	}

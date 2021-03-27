@@ -7,8 +7,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	RegisterGeoIpFile("../release/geoip.dat")
-	RegisterGeoSiteFile("../release/geosite.dat")
+	RegisterAssetsDir("../release")
 	os.Exit(m.Run())
 }
 

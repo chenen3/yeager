@@ -1,0 +1,13 @@
+{
+    "inbounds": [
+        {
+            "protocol": "yeager",
+            "setting": {
+                "port": 3001,
+                "uuid": "", // 填写UUID
+                "certFile": "/path/to/cert.pem", // 换成证书的绝对路径
+                "KeyFile": "/path/to/key.pem"// 换成密钥的绝对路径
+            }
+        }
+    ]
+}

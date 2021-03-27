@@ -3,25 +3,27 @@ package router
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/v2fly/v2ray-core/v4/app/router"
-	"google.golang.org/protobuf/proto"
 	"io/ioutil"
+	"path"
 	"sort"
 	"strings"
+
+	"github.com/v2fly/v2ray-core/v4/app/router"
+	"google.golang.org/protobuf/proto"
 	"yeager/protocol"
 )
 
-var geoIpFiles []string
+var assetDirs []string
 
-func RegisterGeoIpFile(filenames ...string) {
-	geoIpFiles = append(geoIpFiles, filenames...)
+func RegisterAssetsDir(dir ...string) {
+	assetDirs = append(assetDirs, dir...)
 }
 
 func loadGeoIp(country string) ([]*router.CIDR, error) {
 	var data []byte
 	var err error
-	for _, filename := range geoIpFiles {
-		data, err = ioutil.ReadFile(filename)
+	for _, dir := range assetDirs {
+		data, err = ioutil.ReadFile(path.Join(dir, "geoip.dat"))
 		if err != nil {
 			continue
 		}

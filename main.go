@@ -17,14 +17,9 @@ var confFile = flag.String("config", "/usr/local/etc/yeager/config.json", "confi
 func main() {
 	flag.Parse()
 
-	router.RegisterGeoIpFile(
-		"release/geoip.dat", // developer test
-		"/usr/local/share/yeager/geoip.dat",
-	)
-
-	router.RegisterGeoSiteFile(
-		"release/geosite.dat", // developer test
-		"/usr/local/share/yeager/geosite.dat",
+	router.RegisterAssetsDir(
+		"release", // developer test
+		"/usr/local/share/yeager",
 	)
 
 	conf, err := config.Load(*confFile)

@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"io/ioutil"
+	"path"
 	"strings"
 
 	"github.com/v2fly/v2ray-core/v4/app/router"
@@ -10,18 +11,12 @@ import (
 	"yeager/protocol"
 )
 
-var geoSiteFiles []string
-
-func RegisterGeoSiteFile(filenames ...string) {
-	geoSiteFiles = append(geoSiteFiles, filenames...)
-}
-
 func loadGeoSiteFile(country string) ([]*router.Domain, error) {
 	geositeList := new(router.GeoSiteList)
 	var data []byte
 	var err error
-	for _, filename := range geoSiteFiles {
-		data, err = ioutil.ReadFile(filename)
+	for _, dir := range assetDirs {
+		data, err = ioutil.ReadFile(path.Join(dir, "geosite.dat"))
 		if err != nil {
 			continue
 		}
