@@ -9,7 +9,6 @@ Please ensure you have docker installed.
 For local machine, place the `config.json` in `/usr/local/etc/yeager`, then:
 
 ```sh
-docker pull en180706/yeager
 # assuming you want to expose ports 10800 and 10801 on host
 docker run -d --name yeager -p 10800:10800 -p 10801:10801 -v /usr/local/etc/yeager:/user/local/etc/yeager en180706/yeager
 ```
@@ -17,7 +16,6 @@ docker run -d --name yeager -p 10800:10800 -p 10801:10801 -v /usr/local/etc/yeag
 For remote machine(eg. VPS), place the config files in `/usr/local/etc/yeager` , includes `config.json`, `your-certificate-file` and `your-key-file`, then:
 
 ```sh
-docker pull en180706/yeager
 # assuming you want to expose port 443 on host
 docker run -d --name yeager -p 443:443 -v /usr/local/etc/yeager:/user/local/etc/yeager en180706/yeager
 ```
