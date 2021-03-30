@@ -10,14 +10,18 @@ For local machine, place the `config.json` in `/usr/local/etc/yeager`, then:
 
 ```sh
 # assuming you want to expose ports 10800 and 10801 on host
-docker run -d --name yeager -p 10800:10800 -p 10801:10801 -v /usr/local/etc/yeager:/usr/local/etc/yeager en180706/yeager
+docker run -d --restart=always --name yeager -p 10800:10800 -p 10801:10801 -v /usr/local/etc/yeager:/usr/local/etc/yeager en180706/yeager
 ```
 
 For remote machine(eg. VPS), place the config files in `/usr/local/etc/yeager` , includes `config.json`, `your-certificate-file` and `your-key-file`, then:
 
 ```sh
-# assuming you want to expose port 443 on host
-docker run -d --name yeager -p 443:443 -v /usr/local/etc/yeager:/usr/local/etc/yeager en180706/yeager
+# prepare your domain which resolve to this machine and apply domain certificate.(eg. let's encrypt)
+# install nginx (or any other web server), nginx will listen on port 80
+apt install nginx
+systemctl enable nginx
+systemctl start nginx
+docker run -d --restart=always --name yeager -p 443:443 -v /usr/local/etc/yeager:/usr/local/etc/yeager en180706/yeager
 ```
 
 ## Configuration
@@ -90,6 +94,7 @@ Example for remote machine(eg. VPS):
                 "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
                 "keyFile": "/path/to/key.pem", // replace with absolute path of key
                 "fallback": {
+                    "host": "example.com", // if deploy via docker then replace with your domain name or IP
                     "port": 80
                 }
             }
@@ -100,5 +105,5 @@ Example for remote machine(eg. VPS):
 
 The configuration file usually placed in path `/usr/local/etc/yeager/config.json.`
 
-There is a simple command generating UUID: `uuidgen`
+There is a simple command to generate UUID: `uuidgen`
 
