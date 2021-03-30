@@ -176,6 +176,8 @@ func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error)
 	return dstAddr, nil
 }
 
+// fallback connect to target directly, does not go through the router,
+// to keep these code simple and clear
 func (s *Server) fallback(conn net.Conn) error {
 	if s.conf.Fallback == nil {
 		return errors.New("no fallback config")
