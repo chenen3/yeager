@@ -21,7 +21,6 @@ type ServerConfig struct {
 	KeyFile  string    `json:"keyFile"`
 	Fallback *fallback `json:"fallback"` // while auth fail, fallback to HTTP server, such as nginx
 
-	// TODO: tidy
 	certPEMBlock []byte
 	keyPEMBlock  []byte
 }
