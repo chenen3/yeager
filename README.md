@@ -1,6 +1,6 @@
 # yeager
 
-A proxy aims to bypass network restriction.  Inspired by v2ray and trojan-go, for personal practising purpose, only implement the basic features: TCP based proxy and routing. Beside customize rule, the  router also support [domain-list-community](https://github.com/v2fly/domain-list-community/tree/master/data) and [geoip](https://github.com/v2fly/geoip)
+A proxy aims to bypass network restriction.  Inspired by [v2ray](https://github.com/v2fly/v2ray-core), [trojan](https://github.com/trojan-gfw/trojan) and [trojan-go](https://github.com/p4gefau1t/trojan-go), for personal practising purpose, only implement the basic features: TCP based proxy and routing. Beside customize rule, the  router also support [domain-list-community](https://github.com/v2fly/domain-list-community/tree/master/data) and [geoip](https://github.com/v2fly/geoip)
 
 ## Installation
 
@@ -88,7 +88,10 @@ Example for remote machine(eg. VPS):
                 "port": 443,
                 "uuid": "", // fill in UUID
                 "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
-                "KeyFile": "/path/to/key.pem"// replace with absolute path of key
+                "keyFile": "/path/to/key.pem", // replace with absolute path of key
+                "fallback": {
+                    "port": 80
+                }
             }
         }
     ]

@@ -14,14 +14,21 @@ type ClientConfig struct {
 }
 
 type ServerConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	UUID     string `json:"uuid"`
-	CertFile string `json:"certFile"`
-	KeyFile  string `json:"keyFile"`
+	Host     string    `json:"host"`
+	Port     int       `json:"port"`
+	UUID     string    `json:"uuid"`
+	CertFile string    `json:"certFile"`
+	KeyFile  string    `json:"keyFile"`
+	Fallback *fallback `json:"fallback"` // while auth fail, fallback to HTTP server, such as nginx
 
+	// TODO: tidy
 	certPEMBlock []byte
 	keyPEMBlock  []byte
+}
+
+type fallback struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
@@ -39,6 +46,7 @@ func (s *ServerConfig) UnmarshalJSON(data []byte) error {
 	s.Host = a.Host
 	s.Port = a.Port
 	s.UUID = a.UUID
+	s.Fallback = a.Fallback
 	s.certPEMBlock, err = ioutil.ReadFile(a.CertFile)
 	if err != nil {
 		return err

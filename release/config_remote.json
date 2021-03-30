@@ -6,7 +6,10 @@
                 "port": 443,
                 "uuid": "", // fill in UUID
                 "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
-                "KeyFile": "/path/to/key.pem"// replace with absolute path of key
+                "keyFile": "/path/to/key.pem", // replace with absolute path of key
+                "fallback": {
+                    "port": 80
+                }
             }
         }
     ]

@@ -1,7 +1,15 @@
 package yeager
 
 import (
+	"crypto/tls"
+	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 	"yeager/protocol"
@@ -58,49 +66,76 @@ FrU7u8m1bVe7FzwsfDLbsTw=
 -----END RSA PRIVATE KEY-----
 `
 
-func TestService(t *testing.T) {
-	// 为了获取随机端口
-	ln, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+var (
+	fallbackServer *httptest.Server
+	fallbackRes    = "ok"
+)
+
+func TestMain(m *testing.M) {
+	fallbackServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, fallbackRes)
+	}))
+	code := m.Run()
+	fallbackServer.Close()
+	os.Exit(code)
+}
+
+func randomPort() int {
+	ln, _ := net.Listen("tcp", "localhost:0")
 	ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+func newYeagerServer() (*Server, error) {
+	fbURL, err := url.Parse(fallbackServer.URL)
+	if err != nil {
+		return nil, err
+	}
+	fbPort, _ := strconv.Atoi(fbURL.Port())
+
 	host := "localhost"
-	port := ln.Addr().(*net.TCPAddr).Port
-
+	port := randomPort()
 	uuid := "ce9f7ded-027c-e7b3-9369-308b7208d498"
-
-	client := NewClient(&ClientConfig{
-		Host:               host,
-		Port:               port,
-		UUID:               uuid,
-		InsecureSkipVerify: true,
-	})
-
-	server, err := NewServer(&ServerConfig{
+	return NewServer(&ServerConfig{
 		Host:         host,
 		Port:         port,
 		UUID:         uuid,
 		certPEMBlock: []byte(certPEM),
 		keyPEMBlock:  []byte(keyPEM),
+		Fallback: &fallback{
+			Host: fbURL.Hostname(),
+			Port: fbPort,
+		},
 	})
+}
+
+func TestYeager(t *testing.T) {
+	server, err := newYeagerServer()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer server.Close()
-
 	srvCh := server.Accept()
 
+	client := NewClient(&ClientConfig{
+		Host:               server.conf.Host,
+		Port:               server.conf.Port,
+		UUID:               server.conf.UUID,
+		InsecureSkipVerify: true,
+	})
+
 	time.Sleep(time.Millisecond)
-	cconn, err := client.Dial(protocol.NewAddress(host, port))
+	cconn, err := client.Dial(protocol.NewAddress("localhost", 0))
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer cconn.Close()
 
 	sconn := <-srvCh
 	if sconn == nil {
 		return
 	}
+	defer sconn.Close()
 
 	buf := make([]byte, 6)
 	if _, err := sconn.Write([]byte("foobar")); err != nil {
@@ -108,5 +143,32 @@ func TestService(t *testing.T) {
 	}
 	if n, err := cconn.Read(buf); n != 6 || err != nil || string(buf) != "foobar" {
 		t.Fatalf("Read = %d, %v, data %q; want 6, nil, foobar", n, err, buf)
+	}
+}
+
+func TestFallback(t *testing.T) {
+	server, err := newYeagerServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	time.Sleep(time.Second)
+
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	resp, err := client.Get(fmt.Sprintf("https://%s:%d", server.conf.Host, server.conf.Port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	bs, err := ioutil.ReadAll(resp.Body)
+	if err != nil || string(bs) != fallbackRes {
+		t.Fatalf("ReadAll = %s, %v; want ok, nil", bs, err)
 	}
 }
