@@ -99,10 +99,9 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 	}
 
 	if req.Method == "CONNECT" { // https
-		// req.host可能包含端口
-		host, port, err := net.SplitHostPort(req.Host)
-		if err != nil {
-			host = req.Host
+		host := req.URL.Hostname()
+		port := req.URL.Port()
+		if port == "" {
 			port = "443"
 		}
 		portnum, err := strconv.Atoi(port)
@@ -118,10 +117,9 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 		newConn := protocol.NewConn(conn, dstAddr)
 		return newConn, nil
 	} else { // http
-		// req.host可能包含端口
-		host, port, err := net.SplitHostPort(req.Host)
-		if err != nil {
-			host = req.Host
+		host := req.URL.Hostname()
+		port := req.URL.Port()
+		if port == "" {
 			port = "80"
 		}
 		portnum, err := strconv.Atoi(port)
@@ -130,30 +128,35 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 		}
 		dstAddr := protocol.NewAddress(host, portnum)
 
-		pipeReader, pipeWriter := io.Pipe()
-		newConn := &pipeConn{
-			Conn:       conn,
-			dstAddr:    dstAddr,
-			pipeReader: pipeReader,
-			pipeWriter: pipeWriter,
-		}
-		go func(newConn *pipeConn) {
+		pconn := newPipeConn(conn, dstAddr)
+		go func(pconn *pipeConn) {
 			// 对于HTTP代理请求，需要先行把请求数据转发一遍
-			if err := req.Write(newConn.pipeWriter); err != nil {
+			if err := req.Write(pconn.pipeWriter); err != nil {
 				log.Error(err)
 			}
-			newConn.pipeWriter.Close()
-		}(newConn)
-		return newConn, nil
+			pconn.pipeWriter.Close()
+		}(pconn)
+		return pconn, nil
 	}
 }
 
+// pipeConn implement Reader which read it's pipeReader firstly, then the underlying net.Conn
 type pipeConn struct {
 	net.Conn
 	dstAddr    *protocol.Address
 	pipeReader *io.PipeReader
 	pipeWriter *io.PipeWriter
 	pipeDone   bool
+}
+
+func newPipeConn(conn net.Conn, addr *protocol.Address) *pipeConn {
+	pipeReader, pipeWriter := io.Pipe()
+	return &pipeConn{
+		Conn:       conn,
+		dstAddr:    addr,
+		pipeReader: pipeReader,
+		pipeWriter: pipeWriter,
+	}
 }
 
 func (c *pipeConn) DstAddr() *protocol.Address {

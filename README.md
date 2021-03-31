@@ -4,8 +4,7 @@ A proxy aims to bypass network restriction.  Inspired by [v2ray](https://github.
 
 ## Installation
 
-Please ensure you have docker installed.
-
+### Docker
 For local machine, place the `config.json` in `/usr/local/etc/yeager`, then:
 
 ```sh

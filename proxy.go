@@ -68,7 +68,6 @@ type Proxy struct {
 }
 
 func (p *Proxy) Start() error {
-	// TODO 信道长度，keep-alive
 	connCh := make(chan protocol.Conn, 32)
 	for _, inbound := range p.inbounds {
 		go func(inbound protocol.Inbound, connCh chan<- protocol.Conn) {
