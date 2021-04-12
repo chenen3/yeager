@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"yeager/protocol"
 
 	"github.com/google/uuid"
+	"yeager/protocol"
 )
 
 type Client struct {
