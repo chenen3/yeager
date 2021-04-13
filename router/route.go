@@ -70,50 +70,55 @@ type Router struct {
 	cache sync.Map
 }
 
-// 规则格式分两种：
-// - 普通规则: ruleType,value,policyType
-// - 最终规则: FINAL,policyType
 func NewRouter(rules []string) (*Router, error) {
-	r := &Router{rules: []*rule{defaultFinalRule}}
 	if len(rules) == 0 {
-		return r, nil
+		return &Router{rules: []*rule{defaultFinalRule}}, nil
 	}
 
+	r := new(Router)
 	parsedRules := make([]*rule, 0, len(rules))
 	for i, rawRule := range rules {
-		var ru *rule
-		var err error
-		parts := strings.Split(rawRule, ",")
-		if i == len(rules)-1 && strings.Index(strings.ToLower(rawRule), string(ruleFinal)) == 0 {
-			if len(parts) != 2 {
-				return nil, errors.New("invalid final rule: " + rawRule)
-			}
-			rawRuleType := strings.ToLower(parts[0])
-			rawPolicyType := strings.ToLower(parts[1])
-			ru, err = newRule(ruleType(rawRuleType), "", PolicyType(rawPolicyType))
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			if len(parts) != 3 {
-				return nil, errors.New("invalid regular rule: " + rawRule)
-			}
-			rawRuleType := strings.ToLower(parts[0])
-			rawRuleValue := parts[1]
-			if rawRuleValue == "" {
-				return nil, errors.New("empty rule value: " + rawRule)
-			}
-			rawPolicyType := strings.ToLower(parts[2])
-			ru, err = newRule(ruleType(rawRuleType), rawRuleValue, PolicyType(rawPolicyType))
-			if err != nil {
-				return nil, err
-			}
+		ru, err := parseRule(rawRule)
+		if err != nil {
+			return nil, err
+		}
+		if ru.type_ == ruleFinal && i != len(rules)-1 {
+			return nil, errors.New("the final rule must be placed at last")
 		}
 		parsedRules = append(parsedRules, ru)
 	}
 
 	r.rules = parsedRules
+	if lastRule := r.rules[len(r.rules)-1]; lastRule.type_ != ruleFinal {
+		r.rules = append(r.rules, defaultFinalRule)
+	}
 	return r, nil
+}
+
+// 规则格式分两种：
+// - 普通规则: ruleType,value,policyType
+// - 最终规则: FINAL,policyType
+func parseRule(rule string) (*rule, error) {
+	parts := strings.Split(rule, ",")
+	switch len(parts) {
+	case 2:
+		if strings.Index(strings.ToLower(rule), string(ruleFinal)) != 0 {
+			return nil, errors.New("invalid final rule: " + rule)
+		}
+		rawRuleType := strings.ToLower(parts[0])
+		rawPolicyType := strings.ToLower(parts[1])
+		return newRule(ruleType(rawRuleType), "", PolicyType(rawPolicyType))
+	case 3:
+		rawRuleType := strings.ToLower(parts[0])
+		rawRuleValue := parts[1]
+		if rawRuleValue == "" {
+			return nil, errors.New("empty rule value: " + rule)
+		}
+		rawPolicyType := strings.ToLower(parts[2])
+		return newRule(ruleType(rawRuleType), rawRuleValue, PolicyType(rawPolicyType))
+	default:
+		return nil, errors.New("invalid rule: " + rule)
+	}
 }
 
 func (r *Router) Dispatch(addr *protocol.Address) PolicyType {

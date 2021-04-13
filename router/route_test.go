@@ -19,11 +19,20 @@ func TestRouter_Dispatch(t *testing.T) {
 		addr *protocol.Address
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   PolicyType
+		name    string
+		fields  fields
+		args    args
+		want    PolicyType
+		wantErr bool
 	}{
+		{
+			name: "empty-domain",
+			fields: fields{rules: []string{
+				"domain,,direct",
+			}},
+			args:    args{addr: protocol.NewAddress("www.apple.com", 80)},
+			wantErr: true,
+		},
 		{
 			name: "domain",
 			fields: fields{rules: []string{
@@ -71,7 +80,9 @@ func TestRouter_Dispatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r, err := NewRouter(tt.fields.rules)
 			if err != nil {
-				t.Error(err)
+				if !tt.wantErr {
+					t.Error(err)
+				}
 				return
 			}
 			if got := r.Dispatch(tt.args.addr); got != tt.want {
