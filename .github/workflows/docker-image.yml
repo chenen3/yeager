@@ -10,9 +10,6 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v2
         
-      - name: Go Build
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o release/yeager .
-        
       - name: Push to Docker Hub
         uses: docker/build-push-action@v1
         with:

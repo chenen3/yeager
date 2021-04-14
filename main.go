@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	router.RegisterAssetsDir(
-		"release", // developer test
+		"config/dev", // developer test
 		"/usr/local/share/yeager",
 	)
 
