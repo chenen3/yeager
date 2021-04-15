@@ -98,64 +98,72 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 		return nil, err
 	}
 
-	if req.Method == "CONNECT" { // https
-		host := req.URL.Hostname()
-		port := req.URL.Port()
-		if port == "" {
-			port = "443"
-		}
-		portnum, err := strconv.Atoi(port)
-		if err != nil {
-			return nil, errors.New("invalid port: " + port)
-		}
-		dstAddr := protocol.NewAddress(host, portnum)
-
-		_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
-		if err != nil {
-			return nil, err
-		}
-		newConn := protocol.NewConn(conn, dstAddr)
-		return newConn, nil
-	} else { // http
-		host := req.URL.Hostname()
-		port := req.URL.Port()
-		if port == "" {
-			port = "80"
-		}
-		portnum, err := strconv.Atoi(port)
-		if err != nil {
-			return nil, errors.New("invalid port: " + port)
-		}
-		dstAddr := protocol.NewAddress(host, portnum)
-
-		pconn := newPipeConn(conn, dstAddr)
-		go func(pconn *pipeConn) {
-			// 对于HTTP代理请求，需要先行把请求数据转发一遍
-			if err := req.Write(pconn.pipeWriter); err != nil {
-				log.Error(err)
-			}
-			pconn.pipeWriter.Close()
-		}(pconn)
-		return pconn, nil
+	if req.Method == "CONNECT" {
+		return s.handshakeHTTPS(conn, req)
+	} else {
+		return s.handshakeHTTP(conn, req)
 	}
+}
+
+func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (protocol.Conn, error) {
+	host := req.URL.Hostname()
+	port := req.URL.Port()
+	if port == "" {
+		port = "443"
+	}
+	portnum, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.New("invalid port: " + port)
+	}
+	dstAddr := protocol.NewAddress(host, portnum)
+
+	_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
+	if err != nil {
+		return nil, err
+	}
+	newConn := protocol.NewConn(conn, dstAddr)
+	return newConn, nil
+}
+
+func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn, error) {
+	host := req.URL.Hostname()
+	port := req.URL.Port()
+	if port == "" {
+		port = "80"
+	}
+	portnum, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.New("invalid port: " + port)
+	}
+	dstAddr := protocol.NewAddress(host, portnum)
+
+	pconn := newPipeConn(conn, dstAddr)
+	go func(pconn *pipeConn) {
+		// 对于HTTP代理请求，需要先行把请求数据转发一遍
+		if err := req.Write(pconn.pw); err != nil {
+			log.Error(err)
+		}
+		pconn.pw.Close()
+	}(pconn)
+	return pconn, nil
 }
 
 // pipeConn implement Reader which read it's pipeReader firstly, then the underlying net.Conn
 type pipeConn struct {
 	net.Conn
-	dstAddr    *protocol.Address
-	pipeReader *io.PipeReader
-	pipeWriter *io.PipeWriter
-	pipeDone   bool
+	dstAddr  *protocol.Address
+	pr       *io.PipeReader
+	pw       *io.PipeWriter
+	pipeDone bool
 }
 
 func newPipeConn(conn net.Conn, addr *protocol.Address) *pipeConn {
 	pipeReader, pipeWriter := io.Pipe()
 	return &pipeConn{
-		Conn:       conn,
-		dstAddr:    addr,
-		pipeReader: pipeReader,
-		pipeWriter: pipeWriter,
+		Conn:    conn,
+		dstAddr: addr,
+		pr:      pipeReader,
+		pw:      pipeWriter,
 	}
 }
 
@@ -168,7 +176,7 @@ func (c *pipeConn) Read(p []byte) (n int, err error) {
 		return c.Conn.Read(p)
 	}
 
-	n, err = c.pipeReader.Read(p)
+	n, err = c.pr.Read(p)
 	switch err {
 	case nil:
 		return n, nil
@@ -185,7 +193,7 @@ func (c *pipeConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *pipeConn) Close() error {
-	c.pipeWriter.Close()
-	c.pipeReader.Close()
+	c.pw.Close()
+	c.pr.Close()
 	return c.Conn.Close()
 }

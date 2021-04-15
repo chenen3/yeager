@@ -103,7 +103,7 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 	policy := p.router.Dispatch(inConn.DstAddr())
 	outbound, ok := p.outbounds[policy]
 	if !ok {
-		log.Errorf("unknown outbound proxy policy: %s", policy)
+		log.Errorf("unknown outbound policy: %s", policy)
 		return
 	}
 	glog.Printf("accepted %s [%s]\n", inConn.DstAddr(), policy)

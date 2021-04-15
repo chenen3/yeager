@@ -81,7 +81,7 @@ func TestMain(m *testing.M) {
 }
 
 func randomPort() int {
-	ln, _ := net.Listen("tcp", "localhost:0")
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	ln.Close()
 	return ln.Addr().(*net.TCPAddr).Port
 }
