@@ -5,13 +5,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io"
 	"io/ioutil"
 	glog "log"
 	"net"
 	"strconv"
 
+	"github.com/opentracing/opentracing-go"
 	"yeager/log"
 	"yeager/protocol"
 )
