@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
 	"yeager/log"
 	"yeager/protocol"
 )
@@ -62,7 +63,7 @@ func (s *Server) listenAndServe() error {
 		return err
 	}
 	defer ln.Close()
-	glog.Println("yeager proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("yeager proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 
 	for {
 		select {
@@ -81,6 +82,9 @@ func (s *Server) listenAndServe() error {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	span := opentracing.StartSpan("yeager-inbound")
+	defer span.Finish()
+
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
 		// For the anti-detection purpose:
@@ -94,13 +98,15 @@ func (s *Server) handleConnection(conn net.Conn) {
 		conn.Close()
 		return
 	}
+	span.SetTag("addr", dstAddr.String())
 
+	newConn := protocol.NewConn(conn, dstAddr)
 	// in case send on closed channel
 	select {
 	case <-s.ctx.Done():
 		conn.Close()
 		return
-	case s.connCh <- protocol.NewConn(conn, dstAddr):
+	case s.connCh <- newConn:
 	}
 }
 

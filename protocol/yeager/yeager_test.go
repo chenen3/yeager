@@ -1,6 +1,7 @@
 package yeager
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -125,7 +126,7 @@ func TestYeager(t *testing.T) {
 	})
 
 	time.Sleep(time.Millisecond)
-	cconn, err := client.Dial(protocol.NewAddress("localhost", 0))
+	cconn, err := client.Dial(context.Background(), protocol.NewAddress("localhost", 0))
 	if err != nil {
 		t.Fatal(err)
 	}
