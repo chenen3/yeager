@@ -1,6 +1,7 @@
 package reject
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -17,6 +18,6 @@ var Err = errors.New("traffic rejected")
 
 type Client struct{}
 
-func (f *Client) Dial(addr *protocol.Address) (net.Conn, error) {
+func (f *Client) Dial(ctx context.Context, addr *protocol.Address) (net.Conn, error) {
 	return nil, Err
 }

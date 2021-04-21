@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"yeager/protocol"
@@ -14,6 +15,6 @@ func init() {
 
 type Client struct{}
 
-func (f *Client) Dial(addr *protocol.Address) (net.Conn, error) {
+func (f *Client) Dial(ctx context.Context, addr *protocol.Address) (net.Conn, error) {
 	return net.Dial("tcp", addr.String())
 }

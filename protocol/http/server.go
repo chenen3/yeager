@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/opentracing/opentracing-go"
 	"yeager/log"
 	"yeager/protocol"
 )
@@ -54,7 +55,7 @@ func (s *Server) listenAndServe() error {
 		return err
 	}
 	defer ln.Close()
-	glog.Println("http proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("HTTP proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 
 	for {
 		select {
@@ -73,12 +74,16 @@ func (s *Server) listenAndServe() error {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	span := opentracing.StartSpan("http-inbound")
+	defer span.Finish()
+
 	newConn, err := s.handshake(conn)
 	if err != nil {
 		log.Error(err)
 		conn.Close()
 		return
 	}
+	span.SetTag("addr", newConn.DstAddr().String())
 
 	// in case send on closed channel
 	select {
@@ -151,10 +156,9 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 // pipeConn implement Reader which read it's pipeReader firstly, then the underlying net.Conn
 type pipeConn struct {
 	net.Conn
-	dstAddr  *protocol.Address
-	pr       *io.PipeReader
-	pw       *io.PipeWriter
-	pipeDone bool
+	dstAddr *protocol.Address
+	pr      *io.PipeReader
+	pw      *io.PipeWriter
 }
 
 func newPipeConn(conn net.Conn, addr *protocol.Address) *pipeConn {
@@ -172,24 +176,18 @@ func (c *pipeConn) DstAddr() *protocol.Address {
 }
 
 func (c *pipeConn) Read(p []byte) (n int, err error) {
-	if c.pipeDone {
-		return c.Conn.Read(p)
-	}
-
 	n, err = c.pr.Read(p)
-	switch err {
-	case nil:
-		return n, nil
-	case io.EOF:
-		c.pipeDone = true
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+	if err == io.EOF {
 		if n < len(p) {
 			m, merr := c.Conn.Read(p[n:])
 			return n + m, merr
 		}
 		return n, nil
-	default:
-		return n, err
 	}
+	return n, nil
 }
 
 func (c *pipeConn) Close() error {

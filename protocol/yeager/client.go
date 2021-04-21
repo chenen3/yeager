@@ -2,6 +2,7 @@ package yeager
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"net"
 
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
 	"yeager/protocol"
 )
 
@@ -20,17 +22,25 @@ func NewClient(config *ClientConfig) *Client {
 	return &Client{conf: config}
 }
 
-func (c *Client) Dial(dstAddr *protocol.Address) (net.Conn, error) {
+func (c *Client) Dial(ctx context.Context, dstAddr *protocol.Address) (net.Conn, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "outbound")
+	defer span.Finish()
+
 	conf := &tls.Config{
 		ServerName:         c.conf.Host,
 		InsecureSkipVerify: c.conf.InsecureSkipVerify,
 	}
 	addr := fmt.Sprintf("%s:%d", c.conf.Host, c.conf.Port)
+	span2, _ := opentracing.StartSpanFromContext(ctx, "tls-dial")
 	conn, err := tls.Dial("tcp", addr, conf)
+	span2.Finish()
 	if err != nil {
 		return nil, err
 	}
+
+	span3, _ := opentracing.StartSpanFromContext(ctx, "handshake")
 	err = c.handshake(conn, dstAddr)
+	span3.Finish()
 	if err != nil {
 		return nil, err
 	}
