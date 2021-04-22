@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"yeager/config"
 )
 
 // Conn is the interface that wrap net.Conn with destination address method
@@ -32,12 +31,12 @@ func RegisterInboundBuilder(name string, b InboundBuilderFunc) {
 	inboundBuilders[name] = b
 }
 
-func BuildInbound(proto config.Proto) (Inbound, error) {
-	build, ok := inboundBuilders[proto.Protocol]
+func BuildInbound(proto string, conf json.RawMessage) (Inbound, error) {
+	build, ok := inboundBuilders[proto]
 	if !ok {
-		return nil, errors.New("unknown protocol: " + proto.Protocol)
+		return nil, errors.New("unknown protocol: " + proto)
 	}
-	return build(proto.Setting)
+	return build(conf)
 }
 
 type OutboundBuilderFunc func(setting json.RawMessage) (Outbound, error)
@@ -48,12 +47,12 @@ func RegisterOutboundBuilder(name string, b OutboundBuilderFunc) {
 	outboundBuilders[name] = b
 }
 
-func BuildOutbound(proto config.Proto) (Outbound, error) {
-	build, ok := outboundBuilders[proto.Protocol]
+func BuildOutbound(proto string, conf json.RawMessage) (Outbound, error) {
+	build, ok := outboundBuilders[proto]
 	if !ok {
-		return nil, errors.New("unknown protocol: " + proto.Protocol)
+		return nil, errors.New("unknown protocol: " + proto)
 	}
-	return build(proto.Setting)
+	return build(conf)
 }
 
 // Connection implements the Conn interface

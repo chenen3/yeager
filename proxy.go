@@ -24,7 +24,7 @@ func NewProxy(c config.Config) (*Proxy, error) {
 		outbounds: make(map[router.PolicyType]protocol.Outbound, 3),
 	}
 	for _, inboundConf := range c.Inbounds {
-		inbound, err := protocol.BuildInbound(inboundConf)
+		inbound, err := protocol.BuildInbound(inboundConf.Protocol, inboundConf.Setting)
 		if err != nil {
 			return nil, err
 		}
@@ -32,7 +32,7 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	}
 
 	if c.Outbound.Protocol != "" {
-		outbound, err := protocol.BuildOutbound(c.Outbound)
+		outbound, err := protocol.BuildOutbound(c.Outbound.Protocol, c.Outbound.Setting)
 		if err != nil {
 			return nil, err
 		}
@@ -40,12 +40,12 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	}
 
 	// built-in proxy policy: direct and reject
-	directOutbound, err := protocol.BuildOutbound(config.Proto{Protocol: "direct"})
+	directOutbound, err := protocol.BuildOutbound("direct", nil)
 	if err != nil {
 		return nil, err
 	}
 	p.outbounds[router.PolicyDirect] = directOutbound
-	rejectOutbound, err := protocol.BuildOutbound(config.Proto{Protocol: "reject"})
+	rejectOutbound, err := protocol.BuildOutbound("reject", nil)
 	if err != nil {
 		return nil, err
 	}
