@@ -1,12 +1,10 @@
 package router
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"sync"
 
-	"github.com/opentracing/opentracing-go"
 	"yeager/protocol"
 )
 
@@ -123,10 +121,7 @@ func parseRule(rule string) (*rule, error) {
 	}
 }
 
-func (r *Router) Dispatch(ctx context.Context, addr *protocol.Address) PolicyType {
-	span, _ := opentracing.StartSpanFromContext(ctx, "router")
-	defer span.Finish()
-
+func (r *Router) Dispatch(addr *protocol.Address) PolicyType {
 	i, ok := r.cache.Load(addr.Host)
 	if ok {
 		return i.(PolicyType)

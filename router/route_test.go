@@ -1,7 +1,6 @@
 package router
 
 import (
-	"context"
 	"os"
 	"testing"
 	"yeager/protocol"
@@ -86,7 +85,7 @@ func TestRouter_Dispatch(t *testing.T) {
 				}
 				return
 			}
-			if got := r.Dispatch(context.Background(), tt.args.addr); got != tt.want {
+			if got := r.Dispatch(tt.args.addr); got != tt.want {
 				t.Errorf("Dispatch() = %v, want %v", got, tt.want)
 			}
 		})

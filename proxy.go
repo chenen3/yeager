@@ -5,7 +5,6 @@ import (
 	"io"
 	glog "log"
 
-	"github.com/opentracing/opentracing-go"
 	"yeager/config"
 	"yeager/log"
 	"yeager/protocol"
@@ -52,11 +51,11 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	}
 	p.outbounds[router.PolicyReject] = rejectOutbound
 
-	router_, err := router.NewRouter(c.Rules)
+	router, err := router.NewRouter(c.Rules)
 	if err != nil {
 		return nil, err
 	}
-	p.router = router_
+	p.router = router
 	return p, nil
 }
 
@@ -68,7 +67,7 @@ type Proxy struct {
 	cancel    context.CancelFunc
 }
 
-func (p *Proxy) Start() {
+func (p *Proxy) Start() error {
 	connCh := make(chan protocol.Conn, 32)
 	for _, inbound := range p.inbounds {
 		go func(inbound protocol.Inbound, connCh chan<- protocol.Conn) {
@@ -93,7 +92,7 @@ func (p *Proxy) Start() {
 			case conn := <-connCh:
 				conn.Close()
 			default:
-				return
+				return p.ctx.Err()
 			}
 		}
 	}
@@ -101,21 +100,14 @@ func (p *Proxy) Start() {
 
 func (p *Proxy) handleConnection(inConn protocol.Conn) {
 	defer inConn.Close()
-	addr := inConn.DstAddr()
-	span := opentracing.StartSpan("dispatch")
-	span.SetTag("addr", addr.String())
-	ctx := opentracing.ContextWithSpan(context.Background(), span)
-
-	policy := p.router.Dispatch(ctx, addr)
+	policy := p.router.Dispatch(inConn.DstAddr())
 	outbound, ok := p.outbounds[policy]
 	if !ok {
 		log.Errorf("unknown outbound policy: %s", policy)
-		span.Finish()
 		return
 	}
-	glog.Printf("accepted %s [%s]\n", addr, policy)
-	outConn, err := outbound.Dial(ctx, addr)
-	span.Finish()
+	glog.Printf("accepted %s [%s]\n", inConn.DstAddr(), policy)
+	outConn, err := outbound.Dial(inConn.DstAddr())
 	if err != nil {
 		if err != reject.Err {
 			log.Error(err)

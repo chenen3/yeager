@@ -1,13 +1,11 @@
 package protocol
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"strconv"
-
 	"yeager/config"
 )
 
@@ -23,7 +21,7 @@ type Inbound interface {
 }
 
 type Outbound interface {
-	Dial(ctx context.Context, dst *Address) (net.Conn, error)
+	Dial(dstAddr *Address) (net.Conn, error)
 }
 
 type InboundBuilderFunc func(setting json.RawMessage) (Inbound, error)
@@ -58,7 +56,7 @@ func BuildOutbound(proto config.Proto) (Outbound, error) {
 	return build(proto.Setting)
 }
 
-// Connection implements the Conn interface
+// Connection is an implementation of the Conn interface
 type Connection struct {
 	net.Conn
 	dstAddr *Address
