@@ -11,7 +11,6 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/opentracing/opentracing-go"
 	"yeager/log"
 	"yeager/protocol"
 )
@@ -53,7 +52,7 @@ func (s *Server) listenAndServe() error {
 		return err
 	}
 	defer ln.Close()
-	glog.Println("SOCKS5 proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("socks5 proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 
 	for {
 		select {
@@ -72,24 +71,19 @@ func (s *Server) listenAndServe() error {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	span := opentracing.StartSpan("sock-inbound")
-	defer span.Finish()
-
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
 		log.Error(err)
 		conn.Close()
 		return
 	}
-	span.SetTag("addr", dstAddr.String())
 
-	newConn := protocol.NewConn(conn, dstAddr)
 	// in case send on closed channel
 	select {
 	case <-s.ctx.Done():
 		conn.Close()
 		return
-	case s.connCh <- newConn:
+	case s.connCh <- protocol.NewConn(conn, dstAddr):
 	}
 }
 
