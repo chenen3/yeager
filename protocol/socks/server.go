@@ -52,7 +52,7 @@ func (s *Server) listenAndServe() error {
 		return err
 	}
 	defer ln.Close()
-	glog.Println("socks5 proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("SOCKS5 proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
 
 	for {
 		select {

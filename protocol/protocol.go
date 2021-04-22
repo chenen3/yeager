@@ -56,7 +56,7 @@ func BuildOutbound(proto config.Proto) (Outbound, error) {
 	return build(proto.Setting)
 }
 
-// Connection is an implementation of the Conn interface
+// Connection implements the Conn interface
 type Connection struct {
 	net.Conn
 	dstAddr *Address

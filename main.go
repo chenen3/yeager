@@ -44,5 +44,5 @@ func main() {
 		<-c
 		p.Close()
 	}()
-	log.Fatalln(p.Start())
+	p.Start()
 }
