@@ -21,17 +21,14 @@ func main() {
 		"config/dev", // developer test
 		"/usr/local/share/yeager",
 	)
-
 	conf, err := config.Load(*confFile)
 	if err != nil {
 		log.Fatalln(err)
 	}
-
 	p, err := NewProxy(conf)
 	if err != nil {
 		log.Fatalln(err)
 	}
-
 	// parsing geoip.dat obviously raise up the memory consumption,
 	// trigger GC to reduce it.
 	// before: 50 MB

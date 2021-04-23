@@ -20,7 +20,7 @@ type Inbound interface {
 }
 
 type Outbound interface {
-	Dial(dstAddr *Address) (net.Conn, error)
+	Dial(address *Address) (net.Conn, error)
 }
 
 type InboundBuilderFunc func(setting json.RawMessage) (Inbound, error)
