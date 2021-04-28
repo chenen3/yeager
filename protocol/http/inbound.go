@@ -42,13 +42,14 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) Serve() {
-	ln, err := net.Listen("tcp", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Errorf("HTTP proxy server listening error: %s", err)
+		log.Errorf("http proxy failed to listen on %s, err: %s", addr, err)
 		return
 	}
 	defer ln.Close()
-	glog.Println("HTTP proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("http proxy listening on", addr)
 
 	for {
 		select {

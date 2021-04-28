@@ -42,13 +42,14 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) Serve() {
-	ln, err := net.Listen("tcp", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Error("SOCKS5 proxy server listening error:", err)
+		log.Error("socks5 proxy failed to listen on %s, error: %s", addr, err)
 		return
 	}
 	defer ln.Close()
-	glog.Println("SOCKS5 proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("socks5 proxy listen on ", addr)
 
 	for {
 		select {

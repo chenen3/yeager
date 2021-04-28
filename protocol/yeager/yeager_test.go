@@ -87,13 +87,14 @@ func newYeagerServer() (*Server, error) {
 	}
 	fbPort, _ := strconv.Atoi(fbURL.Port())
 
-	host := "localhost"
-	port := common.RandomPort()
-	uuid := "ce9f7ded-027c-e7b3-9369-308b7208d498"
+	port, err := common.ChoosePort()
+	if err != nil {
+		return nil, err
+	}
 	s := NewServer(&ServerConfig{
-		Host:         host,
+		Host:         "127.0.0.1",
 		Port:         port,
-		UUID:         uuid,
+		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		certPEMBlock: []byte(certPEM),
 		keyPEMBlock:  []byte(keyPEM),
 		Fallback: &fallback{

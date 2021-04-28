@@ -11,9 +11,13 @@ import (
 )
 
 func TestServer(t *testing.T) {
+	port, err := common.ChoosePort()
+	if err != nil {
+		t.Fatal(err)
+	}
 	ps := NewServer(&Config{
 		Host: "127.0.0.1",
-		Port: common.RandomPort(),
+		Port: port,
 	})
 	go ps.Serve()
 	defer ps.Close()
@@ -23,7 +27,7 @@ func TestServer(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := os.Setenv("HTTP_PROXY", fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
+	err = os.Setenv("HTTP_PROXY", fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
 	if err != nil {
 		t.Fatal(err)
 	}

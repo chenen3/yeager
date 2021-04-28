@@ -55,11 +55,11 @@ func (s *Server) Serve() {
 	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
 	ln, err := tls.Listen("tcp", addr, config)
 	if err != nil {
-		log.Errorf("yeager proxy server listening error:", err)
+		log.Errorf("yeager proxy failed to listen on %s, error: %s", addr, err)
 		return
 	}
 	defer ln.Close()
-	glog.Println("yeager proxy server listening:", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("yeager proxy listen on ", addr)
 
 	for {
 		select {
