@@ -15,7 +15,8 @@ type Conn interface {
 }
 
 type Inbound interface {
-	Accept() <-chan Conn
+	Serve()              // block until closed
+	Accept() <-chan Conn // the channel shall be closed when server closed
 	io.Closer
 }
 

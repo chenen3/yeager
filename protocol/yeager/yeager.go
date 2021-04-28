@@ -19,6 +19,6 @@ func init() {
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err
 		}
-		return NewServer(conf)
+		return NewServer(conf), nil
 	})
 }

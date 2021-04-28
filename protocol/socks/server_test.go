@@ -1,4 +1,4 @@
-package http
+package socks
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+
 	"yeager/common"
 )
 
@@ -23,7 +24,7 @@ func TestServer(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := os.Setenv("HTTP_PROXY", fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
+	err := os.Setenv("HTTP_PROXY", fmt.Sprintf("socks5://%s:%d", ps.conf.Host, ps.conf.Port))
 	if err != nil {
 		t.Fatal(err)
 	}
