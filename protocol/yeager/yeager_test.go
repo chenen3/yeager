@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"yeager/common"
 	"yeager/protocol"
 )
 
@@ -80,12 +80,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func randomPort() int {
-	ln, _ := net.Listen("tcp", "127.0.0.1:0")
-	ln.Close()
-	return ln.Addr().(*net.TCPAddr).Port
-}
-
 func newYeagerServer() (*Server, error) {
 	fbURL, err := url.Parse(fallbackServer.URL)
 	if err != nil {
@@ -93,13 +87,14 @@ func newYeagerServer() (*Server, error) {
 	}
 	fbPort, _ := strconv.Atoi(fbURL.Port())
 
-	host := "localhost"
-	port := randomPort()
-	uuid := "ce9f7ded-027c-e7b3-9369-308b7208d498"
-	return NewServer(&ServerConfig{
-		Host:         host,
+	port, err := common.ChoosePort()
+	if err != nil {
+		return nil, err
+	}
+	s := NewServer(&ServerConfig{
+		Host:         "127.0.0.1",
 		Port:         port,
-		UUID:         uuid,
+		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		certPEMBlock: []byte(certPEM),
 		keyPEMBlock:  []byte(keyPEM),
 		Fallback: &fallback{
@@ -107,6 +102,7 @@ func newYeagerServer() (*Server, error) {
 			Port: fbPort,
 		},
 	})
+	return s, nil
 }
 
 func TestYeager(t *testing.T) {
@@ -114,6 +110,7 @@ func TestYeager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	go server.Serve()
 	defer server.Close()
 	srvCh := server.Accept()
 
@@ -125,7 +122,7 @@ func TestYeager(t *testing.T) {
 	})
 
 	time.Sleep(time.Millisecond)
-	cconn, err := client.Dial(protocol.NewAddress("localhost", 0))
+	cconn, err := client.Dial(protocol.NewAddress("127.0.0.1", 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +148,7 @@ func TestFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	go server.Serve()
 	defer server.Close()
 	time.Sleep(time.Second)
 

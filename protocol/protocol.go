@@ -15,6 +15,9 @@ type Conn interface {
 }
 
 type Inbound interface {
+	// block until closed
+	Serve()
+	// the channel shall be closed when server closed
 	Accept() <-chan Conn
 	io.Closer
 }
@@ -23,11 +26,11 @@ type Outbound interface {
 	Dial(address *Address) (net.Conn, error)
 }
 
-type InboundBuilderFunc func(setting json.RawMessage) (Inbound, error)
+type inboundBuilderFunc func(setting json.RawMessage) (Inbound, error)
 
-var inboundBuilders = make(map[string]InboundBuilderFunc)
+var inboundBuilders = make(map[string]inboundBuilderFunc)
 
-func RegisterInboundBuilder(name string, b InboundBuilderFunc) {
+func RegisterInboundBuilder(name string, b inboundBuilderFunc) {
 	inboundBuilders[name] = b
 }
 
@@ -39,11 +42,11 @@ func BuildInbound(proto string, conf json.RawMessage) (Inbound, error) {
 	return build(conf)
 }
 
-type OutboundBuilderFunc func(setting json.RawMessage) (Outbound, error)
+type outboundBuilderFunc func(setting json.RawMessage) (Outbound, error)
 
-var outboundBuilders = make(map[string]OutboundBuilderFunc)
+var outboundBuilders = make(map[string]outboundBuilderFunc)
 
-func RegisterOutboundBuilder(name string, b OutboundBuilderFunc) {
+func RegisterOutboundBuilder(name string, b outboundBuilderFunc) {
 	outboundBuilders[name] = b
 }
 

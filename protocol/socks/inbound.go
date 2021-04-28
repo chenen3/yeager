@@ -1,7 +1,6 @@
 package socks
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -18,22 +17,15 @@ import (
 type Server struct {
 	conf   *Config
 	connCh chan protocol.Conn
-	ctx    context.Context
-	cancel context.CancelFunc
+	done   chan struct{}
 }
 
-func NewServer(config *Config) (*Server, error) {
-	s := &Server{
+func NewServer(config *Config) *Server {
+	return &Server{
 		conf:   config,
 		connCh: make(chan protocol.Conn, 32),
+		done:   make(chan struct{}),
 	}
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-
-	go func() {
-		log.Error(s.listenAndServe())
-		s.cancel()
-	}()
-	return s, nil
 }
 
 func (s *Server) Accept() <-chan protocol.Conn {
@@ -41,23 +33,28 @@ func (s *Server) Accept() <-chan protocol.Conn {
 }
 
 func (s *Server) Close() error {
-	s.cancel()
+	close(s.done)
 	close(s.connCh)
+	for conn := range s.connCh {
+		conn.Close()
+	}
 	return nil
 }
 
-func (s *Server) listenAndServe() error {
-	ln, err := net.Listen("tcp", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+func (s *Server) Serve() {
+	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		log.Error("socks5 proxy failed to listen on %s, error: %s", addr, err)
+		return
 	}
 	defer ln.Close()
-	glog.Println("SOCKS5 proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("socks5 proxy listen on ", addr)
 
 	for {
 		select {
-		case <-s.ctx.Done():
-			return s.ctx.Err()
+		case <-s.done:
+			return
 		default:
 		}
 
@@ -78,9 +75,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-	// in case send on closed channel
 	select {
-	case <-s.ctx.Done():
+	case <-s.done:
 		conn.Close()
 		return
 	case s.connCh <- protocol.NewConn(conn, dstAddr):

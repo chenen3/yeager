@@ -1,4 +1,4 @@
-package main
+package yeager
 
 import (
 	"context"
@@ -16,11 +16,14 @@ import (
 	"yeager/router"
 )
 
+type Proxy struct {
+	inbounds  []protocol.Inbound
+	outbounds map[router.PolicyType]protocol.Outbound
+	router    *router.Router
+}
+
 func NewProxy(c config.Config) (*Proxy, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	p := &Proxy{
-		ctx:       ctx,
-		cancel:    cancel,
 		outbounds: make(map[router.PolicyType]protocol.Outbound, 3),
 	}
 	for _, inboundConf := range c.Inbounds {
@@ -59,41 +62,46 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	return p, nil
 }
 
-type Proxy struct {
-	inbounds  []protocol.Inbound
-	outbounds map[router.PolicyType]protocol.Outbound
-	router    *router.Router
-	ctx       context.Context
-	cancel    context.CancelFunc
+func acceptConn(ctx context.Context, ib protocol.Inbound, ch chan<- protocol.Conn) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case conn, ok := <-ib.Accept():
+			if !ok {
+				// inbound server closed
+				return
+			}
+			ch <- conn
+		}
+	}
 }
 
-func (p *Proxy) Start() {
+func (p *Proxy) Start(ctx context.Context) {
 	connCh := make(chan protocol.Conn, 32)
 	for _, inbound := range p.inbounds {
-		go func(inbound protocol.Inbound, connCh chan<- protocol.Conn) {
-			for {
-				conn, ok := <-inbound.Accept()
-				if !ok {
-					// inbound server closed
-					return
-				}
-				connCh <- conn
-			}
-		}(inbound, connCh)
+		go inbound.Serve()
+		go acceptConn(ctx, inbound, connCh)
 	}
+
+	// cleanup if context ends
+	defer func() {
+		for _, inbound := range p.inbounds {
+			_ = inbound.Close()
+		}
+		// drain the channel, prevent connections from being not closed
+		close(connCh)
+		for conn := range connCh {
+			_ = conn.Close()
+		}
+	}()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case conn := <-connCh:
 			go p.handleConnection(conn)
-		case <-p.ctx.Done():
-			// in case connections left unhandled
-			select {
-			case conn := <-connCh:
-				conn.Close()
-			default:
-				return
-			}
 		}
 	}
 }
@@ -120,12 +128,4 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 
 	go io.Copy(outConn, inConn)
 	io.Copy(inConn, outConn)
-}
-
-func (p *Proxy) Close() error {
-	for _, inbound := range p.inbounds {
-		inbound.Close()
-	}
-	p.cancel()
-	return nil
 }

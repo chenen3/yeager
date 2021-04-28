@@ -1,26 +1,26 @@
-package http
+package socks
 
 import (
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+
+	"yeager/common"
 )
 
-func randomPort() int {
-	ln, _ := net.Listen("tcp", "127.0.0.1:0")
-	ln.Close()
-	return ln.Addr().(*net.TCPAddr).Port
-}
-
 func TestServer(t *testing.T) {
+	port, err := common.ChoosePort()
+	if err != nil {
+		t.Fatal(err)
+	}
 	ps := NewServer(&Config{
 		Host: "127.0.0.1",
-		Port: randomPort(),
+		Port: port,
 	})
+	go ps.Serve()
 	defer ps.Close()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +28,7 @@ func TestServer(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := os.Setenv("HTTP_PROXY", fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
+	err = os.Setenv("HTTP_PROXY", fmt.Sprintf("socks5://%s:%d", ps.conf.Host, ps.conf.Port))
 	if err != nil {
 		t.Fatal(err)
 	}

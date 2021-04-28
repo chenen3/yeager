@@ -2,7 +2,6 @@ package http
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,24 +17,15 @@ import (
 type Server struct {
 	conf   *Config
 	connCh chan protocol.Conn
-	ctx    context.Context
-	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func NewServer(conf *Config) *Server {
-	s := &Server{
+	return &Server{
 		conf:   conf,
 		connCh: make(chan protocol.Conn, 32),
+		done:   make(chan struct{}),
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.ctx = ctx
-	s.cancel = cancel
-
-	go func() {
-		log.Error(s.listenAndServe())
-		s.cancel()
-	}()
-	return s
 }
 
 func (s *Server) Accept() <-chan protocol.Conn {
@@ -43,23 +33,28 @@ func (s *Server) Accept() <-chan protocol.Conn {
 }
 
 func (s *Server) Close() error {
-	s.cancel()
+	close(s.done)
 	close(s.connCh)
+	for conn := range s.connCh {
+		conn.Close()
+	}
 	return nil
 }
 
-func (s *Server) listenAndServe() error {
-	ln, err := net.Listen("tcp", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+func (s *Server) Serve() {
+	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		log.Errorf("http proxy failed to listen on %s, err: %s", addr, err)
+		return
 	}
 	defer ln.Close()
-	glog.Println("yeager proxy server listening", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("http proxy listening on", addr)
 
 	for {
 		select {
-		case <-s.ctx.Done():
-			return nil
+		case <-s.done:
+			return
 		default:
 		}
 
@@ -80,9 +75,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-	// in case send on closed channel
 	select {
-	case <-s.ctx.Done():
+	case <-s.done:
 		newConn.Close()
 		return
 	case s.connCh <- newConn:

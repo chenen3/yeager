@@ -1,7 +1,6 @@
 package yeager
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -20,22 +19,15 @@ import (
 type Server struct {
 	conf   *ServerConfig
 	connCh chan protocol.Conn
-	ctx    context.Context
-	cancel context.CancelFunc
+	done   chan struct{}
 }
 
-func NewServer(config *ServerConfig) (*Server, error) {
-	s := &Server{
+func NewServer(config *ServerConfig) *Server {
+	return &Server{
 		conf:   config,
 		connCh: make(chan protocol.Conn, 32),
+		done:   make(chan struct{}),
 	}
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-
-	go func() {
-		log.Error(s.listenAndServe())
-		s.cancel()
-	}()
-	return s, nil
 }
 
 func (s *Server) Accept() <-chan protocol.Conn {
@@ -43,15 +35,19 @@ func (s *Server) Accept() <-chan protocol.Conn {
 }
 
 func (s *Server) Close() error {
-	s.cancel()
+	close(s.done)
 	close(s.connCh)
+	for conn := range s.connCh {
+		conn.Close()
+	}
 	return nil
 }
 
-func (s *Server) listenAndServe() error {
+func (s *Server) Serve() {
 	cert, err := tls.X509KeyPair(s.conf.certPEMBlock, s.conf.keyPEMBlock)
 	if err != nil {
-		return err
+		log.Error(err)
+		return
 	}
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -59,15 +55,16 @@ func (s *Server) listenAndServe() error {
 	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
 	ln, err := tls.Listen("tcp", addr, config)
 	if err != nil {
-		return err
+		log.Errorf("yeager proxy failed to listen on %s, error: %s", addr, err)
+		return
 	}
 	defer ln.Close()
-	glog.Println("yeager proxy listening on ", net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port)))
+	glog.Println("yeager proxy listen on ", addr)
 
 	for {
 		select {
-		case <-s.ctx.Done():
-			return s.ctx.Err()
+		case <-s.done:
+			return
 		default:
 		}
 
@@ -95,9 +92,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-	// in case send on closed channel
 	select {
-	case <-s.ctx.Done():
+	case <-s.done:
 		conn.Close()
 		return
 	case s.connCh <- protocol.NewConn(conn, dstAddr):
