@@ -2,13 +2,15 @@ package yeager
 
 import (
 	"context"
+	"errors"
 	"io"
 	glog "log"
+	"strings"
 
 	"yeager/config"
 	"yeager/log"
 	"yeager/protocol"
-	_ "yeager/protocol/direct"
+	"yeager/protocol/direct"
 	_ "yeager/protocol/http"
 	"yeager/protocol/reject"
 	_ "yeager/protocol/socks"
@@ -18,13 +20,13 @@ import (
 
 type Proxy struct {
 	inbounds  []protocol.Inbound
-	outbounds map[router.PolicyType]protocol.Outbound
+	outbounds map[string]protocol.Outbound
 	router    *router.Router
 }
 
 func NewProxy(c config.Config) (*Proxy, error) {
 	p := &Proxy{
-		outbounds: make(map[router.PolicyType]protocol.Outbound, 3),
+		outbounds: make(map[string]protocol.Outbound, 3),
 	}
 	for _, inboundConf := range c.Inbounds {
 		inbound, err := protocol.BuildInbound(inboundConf.Protocol, inboundConf.Setting)
@@ -34,25 +36,29 @@ func NewProxy(c config.Config) (*Proxy, error) {
 		p.inbounds = append(p.inbounds, inbound)
 	}
 
-	if c.Outbound.Protocol != "" {
-		outbound, err := protocol.BuildOutbound(c.Outbound.Protocol, c.Outbound.Setting)
+	for _, outboundConf := range c.Outbounds {
+		outbound, err := protocol.BuildOutbound(outboundConf.Protocol, outboundConf.Setting)
 		if err != nil {
 			return nil, err
 		}
-		p.outbounds[router.PolicyProxy] = outbound
+		tag := strings.ToLower(outboundConf.Tag)
+		if _, ok := p.outbounds[tag]; ok {
+			return nil, errors.New("duplicated outbound tag: " + outboundConf.Tag)
+		}
+		p.outbounds[tag] = outbound
 	}
 
-	// built-in proxy policy: direct and reject
-	directOutbound, err := protocol.BuildOutbound("direct", nil)
+	// built-in outbound
+	directOutbound, err := protocol.BuildOutbound(direct.Tag, nil)
 	if err != nil {
 		return nil, err
 	}
-	p.outbounds[router.PolicyDirect] = directOutbound
-	rejectOutbound, err := protocol.BuildOutbound("reject", nil)
+	p.outbounds[direct.Tag] = directOutbound
+	rejectOutbound, err := protocol.BuildOutbound(reject.Tag, nil)
 	if err != nil {
 		return nil, err
 	}
-	p.outbounds[router.PolicyReject] = rejectOutbound
+	p.outbounds[reject.Tag] = rejectOutbound
 
 	router_, err := router.NewRouter(c.Rules)
 	if err != nil {
@@ -110,13 +116,13 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 	defer inConn.Close()
 
 	addr := inConn.DstAddr()
-	policy := p.router.Dispatch(addr)
-	outbound, ok := p.outbounds[policy]
+	tag := p.router.Dispatch(addr)
+	outbound, ok := p.outbounds[tag]
 	if !ok {
-		log.Errorf("unknown outbound policy: %s", policy)
+		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	glog.Printf("accepted %s [%s]\n", addr, policy)
+	glog.Printf("accepted %s [%s]\n", addr, tag)
 	outConn, err := outbound.Dial(addr)
 	if err != nil {
 		if err != reject.Err {

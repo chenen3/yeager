@@ -45,14 +45,17 @@ Example for local machine:
             }
         }
     ],
-    "outbound": {
-        "protocol": "yeager",
-        "setting": {
-            "host": "example.com",// replace with your domain name
-            "port": 443,
-            "uuid": "" // fill in UUID
+    "outbounds": [
+        {
+            "tag": "PROXY",
+            "protocol": "yeager",
+            "setting": {
+                "host": "example.com",// replace with your domain name
+                "port": 443,
+                "uuid": "" // fill in UUID
+            }
         }
-    },
+    ],
     "rules": [
         "GEOSITE,private,DIRECT",
         "GEOSITE,apple@cn,DIRECT",
@@ -64,7 +67,7 @@ Example for local machine:
 }
 ```
 
-The priority of rules is the order in config, the form could be `ruleType,value,policyType` and `FINAL,policyType`, for example:
+The priority of rules is the order in config, the form could be `ruleType,value,outboundTag` and `FINAL,outboundTag`, for example:
 
 - `DOMAIN,www.apple.com,DIRECT` matches if the domain of traffic is the given one
 - `DOMAIN-SUFFIX,apple.com,DIRECT` matches if the domain of traffic has the suffix, AKA subdomain name
@@ -74,11 +77,10 @@ The priority of rules is the order in config, the form could be `ruleType,value,
 - `GEOIP,cn,DIRECT` matches if the IP of traffic in [geoip](https://github.com/v2fly/geoip)
 - `FINAL,PROXY` determine the behavior where would the traffic be send to if all above rule not match. The final rule must be the last rule in config.
 
-The policyType is one of `DIRECT`, `REJECT` and  `PROXY`, for example:
+Beside user specified outbound tag, there is two builtin:`DIRECT`, `REJECT`, for example:
 
 - `GEOSITE,private,DIRECT` 
 - `GEOSITE,category-ads,REJECT` 
-- `GEOSITE,google,PROXY`
 
 Example for remote machine(eg. VPS):
 

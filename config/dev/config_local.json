@@ -13,14 +13,17 @@
             }
         }
     ],
-    "outbound": {
-        "protocol": "yeager",
-        "setting": {
-            "port": 10802,
-            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "insecureSkipVerify": true
+    "outbounds": [
+        {
+            "tag": "PROXY",
+            "protocol": "yeager",
+            "setting": {
+                "port": 10802,
+                "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
+                "insecureSkipVerify": true
+            }
         }
-    },
+    ],
     "rules": [
         "GEOSITE,private,DIRECT",
         "GEOSITE,apple@cn,DIRECT",

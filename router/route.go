@@ -6,46 +6,40 @@ import (
 	"sync"
 
 	"yeager/protocol"
+	"yeager/protocol/direct"
 )
 
-type PolicyType string
-
+// rule type
 const (
-	PolicyDirect PolicyType = "direct"
-	PolicyReject PolicyType = "reject"
-	PolicyProxy  PolicyType = "proxy"
+	ruleDomain        = "domain"         // 域名
+	ruleDomainSuffix  = "domain-suffix"  // 根域名
+	ruleDomainKeyword = "domain-keyword" // 域名关键字
+	ruleGeoSite       = "geosite"        // 预定义域名集合
+	ruleIP            = "ip"             // IP
+	ruleGeoIP         = "geoip"          // 预定义IP集合
+	ruleFinal         = "final"          // 最终规则
 )
 
-type ruleType string
-
-const (
-	ruleDomain        ruleType = "domain"         // 精确域名
-	ruleDomainSuffix  ruleType = "domain-suffix"  // 根域名
-	ruleDomainKeyword ruleType = "domain-keyword" // 域名关键字
-	ruleGeoSite       ruleType = "geosite"        // 预定义域名，参考v2ray的domain-list-community
-	ruleIP            ruleType = "ip"             // 精确IP
-	ruleGeoIP         ruleType = "geoip"          // 预定义IP集，参考v2ray的geoip
-	ruleFinal         ruleType = "final"          // 最终规则
-)
-
-var defaultFinalRule, _ = newRule(ruleFinal, "", PolicyDirect)
+var defaultFinalRule, _ = newRule(ruleFinal, "", direct.Tag)
 
 type rule struct {
-	type_   ruleType
-	value   string
-	policy  PolicyType
-	matcher matcher
+	type_       string
+	value       string
+	outboundTag string
+	matcher     matcher
 }
 
-func newRule(rt ruleType, value string, pt PolicyType) (*rule, error) {
+func newRule(type_ string, value string, outboundTag string) (*rule, error) {
+	type_ = strings.ToLower(type_)
+	outboundTag = strings.ToLower(outboundTag)
 	ru := &rule{
-		type_:  rt,
-		value:  value,
-		policy: pt,
+		type_:       type_,
+		value:       value,
+		outboundTag: outboundTag,
 	}
 
 	var err error
-	ru.matcher, err = newRuleMatcher(rt, value)
+	ru.matcher, err = newRuleMatcher(type_, value)
 	return ru, err
 }
 
@@ -96,43 +90,43 @@ func NewRouter(rules []string) (*Router, error) {
 }
 
 // 规则格式分两种：
-// - 普通规则: ruleType,value,policyType
-// - 最终规则: FINAL,policyType
+// - 普通规则: ruleType,value,outboundTag
+// - 最终规则: FINAL,outboundTag
 func parseRule(rule string) (*rule, error) {
 	parts := strings.Split(rule, ",")
 	switch len(parts) {
 	case 2:
-		if strings.Index(strings.ToLower(rule), string(ruleFinal)) != 0 {
+		typ := parts[0]
+		if !strings.EqualFold(typ, ruleFinal) {
 			return nil, errors.New("invalid final rule: " + rule)
 		}
-		rawRuleType := strings.ToLower(parts[0])
-		rawPolicyType := strings.ToLower(parts[1])
-		return newRule(ruleType(rawRuleType), "", PolicyType(rawPolicyType))
+		outboundTag := parts[1]
+		return newRule(typ, "", outboundTag)
 	case 3:
-		rawRuleType := strings.ToLower(parts[0])
-		rawRuleValue := parts[1]
-		if rawRuleValue == "" {
+		typ := parts[0]
+		val := parts[1]
+		if val == "" {
 			return nil, errors.New("empty rule value: " + rule)
 		}
-		rawPolicyType := strings.ToLower(parts[2])
-		return newRule(ruleType(rawRuleType), rawRuleValue, PolicyType(rawPolicyType))
+		outboundTag := parts[2]
+		return newRule(typ, val, outboundTag)
 	default:
 		return nil, errors.New("invalid rule: " + rule)
 	}
 }
 
-func (r *Router) Dispatch(addr *protocol.Address) PolicyType {
+func (r *Router) Dispatch(addr *protocol.Address) (outboundTag string) {
 	i, ok := r.cache.Load(addr.Host)
 	if ok {
-		return i.(PolicyType)
+		return i.(string)
 	}
 
 	for _, ru := range r.rules {
 		if ru.Match(addr) {
-			r.cache.Store(addr.Host, ru.policy)
-			return ru.policy
+			r.cache.Store(addr.Host, ru.outboundTag)
+			return ru.outboundTag
 		}
 	}
 
-	return defaultFinalRule.policy
+	return defaultFinalRule.outboundTag
 }

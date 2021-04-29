@@ -22,7 +22,7 @@ func TestRouter_Dispatch(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    PolicyType
+		want    string
 		wantErr bool
 	}{
 		{
@@ -37,43 +37,43 @@ func TestRouter_Dispatch(t *testing.T) {
 			name: "domain",
 			fields: fields{rules: []string{
 				"domain,apple.com,direct",
-				"final,fakepolicy",
+				"final,faketag",
 			}},
 			args: args{addr: protocol.NewAddress("www.apple.com", 80)},
-			want: "fakepolicy",
+			want: "faketag",
 		},
 		{
 			name: "domain-suffix",
 			fields: fields{rules: []string{
 				"domain-suffix,le.com,direct",
-				"final,fakepolicy",
+				"final,faketag",
 			}},
 			args: args{addr: protocol.NewAddress("www.google.com", 443)},
-			want: "fakepolicy",
+			want: "faketag",
 		},
 		{
 			name:   "domain-keyword",
-			fields: fields{rules: []string{"domain-keyword,apple,fakepolicy"}},
+			fields: fields{rules: []string{"domain-keyword,apple,faketag"}},
 			args:   args{addr: protocol.NewAddress("www.apple.com", 80)},
-			want:   "fakepolicy",
+			want:   "faketag",
 		},
 		{
 			name:   "geosite",
-			fields: fields{rules: []string{"geosite,private,fakepolicy"}},
+			fields: fields{rules: []string{"geosite,private,faketag"}},
 			args:   args{addr: protocol.NewAddress("localhost", 80)},
-			want:   "fakepolicy",
+			want:   "faketag",
 		},
 		{
 			name:   "ip",
-			fields: fields{rules: []string{"ip,127.0.0.1,fakepolicy"}},
+			fields: fields{rules: []string{"ip,127.0.0.1,faketag"}},
 			args:   args{addr: protocol.NewAddress("127.0.0.1", 80)},
-			want:   "fakepolicy",
+			want:   "faketag",
 		},
 		{
 			name:   "geoip",
-			fields: fields{rules: []string{"geoip,private,fakepolicy"}},
+			fields: fields{rules: []string{"geoip,private,faketag"}},
 			args:   args{addr: protocol.NewAddress("192.168.1.1", 80)},
-			want:   "fakepolicy",
+			want:   "faketag",
 		},
 	}
 	for _, tt := range tests {

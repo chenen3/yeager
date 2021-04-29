@@ -12,7 +12,7 @@ type matcher interface {
 	Match(addr *protocol.Address) bool
 }
 
-func newRuleMatcher(ruleType ruleType, value string) (m matcher, err error) {
+func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 	switch ruleType {
 	case ruleDomain:
 		m = domainMatcher(value)
@@ -29,7 +29,7 @@ func newRuleMatcher(ruleType ruleType, value string) (m matcher, err error) {
 	case ruleFinal:
 		m = newFinalMatcher()
 	default:
-		err = errors.New("rule matcher received unsupported rule type: " + string(ruleType))
+		err = errors.New("unsupported rule type: " + ruleType)
 	}
 	return m, err
 }

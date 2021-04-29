@@ -6,13 +6,14 @@ import (
 )
 
 type Config struct {
-	Inbounds []Proto  `json:"inbounds,omitempty"` // 入站代理: socks, http, yeager
-	Outbound Proto    `json:"outbound,omitempty"` // 出站代理: yeager
-	Rules    []string `json:"rules,omitempty"`
+	Inbounds  []Proto  `json:"inbounds,omitempty"`  // 入站代理: socks, http, yeager
+	Outbounds []Proto  `json:"outbounds,omitempty"` // 出站代理: yeager
+	Rules     []string `json:"rules,omitempty"`
 }
 
 type Proto struct {
-	Protocol string          `json:"protocol"` // 可取值为 socks, http, yeager
+	Tag      string          `json:"tag"`      // 出站标记
+	Protocol string          `json:"protocol"` // 代理协议，可取值为 socks, http, yeager
 	Setting  json.RawMessage `json:"setting"`
 }
 

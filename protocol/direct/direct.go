@@ -7,10 +7,12 @@ import (
 )
 
 func init() {
-	protocol.RegisterOutboundBuilder("direct", func(json.RawMessage) (protocol.Outbound, error) {
+	protocol.RegisterOutboundBuilder(Tag, func(json.RawMessage) (protocol.Outbound, error) {
 		return new(Client), nil
 	})
 }
+
+const Tag = "direct"
 
 type Client struct{}
 
