@@ -1,3 +1,4 @@
+// Package socks provides a SOCKS version 5 server implementation.
 package socks
 
 import (

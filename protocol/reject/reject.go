@@ -8,10 +8,12 @@ import (
 )
 
 func init() {
-	protocol.RegisterOutboundBuilder("reject", func(json.RawMessage) (protocol.Outbound, error) {
+	protocol.RegisterOutboundBuilder(Tag, func(json.RawMessage) (protocol.Outbound, error) {
 		return new(Client), nil
 	})
 }
+
+const Tag = "reject"
 
 var Err = errors.New("traffic rejected")
 

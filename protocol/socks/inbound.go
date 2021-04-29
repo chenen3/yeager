@@ -14,6 +14,7 @@ import (
 	"yeager/protocol"
 )
 
+// Server implements protocol.Inbound interface
 type Server struct {
 	conf   *Config
 	connCh chan protocol.Conn
