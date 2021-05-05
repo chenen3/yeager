@@ -23,12 +23,12 @@ func TestSocks5(t *testing.T) {
 	time.Sleep(time.Millisecond)
 
 	addr := net.JoinHostPort(ss.conf.Host, strconv.Itoa(ss.conf.Port))
-	proxy, err := proxy.SOCKS5("tcp", addr, nil, nil)
+	client, err := proxy.SOCKS5("tcp", addr, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// test connect operation
-	c, err := proxy.Dial("tcp", "127.0.0.1:1234")
+	c, err := client.Dial("tcp", "127.0.0.1:1234")
 	if err != nil {
 		t.Fatal(err)
 	}

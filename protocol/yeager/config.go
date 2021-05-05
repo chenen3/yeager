@@ -2,7 +2,7 @@ package yeager
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 )
 
 type ClientConfig struct {
@@ -46,10 +46,10 @@ func (s *ServerConfig) UnmarshalJSON(data []byte) error {
 	s.Port = a.Port
 	s.UUID = a.UUID
 	s.Fallback = a.Fallback
-	s.certPEMBlock, err = ioutil.ReadFile(a.CertFile)
+	s.certPEMBlock, err = os.ReadFile(a.CertFile)
 	if err != nil {
 		return err
 	}
-	s.keyPEMBlock, err = ioutil.ReadFile(a.KeyFile)
+	s.keyPEMBlock, err = os.ReadFile(a.KeyFile)
 	return err
 }

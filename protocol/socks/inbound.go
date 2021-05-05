@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	glog "log"
 	"net"
 	"strconv"
@@ -50,7 +49,7 @@ func (s *Server) Serve() {
 		return
 	}
 	defer ln.Close()
-	glog.Println("socks5 proxy listen on ", addr)
+	glog.Println("socks5 proxy listen on", addr)
 
 	for {
 		select {
@@ -116,7 +115,7 @@ func (s *Server) socksAuth(conn net.Conn) error {
 	if ver != ver5 {
 		return fmt.Errorf("unsupported VER: %d", buf[0])
 	}
-	_, err = io.CopyN(ioutil.Discard, conn, int64(nMethods))
+	_, err = io.CopyN(io.Discard, conn, int64(nMethods))
 	if err != nil {
 		return errors.New("reading METHODS: " + err.Error())
 	}

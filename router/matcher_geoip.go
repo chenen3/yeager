@@ -3,7 +3,7 @@ package router
 import (
 	"encoding/binary"
 	"errors"
-	"io/ioutil"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -23,7 +23,7 @@ func loadGeoIp(country string) ([]*router.CIDR, error) {
 	var data []byte
 	var err error
 	for _, dir := range assetDirs {
-		data, err = ioutil.ReadFile(path.Join(dir, "geoip.dat"))
+		data, err = os.ReadFile(path.Join(dir, "geoip.dat"))
 		if err != nil {
 			continue
 		}
