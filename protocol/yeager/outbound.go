@@ -68,9 +68,9 @@ func (c *Client) handshake(conn net.Conn, dstAddr *protocol.Address) error {
 	case protocol.AddrDomainName:
 		buf.WriteByte(addressDomain)
 		buf.WriteByte(byte(len(dstAddr.Host)))
-		buf.Write([]byte(dstAddr.Host))
+		buf.WriteString(dstAddr.Host)
 	default:
-		return errors.New("unsupported address type")
+		return errors.New("unsupported address type: " + dstAddr.String())
 	}
 	var b [2]byte
 	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))

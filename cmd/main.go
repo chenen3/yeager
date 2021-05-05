@@ -15,7 +15,7 @@ import (
 	"yeager/router"
 )
 
-var confFile = flag.String("config", "/usr/local/etc/yeager/config.json", "configuration file")
+var confFile = flag.String("config", "/usr/local/etc/yeager/config.json", "config file")
 
 func main() {
 	flag.Parse()
