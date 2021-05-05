@@ -2,7 +2,7 @@ package router
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"path"
 	"strings"
 
@@ -16,7 +16,7 @@ func loadGeoSiteFile(country string) ([]*router.Domain, error) {
 	var data []byte
 	var err error
 	for _, dir := range assetDirs {
-		data, err = ioutil.ReadFile(path.Join(dir, "geosite.dat"))
+		data, err = os.ReadFile(path.Join(dir, "geosite.dat"))
 		if err != nil {
 			continue
 		}

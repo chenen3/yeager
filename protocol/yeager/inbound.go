@@ -59,7 +59,7 @@ func (s *Server) Serve() {
 		return
 	}
 	defer ln.Close()
-	glog.Println("yeager proxy listen on ", addr)
+	glog.Println("yeager proxy listen on", addr)
 
 	for {
 		select {

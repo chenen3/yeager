@@ -26,24 +26,24 @@ type Proxy struct {
 
 func NewProxy(c config.Config) (*Proxy, error) {
 	p := &Proxy{
-		outbounds: make(map[string]protocol.Outbound, 3),
+		outbounds: make(map[string]protocol.Outbound, 2+len(c.Outbounds)),
 	}
-	for _, inboundConf := range c.Inbounds {
-		inbound, err := protocol.BuildInbound(inboundConf.Protocol, inboundConf.Setting)
+	for _, conf := range c.Inbounds {
+		inbound, err := protocol.BuildInbound(conf.Protocol, conf.Setting)
 		if err != nil {
 			return nil, err
 		}
 		p.inbounds = append(p.inbounds, inbound)
 	}
 
-	for _, outboundConf := range c.Outbounds {
-		outbound, err := protocol.BuildOutbound(outboundConf.Protocol, outboundConf.Setting)
+	for _, conf := range c.Outbounds {
+		outbound, err := protocol.BuildOutbound(conf.Protocol, conf.Setting)
 		if err != nil {
 			return nil, err
 		}
-		tag := strings.ToLower(outboundConf.Tag)
+		tag := strings.ToLower(conf.Tag)
 		if _, ok := p.outbounds[tag]; ok {
-			return nil, errors.New("duplicated outbound tag: " + outboundConf.Tag)
+			return nil, errors.New("duplicated outbound tag: " + conf.Tag)
 		}
 		p.outbounds[tag] = outbound
 	}

@@ -2,23 +2,28 @@ package config
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 )
 
 type Config struct {
-	Inbounds  []Proto  `json:"inbounds,omitempty"`  // 入站代理: socks, http, yeager
-	Outbounds []Proto  `json:"outbounds,omitempty"` // 出站代理: yeager
-	Rules     []string `json:"rules,omitempty"`
+	Inbounds  []Inbound  `json:"inbounds,omitempty"`  // 入站代理
+	Outbounds []Outbound `json:"outbounds,omitempty"` // 出站代理
+	Rules     []string   `json:"rules,omitempty"`     // 路由规则
 }
 
-type Proto struct {
-	Tag      string          `json:"tag"`      // 出站标记
-	Protocol string          `json:"protocol"` // 代理协议，可取值为 socks, http, yeager
+type Inbound struct {
+	Protocol string          `json:"protocol"` // 代理协议，可取值: socks, http, yeager
+	Setting  json.RawMessage `json:"setting"`
+}
+
+type Outbound struct {
+	Tag      string          `json:"tag"`      // 出站标记，用于路由规则指定出站代理
+	Protocol string          `json:"protocol"` // 代理协议，可取值: socks, http, yeager
 	Setting  json.RawMessage `json:"setting"`
 }
 
 func Load(filename string) (Config, error) {
-	bs, err := ioutil.ReadFile(filename)
+	bs, err := os.ReadFile(filename)
 	if err != nil {
 		return Config{}, err
 	}

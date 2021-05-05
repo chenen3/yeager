@@ -3,7 +3,7 @@ package yeager
 import (
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -165,7 +165,7 @@ func TestFallback(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	bs, err := ioutil.ReadAll(resp.Body)
+	bs, err := io.ReadAll(resp.Body)
 	if err != nil || string(bs) != fallbackRes {
 		t.Fatalf("ReadAll = %s, %v; want ok, nil", bs, err)
 	}
