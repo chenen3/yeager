@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"testing"
 	"time"
-	"yeager/common"
+	"yeager/util"
 )
 
 func TestSocks5(t *testing.T) {
-	port, err := common.ChoosePort()
+	port, err := util.ChoosePort()
 	if err != nil {
 		t.Fatal(err)
 	}

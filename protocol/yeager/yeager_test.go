@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
-	"yeager/common"
 	"yeager/protocol"
+	"yeager/util"
 )
 
 // 生成证书用来测试: go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
@@ -87,7 +87,7 @@ func newYeagerServer() (*Server, error) {
 	}
 	fbPort, _ := strconv.Atoi(fbURL.Port())
 
-	port, err := common.ChoosePort()
+	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
 	}

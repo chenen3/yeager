@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"yeager/common"
+	"yeager/util"
 )
 
 func TestServer(t *testing.T) {
-	port, err := common.ChoosePort()
+	port, err := util.ChoosePort()
 	if err != nil {
 		t.Fatal(err)
 	}
