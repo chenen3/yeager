@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+
 	"yeager/protocol"
 )
 
@@ -15,10 +16,8 @@ func init() {
 
 const Tag = "reject"
 
-var Err = errors.New("traffic rejected")
-
 type Client struct{}
 
-func (f *Client) Dial(addr *protocol.Address) (net.Conn, error) {
-	return nil, Err
+func (c *Client) Dial(addr *protocol.Address) (net.Conn, error) {
+	return nil, errors.New("traffic rejected")
 }

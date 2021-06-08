@@ -125,9 +125,7 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 	glog.Printf("accepted %s [%s]\n", addr, tag)
 	outConn, err := outbound.Dial(addr)
 	if err != nil {
-		if err != reject.Err {
-			log.Error(err)
-		}
+		log.Error(err)
 		return
 	}
 	defer outConn.Close()
