@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -36,6 +38,11 @@ func main() {
 	// parsing geoip.dat obviously raise up the memory consumption,
 	// trigger GC to reduce it.
 	runtime.GC()
+
+	// http server for profiling
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	stopTime := 3 * time.Second
 	c := make(chan os.Signal, 1)
