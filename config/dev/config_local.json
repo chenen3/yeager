@@ -3,13 +3,13 @@
         {
             "protocol": "socks",
             "setting": {
-                "port": 10800
+                "port": 10810
             }
         },
         {
             "protocol": "http",
             "setting": {
-                "port": 10801
+                "port": 10811
             }
         }
     ],
@@ -18,7 +18,7 @@
             "tag": "PROXY",
             "protocol": "yeager",
             "setting": {
-                "port": 10802,
+                "port": 10812,
                 "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
                 "insecureSkipVerify": true
             }

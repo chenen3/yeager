@@ -109,7 +109,7 @@ func (s *Server) socksAuth(conn net.Conn) error {
 	var buf [2]byte
 	_, err := io.ReadFull(conn, buf[:])
 	if err != nil {
-		return errors.New("reading header: %s" + err.Error())
+		return errors.New("reading header: " + err.Error())
 	}
 	ver, nMethods := buf[0], buf[1]
 	if ver != ver5 {
