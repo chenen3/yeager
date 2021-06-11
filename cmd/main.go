@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"yeager"
 	"yeager/config"
 	"yeager/router"
@@ -41,6 +42,7 @@ func main() {
 
 	// http server for profiling
 	go func() {
+		http.Handle("/metrics", promhttp.Handler())
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
