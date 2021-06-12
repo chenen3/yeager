@@ -94,10 +94,7 @@ Example for remote machine(eg. VPS):
                 "uuid": "", // fill in UUID
                 "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
                 "keyFile": "/path/to/key.pem", // replace with absolute path of key
-                "fallback": {
-                    "host": "example.com", // if deploy via docker then replace with your domain name or IP
-                    "port": 80
-                }
+                "fallbackUrl": "" // fill in fallback url, like nginx server
             }
         }
     ]

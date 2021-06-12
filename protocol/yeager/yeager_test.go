@@ -6,9 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 	"yeager/protocol"
@@ -81,12 +79,6 @@ func TestMain(m *testing.M) {
 }
 
 func newYeagerServer() (*Server, error) {
-	fbURL, err := url.Parse(fallbackServer.URL)
-	if err != nil {
-		return nil, err
-	}
-	fbPort, _ := strconv.Atoi(fbURL.Port())
-
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
@@ -97,10 +89,7 @@ func newYeagerServer() (*Server, error) {
 		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		certPEMBlock: []byte(certPEM),
 		keyPEMBlock:  []byte(keyPEM),
-		Fallback: &fallback{
-			Host: fbURL.Hostname(),
-			Port: fbPort,
-		},
+		FallbackUrl:fallbackServer.URL,
 	})
 	return s, nil
 }
