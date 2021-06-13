@@ -3,7 +3,6 @@ package yeager
 import (
 	"crypto/tls"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	glog "log"
@@ -80,13 +79,16 @@ func (s *Server) Serve() {
 func (s *Server) handleConnection(conn net.Conn) {
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
+		log.Errorf("yeager handshake err: %s", err)
 		// For the anti-detection purpose:
 		// "All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the trojan server behaves exactly the same as that endpoint (by default HTTP) if a suspicious probe connects"
 		// Refer to https://trojan-gfw.github.io/trojan/protocol
-		log.Errorf("yeager handshake err: %s", err)
-		if err = s.fallback(conn); err != nil {
-			log.Errorf("fallback err: %s", err)
+		if s.conf.FallbackUrl != "" {
+			err = fallback(conn, s.conf.FallbackUrl)
+			if err != nil {
+				log.Errorf("fallback err: %s", err)
+			}
 		}
 		conn.Close()
 		return
@@ -174,20 +176,10 @@ func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error)
 
 // fallback connect to target directly, does not go through the router,
 // to keep these code simple and clear
-func (s *Server) fallback(conn net.Conn) error {
-	if s.conf.Fallback == nil {
-		return errors.New("no fallback config")
-	}
-
-	host := s.conf.Fallback.Host
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	port := s.conf.Fallback.Port
-	resp, err := http.Get(fmt.Sprintf("http://%s:%d", host, port))
+func fallback(conn net.Conn, url string) error {
+	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 	return resp.Write(conn)
 }

@@ -4,12 +4,15 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"yeager"
 	"yeager/config"
 	"yeager/router"
@@ -36,6 +39,12 @@ func main() {
 	// parsing geoip.dat obviously raise up the memory consumption,
 	// trigger GC to reduce it.
 	runtime.GC()
+
+	// http server for profiling
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	stopTime := 3 * time.Second
 	c := make(chan os.Signal, 1)
