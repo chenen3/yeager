@@ -6,6 +6,7 @@ import (
 	"io"
 	glog "log"
 	"strings"
+	"time"
 
 	"yeager/config"
 	"yeager/log"
@@ -16,6 +17,7 @@ import (
 	_ "yeager/protocol/socks"
 	_ "yeager/protocol/yeager"
 	"yeager/router"
+	"yeager/util"
 )
 
 type Proxy struct {
@@ -130,6 +132,8 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 	}
 	defer outConn.Close()
 
-	go io.Copy(outConn, inConn)
-	io.Copy(inConn, outConn)
+	iConn := util.ConnWithIdleTimeout(inConn, 5*time.Minute)
+	oConn := util.ConnWithIdleTimeout(outConn, 5*time.Minute)
+	go io.Copy(oConn, iConn)
+	io.Copy(iConn, oConn)
 }
