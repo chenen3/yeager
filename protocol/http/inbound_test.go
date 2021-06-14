@@ -3,10 +3,11 @@ package http
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"net/http/httptest"
-	"os"
+	"net/url"
 	"testing"
+	"time"
 	"yeager/util"
 )
 
@@ -22,25 +23,31 @@ func TestServer(t *testing.T) {
 	go ps.Serve()
 	defer ps.Close()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "1")
-	}))
-	defer ts.Close()
+	go func() {
+		proxyUrl, _ := url.Parse(fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
+		client := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyURL(proxyUrl),
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+			},
+		}
+		// waiting the proxy server start up
+		time.Sleep(time.Millisecond)
+		res, err := client.Get("http://1.2.3.4")
+		if err != nil {
+			t.Log(err)
+			return
+		}
+		defer res.Body.Close()
+		io.Copy(io.Discard, res.Body)
+	}()
 
-	err = os.Setenv("HTTP_PROXY", fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := http.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := io.ReadAll(res.Body)
-	res.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(resp) != "1" {
-		t.Fatalf("want 1, got %s", resp)
+	conn := <-ps.Accept()
+	defer conn.Close()
+	if got := conn.DstAddr().Host; got != "1.2.3.4" {
+		t.Fatalf("proxy server got wrong destination address: %s", got)
 	}
 }

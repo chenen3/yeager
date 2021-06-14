@@ -1,13 +1,12 @@
 package socks
 
 import (
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"os"
+	"net"
+	"strconv"
 	"testing"
+	"time"
 
+	"golang.org/x/net/proxy"
 	"yeager/util"
 )
 
@@ -16,32 +15,33 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ps := NewServer(&Config{
+	ss := NewServer(&Config{
 		Host: "127.0.0.1",
 		Port: port,
 	})
-	go ps.Serve()
-	defer ps.Close()
+	go ss.Serve()
+	defer ss.Close()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "1")
-	}))
-	defer ts.Close()
+	go func() {
+		addr := net.JoinHostPort(ss.conf.Host, strconv.Itoa(ss.conf.Port))
+		client, err := proxy.SOCKS5("tcp", addr, nil, nil)
+		if err != nil {
+			t.Log(err)
+			return
+		}
+		// waiting the proxy server start up
+		time.Sleep(time.Millisecond)
+		c, err := client.Dial("tcp", "1.2.3.4:80")
+		if err != nil {
+			t.Log(err)
+			return
+		}
+		c.Close()
+	}()
 
-	err = os.Setenv("HTTP_PROXY", fmt.Sprintf("socks5://%s:%d", ps.conf.Host, ps.conf.Port))
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := http.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := io.ReadAll(res.Body)
-	res.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(resp) != "1" {
-		t.Fatalf("want 1, got %s", resp)
+	conn := <-ss.Accept()
+	defer conn.Close()
+	if dst := conn.DstAddr().Host; dst != "1.2.3.4" {
+		t.Fatalf("proxy server got unexpected destination address: %s", dst)
 	}
 }
