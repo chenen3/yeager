@@ -2,6 +2,7 @@ package http
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -125,62 +126,30 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 	if port == "" {
 		port = "80"
 	}
-	portnum, err := strconv.Atoi(port)
+	portNum, err := strconv.Atoi(port)
 	if err != nil {
 		return nil, errors.New("invalid port: " + port)
 	}
-	dstAddr := protocol.NewAddress(host, portnum)
+	dstAddr := protocol.NewAddress(host, portNum)
 
-	pconn := newPipeConn(conn, dstAddr)
-	go func(pconn *pipeConn) {
-		// 对于HTTP代理请求，需要先行把请求数据转发一遍
-		if err := req.Write(pconn.pw); err != nil {
-			log.Error(err)
-		}
-		pconn.pw.Close()
-	}(pconn)
-	return pconn, nil
+	buf := new(bytes.Buffer)
+	// 对于HTTP代理请求，需要先行把请求转发一遍
+	if err := req.Write(buf); err != nil {
+		return nil, errors.New("request write err: " + err.Error())
+	}
+	cr := &connWithReader{conn, io.MultiReader(buf, conn)}
+	return protocol.NewConn(cr, dstAddr), nil
 }
 
-// pipeConn implement Reader which read it's pipeReader firstly, then the underlying net.Conn
-type pipeConn struct {
+// A connWithReader subverts the net.Conn.Read implementation, primarily so that
+// extra bytes can be transparently prepended.
+type connWithReader struct {
 	net.Conn
-	dstAddr *protocol.Address
-	pr      *io.PipeReader
-	pw      *io.PipeWriter
+	r io.Reader
 }
 
-func newPipeConn(conn net.Conn, addr *protocol.Address) *pipeConn {
-	pipeReader, pipeWriter := io.Pipe()
-	return &pipeConn{
-		Conn:    conn,
-		dstAddr: addr,
-		pr:      pipeReader,
-		pw:      pipeWriter,
-	}
-}
-
-func (c *pipeConn) DstAddr() *protocol.Address {
-	return c.dstAddr
-}
-
-func (c *pipeConn) Read(p []byte) (n int, err error) {
-	n, err = c.pr.Read(p)
-	if err != nil && err != io.EOF {
-		return n, err
-	}
-	if err == io.EOF {
-		if n < len(p) {
-			m, merr := c.Conn.Read(p[n:])
-			return n + m, merr
-		}
-		return n, nil
-	}
-	return n, nil
-}
-
-func (c *pipeConn) Close() error {
-	c.pw.Close()
-	c.pr.Close()
-	return c.Conn.Close()
+// Read allows control over the embedded net.Conn's read data. By using an
+// io.MultiReader one can define the behaviour of reading from conn and extra data
+func (c *connWithReader) Read(p []byte) (n int, err error) {
+	return c.r.Read(p)
 }

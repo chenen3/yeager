@@ -19,7 +19,7 @@ type connWithIdle struct {
 	idleTimeout time.Duration
 }
 
-// net connection with idle timeout
+// network connection with idle timeout
 func ConnWithIdleTimeout(c net.Conn, t time.Duration) *connWithIdle {
 	return &connWithIdle{
 		Conn:        c,
