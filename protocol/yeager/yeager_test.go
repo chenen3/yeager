@@ -101,7 +101,8 @@ func TestYeager(t *testing.T) {
 	}
 	go server.Serve()
 	defer server.Close()
-	srvCh := server.Accept()
+	// wait for the proxy server to start in the background
+	time.Sleep(time.Millisecond)
 
 	client := NewClient(&ClientConfig{
 		Host:               server.conf.Host,
@@ -110,14 +111,13 @@ func TestYeager(t *testing.T) {
 		InsecureSkipVerify: true,
 	})
 
-	time.Sleep(time.Millisecond)
 	cconn, err := client.Dial(protocol.NewAddress("127.0.0.1", 0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cconn.Close()
 
-	sconn := <-srvCh
+	sconn := <-server.Accept()
 	if sconn == nil {
 		return
 	}
@@ -139,7 +139,8 @@ func TestFallback(t *testing.T) {
 	}
 	go server.Serve()
 	defer server.Close()
-	time.Sleep(time.Second)
+	// wait for the proxy server to start in the background
+	time.Sleep(time.Millisecond)
 
 	client := http.Client{
 		Transport: &http.Transport{

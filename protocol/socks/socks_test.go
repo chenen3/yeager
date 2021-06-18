@@ -20,6 +20,7 @@ func TestSocks5(t *testing.T) {
 	})
 	go ss.Serve()
 	defer ss.Close()
+	// wait for the proxy server to start in the background
 	time.Sleep(time.Millisecond)
 
 	addr := net.JoinHostPort(ss.conf.Host, strconv.Itoa(ss.conf.Port))
