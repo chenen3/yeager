@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path"
 	"testing"
 	"time"
 	"yeager/config"
@@ -121,6 +123,12 @@ func makeClientProxyConf(inboundPort, outboundPort int) (config.Config, error) {
 
 func makeServerProxyConf(inboundPort int) (config.Config, error) {
 	var conf config.Config
+	dir, err := os.Getwd()
+	if err != nil {
+		return config.Config{}, err
+	}
+	certFile := path.Join(dir, "config", "dev", "cert.pem")
+	keyFile := path.Join(dir, "config", "dev", "key.pem")
 	s := fmt.Sprintf(`{
     "inbounds": [
         {
@@ -129,12 +137,12 @@ func makeServerProxyConf(inboundPort int) (config.Config, error) {
 				"host": "127.0.0.1",
                 "port": %d,
                 "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-                "certFile": "/Users/aha/code/yeager/config/dev/cert.pem",
-                "keyFile": "/Users/aha/code/yeager/config/dev/key.pem"
+                "certFile": "%s",
+                "keyFile": "%s"
             }
         }
     ]
-}`, inboundPort)
-	err := json.Unmarshal([]byte(s), &conf)
+}`, inboundPort, certFile, keyFile)
+	err = json.Unmarshal([]byte(s), &conf)
 	return conf, err
 }
