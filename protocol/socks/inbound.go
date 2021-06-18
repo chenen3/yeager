@@ -49,7 +49,7 @@ func (s *Server) Serve() {
 		return
 	}
 	defer ln.Close()
-	glog.Println("socks5 proxy listen on", addr)
+	glog.Println("socks5 proxy listening on", addr)
 
 	for {
 		select {
