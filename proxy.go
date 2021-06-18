@@ -62,11 +62,11 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	}
 	p.outbounds[reject.Tag] = rejectOutbound
 
-	router_, err := router.NewRouter(c.Rules)
+	rt, err := router.NewRouter(c.Rules)
 	if err != nil {
 		return nil, err
 	}
-	p.router = router_
+	p.router = rt
 	return p, nil
 }
 
@@ -109,14 +109,13 @@ func (p *Proxy) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case conn := <-connCh:
-			go p.handleConnection(conn)
+			go p.handleConnection(ctx, conn)
 		}
 	}
 }
 
-func (p *Proxy) handleConnection(inConn protocol.Conn) {
+func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
 	defer inConn.Close()
-
 	addr := inConn.DstAddr()
 	tag := p.router.Dispatch(addr)
 	outbound, ok := p.outbounds[tag]
@@ -125,6 +124,7 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 		return
 	}
 	glog.Printf("accepted %s [%s]\n", addr, tag)
+
 	outConn, err := outbound.Dial(addr)
 	if err != nil {
 		log.Error(err)
@@ -134,6 +134,21 @@ func (p *Proxy) handleConnection(inConn protocol.Conn) {
 
 	iConn := util.ConnWithIdleTimeout(inConn, 5*time.Minute)
 	oConn := util.ConnWithIdleTimeout(outConn, 5*time.Minute)
-	go io.Copy(oConn, iConn)
-	io.Copy(iConn, oConn)
+
+	errCh := make(chan error, 2)
+	go copyConn(oConn, iConn, errCh)
+	go copyConn(iConn, oConn, errCh)
+	select {
+	case <-ctx.Done():
+		return
+	case err := <-errCh:
+		if err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+func copyConn(dst io.Writer, src io.Reader, errCh chan<- error) {
+	_, err := io.Copy(dst, src)
+	errCh <- err
 }
