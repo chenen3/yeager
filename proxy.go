@@ -125,7 +125,9 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
 	}
 	glog.Printf("accepted %s [%s]\n", addr, tag)
 
-	outConn, err := outbound.Dial(addr)
+	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {
 		log.Error(err)
 		return

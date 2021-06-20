@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"yeager/log"
@@ -49,7 +50,9 @@ func (s *Server) Serve() {
 		return
 	}
 	config := &tls.Config{
-		Certificates: []tls.Certificate{cert},
+		Certificates:             []tls.Certificate{cert},
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
 	}
 	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
 	ln, err := tls.Listen("tcp", addr, config)
@@ -102,7 +105,19 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
+// 为了降低握手时延，减少一次RTT，yeager出站代理将在建立tls连接后，第一次数据发送时，附带握手信息。
+// 当yeager入站代理收到握手信息，如果认证通过，则继续处理，无需回复连接建立；如果认证失败，则关闭连接。
 func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error) {
+	err = conn.SetDeadline(time.Now().Add(4 * time.Second))
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		dErr := conn.SetDeadline(time.Time{})
+		if err == nil {
+			err = dErr
+		}
+	}()
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -159,16 +174,6 @@ func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error)
 		return nil, err
 	}
 	port := binary.BigEndian.Uint16(bs[:])
-
-	/*
-		服务端回应格式(以字节为单位):
-		VER	REP
-		1	1
-	*/
-	_, err = conn.Write([]byte{versionBeta, responseSuccess})
-	if err != nil {
-		return nil, err
-	}
 
 	dstAddr = protocol.NewAddress(host, int(port))
 	return dstAddr, nil

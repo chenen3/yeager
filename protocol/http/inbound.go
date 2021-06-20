@@ -13,6 +13,7 @@ import (
 
 	"yeager/log"
 	"yeager/protocol"
+	"yeager/util"
 )
 
 type Server struct {
@@ -137,19 +138,6 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 	if err := req.Write(buf); err != nil {
 		return nil, errors.New("request write err: " + err.Error())
 	}
-	cr := &connWithReader{conn, io.MultiReader(buf, conn)}
+	cr := util.ConnWithReader(conn, io.MultiReader(buf, conn))
 	return protocol.NewConn(cr, dstAddr), nil
-}
-
-// A connWithReader subverts the net.Conn.Read implementation, primarily so that
-// extra bytes can be transparently prepended.
-type connWithReader struct {
-	net.Conn
-	r io.Reader
-}
-
-// Read allows control over the embedded net.Conn's read data. By using an
-// io.MultiReader one can define the behaviour of reading from conn and extra data
-func (c *connWithReader) Read(p []byte) (n int, err error) {
-	return c.r.Read(p)
 }
