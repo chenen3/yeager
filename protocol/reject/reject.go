@@ -1,6 +1,7 @@
 package reject
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -18,6 +19,6 @@ const Tag = "reject"
 
 type Client struct{}
 
-func (c *Client) Dial(addr *protocol.Address) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, addr *protocol.Address) (net.Conn, error) {
 	return nil, errors.New("traffic rejected")
 }

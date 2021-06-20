@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -23,7 +24,7 @@ type Inbound interface {
 }
 
 type Outbound interface {
-	Dial(address *Address) (net.Conn, error)
+	DialContext(ctx context.Context, address *Address) (net.Conn, error)
 }
 
 type inboundBuilderFunc func(setting json.RawMessage) (Inbound, error)

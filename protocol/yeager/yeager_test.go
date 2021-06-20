@@ -1,6 +1,7 @@
 package yeager
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -89,7 +90,7 @@ func newYeagerServer() (*Server, error) {
 		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		certPEMBlock: []byte(certPEM),
 		keyPEMBlock:  []byte(keyPEM),
-		FallbackUrl:fallbackServer.URL,
+		FallbackUrl:  fallbackServer.URL,
 	})
 	return s, nil
 }
@@ -104,31 +105,40 @@ func TestYeager(t *testing.T) {
 	// wait for the proxy server to start in the background
 	time.Sleep(time.Millisecond)
 
-	client := NewClient(&ClientConfig{
-		Host:               server.conf.Host,
-		Port:               server.conf.Port,
-		UUID:               server.conf.UUID,
-		InsecureSkipVerify: true,
-	})
+	errCh := make(chan error, 1)
+	go func() {
+		client := NewClient(&ClientConfig{
+			Host:               server.conf.Host,
+			Port:               server.conf.Port,
+			UUID:               server.conf.UUID,
+			InsecureSkipVerify: true,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(),time.Second)
+		defer cancel()
+		cconn, err := client.DialContext(ctx,protocol.NewAddress("127.0.0.1", 0))
+		if err != nil {
+			errCh <- err
+		}
+		defer cconn.Close()
+		_, err = io.WriteString(cconn, "foobar")
+		if err != nil {
+			errCh <- err
+		}
+	}()
 
-	cconn, err := client.Dial(protocol.NewAddress("127.0.0.1", 0))
-	if err != nil {
+	select {
+	case err := <-errCh:
 		t.Fatal(err)
-	}
-	defer cconn.Close()
-
-	sconn := <-server.Accept()
-	if sconn == nil {
-		return
-	}
-	defer sconn.Close()
-
-	buf := make([]byte, 6)
-	if _, err := sconn.Write([]byte("foobar")); err != nil {
-		t.Fatalf("Write err: %v", err)
-	}
-	if n, err := cconn.Read(buf); n != 6 || err != nil || string(buf) != "foobar" {
-		t.Fatalf("Read = %d, %v, data %q; want 6, nil, foobar", n, err, buf)
+	case sconn := <-server.Accept():
+		defer sconn.Close()
+		buf := make([]byte, 6)
+		_, err := io.ReadFull(sconn, buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(buf) != "foobar" {
+			t.Fatalf("want foobar, got %s", buf)
+		}
 	}
 }
 

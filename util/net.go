@@ -1,6 +1,7 @@
 package util
 
 import (
+	"io"
 	"net"
 	"time"
 )
@@ -53,4 +54,42 @@ func (c *connWithIdle) Write(p []byte) (n int, err error) {
 		}
 	}
 	return n, err
+}
+
+// A connWithReader subverts the net.Conn.Read implementation, primarily so that
+// extra bytes can be transparently prepended.
+type connWithReader struct {
+	net.Conn
+	r io.Reader
+}
+
+// ConnWithReader by using an io.MultiReader one can define the behaviour of reading from conn and extra data
+func ConnWithReader(conn net.Conn, reader io.Reader) *connWithReader {
+	return &connWithReader{conn, reader}
+}
+
+func (c *connWithReader) Read(b []byte) (n int, err error) {
+	return c.r.Read(b)
+}
+
+type connPreWrite struct {
+	net.Conn
+	r io.Reader
+}
+
+// ConnWithPreWrite subverts the net.Conn.Write implementation, primarily so that
+// extra bytes can be transparently pre-write.
+func ConnWithPreWrite(conn net.Conn, reader io.Reader) *connPreWrite {
+	return &connPreWrite{conn, reader}
+}
+
+func (c *connPreWrite) Write(b []byte) (n int, err error) {
+	if c.r != nil {
+		_, err = io.Copy(c.Conn, c.r)
+		if err != nil {
+			return
+		}
+		c.r = nil
+	}
+	return c.Conn.Write(b)
 }
