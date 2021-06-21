@@ -134,8 +134,8 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
 	}
 	defer outConn.Close()
 
-	iConn := util.ConnWithIdleTimeout(inConn, 5*time.Minute)
-	oConn := util.ConnWithIdleTimeout(outConn, 5*time.Minute)
+	iConn := util.NewMaxIdleConn(inConn, 5*time.Minute)
+	oConn := util.NewMaxIdleConn(outConn, 5*time.Minute)
 
 	// bidirectional connection, one of which closed, the other shall close immediately
 	errCh := make(chan error, 2)

@@ -7,9 +7,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"net"
-
 	"github.com/google/uuid"
+	"net"
 	"yeager/protocol"
 	"yeager/util"
 )
@@ -80,6 +79,6 @@ func (c *Client) handshake(conn net.Conn, dstAddr *protocol.Address) (net.Conn, 
 	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
 	buf.Write(b[:])
 
-	newConn := util.ConnWithPreWrite(conn, &buf)
-	return newConn, nil
+	ewc := util.NewEarlyWriteConn(conn, &buf)
+	return ewc, nil
 }

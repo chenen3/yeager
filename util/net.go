@@ -15,81 +15,78 @@ func ChoosePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-type connWithIdle struct {
+type maxIdleConn struct {
 	net.Conn
 	idleTimeout time.Duration
 }
 
-// network connection with idle timeout
-func ConnWithIdleTimeout(c net.Conn, t time.Duration) *connWithIdle {
-	return &connWithIdle{
+func (c *maxIdleConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if c.idleTimeout > 0 && n > 0 && err == nil {
+		err = c.Conn.SetDeadline(time.Now().Add(c.idleTimeout))
+		if err != nil {
+			return 0, err
+		}
+	}
+	return n, err
+}
+
+func (c *maxIdleConn) Write(p []byte) (n int, err error) {
+	n, err = c.Conn.Write(p)
+	if c.idleTimeout > 0 && n > 0 && err == nil {
+		err = c.Conn.SetDeadline(time.Now().Add(c.idleTimeout))
+		if err != nil {
+			return 0, err
+		}
+	}
+	return n, err
+}
+
+// NewMaxIdleConn return an connection that implement idle timeout,
+// by repeatedly extending the deadline after successful Read or Write calls.
+func NewMaxIdleConn(c net.Conn, t time.Duration) net.Conn {
+	return &maxIdleConn{
 		Conn:        c,
 		idleTimeout: t,
 	}
 }
 
-func (c *connWithIdle) Read(b []byte) (n int, err error) {
-	n, err = c.Conn.Read(b)
-	// According to net.Conn document:
-	// An idle timeout can be implemented by repeatedly extending
-	// the deadline after successful Read or Write calls.
-	if c.idleTimeout > 0 && n > 0 && err == nil {
-		err = c.Conn.SetDeadline(time.Now().Add(c.idleTimeout))
-		if err != nil {
-			return 0, err
-		}
-	}
-	return n, err
-}
-
-func (c *connWithIdle) Write(p []byte) (n int, err error) {
-	n, err = c.Conn.Write(p)
-	// According to net.Conn document:
-	// An idle timeout can be implemented by repeatedly extending
-	// the deadline after successful Read or Write calls.
-	if c.idleTimeout > 0 && n > 0 && err == nil {
-		err = c.Conn.SetDeadline(time.Now().Add(c.idleTimeout))
-		if err != nil {
-			return 0, err
-		}
-	}
-	return n, err
-}
-
-// A connWithReader subverts the net.Conn.Read implementation, primarily so that
-// extra bytes can be transparently prepended.
-type connWithReader struct {
+type earlyReadConn struct {
 	net.Conn
-	r io.Reader
+	reader io.Reader
 }
 
-// ConnWithReader by using an io.MultiReader one can define the behaviour of reading from conn and extra data
-func ConnWithReader(conn net.Conn, reader io.Reader) *connWithReader {
-	return &connWithReader{conn, reader}
+func (erc *earlyReadConn) Read(b []byte) (n int, err error) {
+	return erc.reader.Read(b)
 }
 
-func (c *connWithReader) Read(b []byte) (n int, err error) {
-	return c.r.Read(b)
+// NewEarlyReadConn subverts the net.Conn.Read implementation, so that
+// bytes from the given reader can be read early
+func NewEarlyReadConn(conn net.Conn, reader io.Reader) net.Conn {
+	return &earlyReadConn{
+		Conn:   conn,
+		reader: io.MultiReader(reader, conn),
+	}
 }
 
-type connPreWrite struct {
+type earlyWriteConn struct {
 	net.Conn
-	r io.Reader
+	reader io.Reader
 }
 
-// ConnWithPreWrite subverts the net.Conn.Write implementation, primarily so that
-// extra bytes can be transparently pre-write.
-func ConnWithPreWrite(conn net.Conn, reader io.Reader) *connPreWrite {
-	return &connPreWrite{conn, reader}
-}
-
-func (c *connPreWrite) Write(b []byte) (n int, err error) {
-	if c.r != nil {
-		_, err = io.Copy(c.Conn, c.r)
+func (ewc *earlyWriteConn) Write(b []byte) (n int, err error) {
+	if ewc.reader != nil {
+		_, err = io.Copy(ewc.Conn, ewc.reader)
 		if err != nil {
 			return
 		}
-		c.r = nil
+		ewc.reader = nil
 	}
-	return c.Conn.Write(b)
+	return ewc.Conn.Write(b)
+}
+
+// NewEarlyWriteConn subverts the net.Conn.Write implementation, so that
+// bytes from the given reader can be wrote early
+func NewEarlyWriteConn(conn net.Conn, reader io.Reader) net.Conn {
+	return &earlyWriteConn{conn, reader}
 }

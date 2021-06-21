@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	glog "log"
 	"net"
 	"net/http"
@@ -138,6 +137,6 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 	if err := req.Write(buf); err != nil {
 		return nil, errors.New("request write err: " + err.Error())
 	}
-	cr := util.ConnWithReader(conn, io.MultiReader(buf, conn))
-	return protocol.NewConn(cr, dstAddr), nil
+	erc := util.NewEarlyReadConn(conn, buf)
+	return protocol.NewConn(erc, dstAddr), nil
 }
