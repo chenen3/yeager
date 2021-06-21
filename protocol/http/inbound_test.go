@@ -5,9 +5,12 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
+
+	"yeager/log"
 	"yeager/util"
 )
 
@@ -22,6 +25,8 @@ func TestServer(t *testing.T) {
 	})
 	go ps.Serve()
 	defer ps.Close()
+	// wait for the proxy server to start in the background
+	time.Sleep(time.Millisecond)
 
 	go func() {
 		proxyUrl, _ := url.Parse(fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
@@ -34,11 +39,9 @@ func TestServer(t *testing.T) {
 				}).DialContext,
 			},
 		}
-		// waiting the proxy server start up
-		time.Sleep(time.Millisecond)
 		res, err := client.Get("http://1.2.3.4")
 		if err != nil {
-			t.Log(err)
+			log.Error(err)
 			return
 		}
 		defer res.Body.Close()
@@ -49,5 +52,14 @@ func TestServer(t *testing.T) {
 	defer conn.Close()
 	if got := conn.DstAddr().Host; got != "1.2.3.4" {
 		t.Fatalf("proxy server got wrong destination address: %s", got)
+	}
+	rec := httptest.NewRecorder()
+	_, err = rec.WriteString("1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = rec.Result().Write(conn)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

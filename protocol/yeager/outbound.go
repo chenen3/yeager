@@ -7,8 +7,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"net"
+
+	"github.com/google/uuid"
 	"yeager/protocol"
 	"yeager/util"
 )

@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// ChoosePort choose a local port number automatically
 func ChoosePort() (int, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -60,12 +61,12 @@ func (erc *earlyReadConn) Read(b []byte) (n int, err error) {
 	return erc.reader.Read(b)
 }
 
-// NewEarlyReadConn subverts the net.Conn.Read implementation, so that
-// bytes from the given reader can be read early
-func NewEarlyReadConn(conn net.Conn, reader io.Reader) net.Conn {
+// NewEarlyReadConn returns a net.Conn that subverts the Read implementation,
+// it reads from r early before the embed net.Conn
+func NewEarlyReadConn(conn net.Conn, r io.Reader) net.Conn {
 	return &earlyReadConn{
 		Conn:   conn,
-		reader: io.MultiReader(reader, conn),
+		reader: io.MultiReader(r, conn),
 	}
 }
 
@@ -85,8 +86,8 @@ func (ewc *earlyWriteConn) Write(b []byte) (n int, err error) {
 	return ewc.Conn.Write(b)
 }
 
-// NewEarlyWriteConn subverts the net.Conn.Write implementation, so that
-// bytes from the given reader can be wrote early
-func NewEarlyWriteConn(conn net.Conn, reader io.Reader) net.Conn {
-	return &earlyWriteConn{conn, reader}
+// NewEarlyWriteConn returns a net.Conn that subverts the Write implementation,
+// it reads from r and write early before the first time calling the embed net.Conn.Write
+func NewEarlyWriteConn(conn net.Conn, r io.Reader) net.Conn {
+	return &earlyWriteConn{conn, r}
 }

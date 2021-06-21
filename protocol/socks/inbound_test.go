@@ -21,6 +21,8 @@ func TestServer(t *testing.T) {
 	})
 	go ss.Serve()
 	defer ss.Close()
+	// wait for the proxy server to start in the background
+	time.Sleep(time.Millisecond)
 
 	go func() {
 		addr := net.JoinHostPort(ss.conf.Host, strconv.Itoa(ss.conf.Port))
@@ -29,8 +31,6 @@ func TestServer(t *testing.T) {
 			t.Log(err)
 			return
 		}
-		// waiting the proxy server start up
-		time.Sleep(time.Millisecond)
 		c, err := client.Dial("tcp", "1.2.3.4:80")
 		if err != nil {
 			t.Log(err)
