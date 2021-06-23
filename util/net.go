@@ -4,6 +4,7 @@ import (
 	"io"
 	"net"
 	"time"
+	"yeager/log"
 )
 
 // ChoosePort choose a local port number automatically
@@ -90,4 +91,41 @@ func (ewc *earlyWriteConn) Write(b []byte) (n int, err error) {
 // it reads from r and write early before the first time calling the embed net.Conn.Write
 func NewEarlyWriteConn(conn net.Conn, r io.Reader) net.Conn {
 	return &earlyWriteConn{conn, r}
+}
+
+// Link link two io.ReadWriter, read from a then write to b, and read from b then write to a
+func Link(a, b io.ReadWriter) <-chan bool {
+	done := make(chan bool, 2)
+	prA, pwA := io.Pipe()
+	prB, pwB := io.Pipe()
+
+	// a -> pwB -> prB -> b
+	go func() {
+		_, err := io.Copy(pwB, a)
+		if err != nil && err != io.ErrClosedPipe {
+			log.Error(err)
+		}
+		pwB.Close()
+		pwA.Close()
+		done <- true
+	}()
+	go func() {
+		io.Copy(b, prB)
+	}()
+
+	// b -> pwA -> prA -> a
+	go func() {
+		_, err := io.Copy(pwA, b)
+		if err != nil && err != io.ErrClosedPipe {
+			log.Error(err)
+		}
+		pwA.Close()
+		pwB.Close()
+		done <- true
+	}()
+	go func() {
+		io.Copy(a, prA)
+	}()
+
+	return done
 }

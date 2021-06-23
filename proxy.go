@@ -135,15 +135,9 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
 	defer outConn.Close()
 
 	iConn := util.NewMaxIdleConn(inConn, 5*time.Minute)
-	oConn := util.NewMaxIdleConn(outConn, 5*time.Minute)
-
-	// bidirectional connection, one of which closed, the other shall close immediately
-	errCh := make(chan error, 2)
-	go copyConn(oConn, iConn, errCh)
-	go copyConn(iConn, oConn, errCh)
+	errCh := link(iConn, outConn)
 	select {
 	case <-ctx.Done():
-		return
 	case err := <-errCh:
 		if err != nil {
 			log.Error(err)
@@ -151,7 +145,16 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
 	}
 }
 
-func copyConn(dst io.Writer, src io.Reader, errCh chan<- error) {
-	_, err := io.Copy(dst, src)
-	errCh <- err
+func link(a, b io.ReadWriter) <-chan error {
+	errCh := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(b, a)
+		errCh <- err
+	}()
+	go func() {
+		_, err := io.Copy(a, b)
+		errCh <- err
+	}()
+
+	return errCh
 }
