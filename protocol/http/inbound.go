@@ -137,6 +137,6 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 	if err := req.Write(buf); err != nil {
 		return nil, errors.New("request write err: " + err.Error())
 	}
-	erc := util.NewEarlyReadConn(conn, buf)
+	erc := util.EarlyReadConn(conn, buf)
 	return protocol.NewConn(erc, dstAddr), nil
 }

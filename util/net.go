@@ -62,9 +62,9 @@ func (erc *earlyReadConn) Read(b []byte) (n int, err error) {
 	return erc.reader.Read(b)
 }
 
-// NewEarlyReadConn returns a net.Conn that subverts the Read implementation,
+// EarlyReadConn returns a net.Conn that subverts the Read implementation,
 // it reads from r early before the embed net.Conn
-func NewEarlyReadConn(conn net.Conn, r io.Reader) net.Conn {
+func EarlyReadConn(conn net.Conn, r io.Reader) net.Conn {
 	return &earlyReadConn{
 		Conn:   conn,
 		reader: io.MultiReader(r, conn),
@@ -87,9 +87,9 @@ func (ewc *earlyWriteConn) Write(b []byte) (n int, err error) {
 	return ewc.Conn.Write(b)
 }
 
-// NewEarlyWriteConn returns a net.Conn that subverts the Write implementation,
+// EarlyWriteConn returns a net.Conn that subverts the Write implementation,
 // it reads from r and write early before the first time calling the embed net.Conn.Write
-func NewEarlyWriteConn(conn net.Conn, r io.Reader) net.Conn {
+func EarlyWriteConn(conn net.Conn, r io.Reader) net.Conn {
 	return &earlyWriteConn{conn, r}
 }
 

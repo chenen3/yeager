@@ -40,7 +40,7 @@ func (c *Client) DialContext(ctx context.Context, dstAddr *protocol.Address) (ne
 		return nil, err
 	}
 
-	return util.NewEarlyWriteConn(conn, buf), nil
+	return util.EarlyWriteConn(conn, buf), nil
 }
 
 const (
