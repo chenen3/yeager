@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"yeager/log"
 	"yeager/protocol"
@@ -69,6 +70,7 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
 	newConn, err := s.handshake(conn)
 	if err != nil {
 		log.Error(err)

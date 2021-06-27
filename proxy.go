@@ -17,7 +17,6 @@ import (
 	_ "yeager/protocol/socks"
 	_ "yeager/protocol/yeager"
 	"yeager/router"
-	"yeager/util"
 )
 
 type Proxy struct {
@@ -97,6 +96,11 @@ func (p *Proxy) Start(ctx context.Context) {
 		for _, inbound := range p.inbounds {
 			_ = inbound.Close()
 		}
+		for _, outbound := range p.outbounds {
+			if c, ok := outbound.(io.Closer); ok {
+				c.Close()
+			}
+		}
 		// drain the channel, prevent connections from being not closed
 		close(connCh)
 		for conn := range connCh {
@@ -123,19 +127,20 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	glog.Printf("accepted %s [%s]\n", addr, tag)
+	// glog.Printf("accepted %s [%s]", addr, tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
+	start := time.Now()
 	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 	defer outConn.Close()
+	glog.Printf("accepted %s [%s], dial %dms", addr, tag, time.Since(start).Milliseconds())
 
-	iConn := util.NewMaxIdleConn(inConn, 5*time.Minute)
-	errCh := link(iConn, outConn)
+	errCh := link(inConn, outConn)
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:

@@ -3,17 +3,20 @@ package yeager
 import (
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	glog "log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"yeager/log"
 	"yeager/protocol"
+	"yeager/util"
 )
 
 type Server struct {
@@ -80,20 +83,25 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
+		defer conn.Close()
 		log.Errorf("yeager handshake err: %s", err)
+		// 如果客户端主动关闭连接或者握手超时，即是客户端缓存的连接因为空闲超时而关闭
+		if err == io.EOF && errors.Is(err, os.ErrDeadlineExceeded) {
+			return
+		}
 		// For the anti-detection purpose:
-		// "All connection without correct structure and password will be redirected to a preset endpoint,
-		// so the trojan server behaves exactly the same as that endpoint (by default HTTP) if a suspicious probe connects"
-		// Refer to https://trojan-gfw.github.io/trojan/protocol
+		// All connection without correct structure and password will be redirected to a preset endpoint,
+		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
+		// Learning from trojan, https://trojan-gfw.github.io/trojan/protocol
 		if s.conf.FallbackUrl != "" {
 			err = fallback(conn, s.conf.FallbackUrl)
 			if err != nil {
 				log.Errorf("fallback err: %s", err)
 			}
 		}
-		conn.Close()
 		return
 	}
 
@@ -108,16 +116,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 // 为了降低握手时延，减少一次RTT，yeager出站代理将在建立tls连接后，第一次数据发送时，附带握手信息。
 // 当yeager入站代理收到握手信息，如果认证通过，则继续处理，无需回复连接建立；如果认证失败，则关闭连接。
 func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error) {
-	err = conn.SetDeadline(time.Now().Add(4 * time.Second))
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		dErr := conn.SetDeadline(time.Time{})
-		if err == nil {
-			err = dErr
-		}
-	}()
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT

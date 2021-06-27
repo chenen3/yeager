@@ -8,9 +8,11 @@ import (
 	glog "log"
 	"net"
 	"strconv"
+	"time"
 
 	"yeager/log"
 	"yeager/protocol"
+	"yeager/util"
 )
 
 // Server implements protocol.Inbound interface
@@ -68,6 +70,7 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
 		log.Error(err)
