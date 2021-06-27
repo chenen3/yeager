@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/google/uuid"
 	"yeager/protocol"
@@ -16,22 +17,33 @@ import (
 
 type Client struct {
 	conf *ClientConfig
+	pool *util.ConnPool
 }
 
 func NewClient(config *ClientConfig) *Client {
-	return &Client{conf: config}
+	var c Client
+	c.conf = config
+	pool := &util.ConnPool{
+		IdleTimeout: 5 * time.Minute,
+		DialContext: func(ctx context.Context) (net.Conn, error) {
+			addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
+			d := tls.Dialer{
+				Config: &tls.Config{
+					ServerName:         c.conf.Host,
+					InsecureSkipVerify: c.conf.InsecureSkipVerify,
+					ClientSessionCache: tls.NewLRUClientSessionCache(0),
+				},
+			}
+			return d.DialContext(ctx, "tcp", addr)
+		},
+	}
+	pool.Init()
+	c.pool = pool
+	return &c
 }
 
 func (c *Client) DialContext(ctx context.Context, dstAddr *protocol.Address) (net.Conn, error) {
-	addr := fmt.Sprintf("%s:%d", c.conf.Host, c.conf.Port)
-	d := tls.Dialer{
-		Config: &tls.Config{
-			ServerName:         c.conf.Host,
-			InsecureSkipVerify: c.conf.InsecureSkipVerify,
-			ClientSessionCache: tls.NewLRUClientSessionCache(0),
-		},
-	}
-	conn, err := d.DialContext(ctx, "tcp", addr)
+	conn, err := c.pool.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +51,6 @@ func (c *Client) DialContext(ctx context.Context, dstAddr *protocol.Address) (ne
 	if err != nil {
 		return nil, err
 	}
-
 	return util.EarlyWriteConn(conn, buf), nil
 }
 
@@ -82,4 +93,8 @@ func (c *Client) prepareHandshake(dstAddr *protocol.Address) (*bytes.Buffer, err
 	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
 	buf.Write(b[:])
 	return &buf, nil
+}
+
+func (c *Client) Close() error {
+	return c.pool.Close()
 }
