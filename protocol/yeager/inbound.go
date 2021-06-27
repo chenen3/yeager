@@ -92,8 +92,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 		if err == io.EOF && errors.Is(err, os.ErrDeadlineExceeded) {
 			return
 		}
-		// 为了对抗流量探测，如果连接握手失败则重定向至指定地址，伪装成普通HTTP服务
-		// 参考 https://trojan-gfw.github.io/trojan/protocol
+		// For the anti-detection purpose:
+		// All connection without correct structure and password will be redirected to a preset endpoint,
+		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
+		// Learning from trojan, https://trojan-gfw.github.io/trojan/protocol
 		if s.conf.FallbackUrl != "" {
 			err = fallback(conn, s.conf.FallbackUrl)
 			if err != nil {
