@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	proxy.RegisterInboundBuilder("socks", func(setting json.RawMessage) (proxy.Inbound, error) {
+	proxy.RegisterInboundBuilder(Tag, func(setting json.RawMessage) (proxy.Inbound, error) {
 		conf := new(Config)
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err
@@ -15,3 +15,5 @@ func init() {
 		return NewServer(conf), nil
 	})
 }
+
+const Tag = "socks"

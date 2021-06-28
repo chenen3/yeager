@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	proxy.RegisterInboundBuilder("http", func(setting json.RawMessage) (inbound proxy.Inbound, err error) {
+	proxy.RegisterInboundBuilder(Tag, func(setting json.RawMessage) (inbound proxy.Inbound, err error) {
 		conf := new(Config)
 		if err = json.Unmarshal(setting, conf); err != nil {
 			return nil, err
@@ -14,3 +14,5 @@ func init() {
 		return NewServer(conf), nil
 	})
 }
+
+const Tag = "http"

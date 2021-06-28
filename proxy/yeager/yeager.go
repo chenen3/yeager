@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	proxy.RegisterOutboundBuilder("yeager", func(setting json.RawMessage) (proxy.Outbound, error) {
+	proxy.RegisterOutboundBuilder(Tag, func(setting json.RawMessage) (proxy.Outbound, error) {
 		conf := new(ClientConfig)
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err
@@ -14,7 +14,7 @@ func init() {
 		return NewClient(conf), nil
 	})
 
-	proxy.RegisterInboundBuilder("yeager", func(setting json.RawMessage) (proxy.Inbound, error) {
+	proxy.RegisterInboundBuilder(Tag, func(setting json.RawMessage) (proxy.Inbound, error) {
 		conf := new(ServerConfig)
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err
@@ -22,3 +22,5 @@ func init() {
 		return NewServer(conf), nil
 	})
 }
+
+const Tag = "yeager"
