@@ -10,7 +10,7 @@ import (
 
 	"github.com/v2fly/v2ray-core/v4/app/router"
 	"google.golang.org/protobuf/proto"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 var assetDirs []string
@@ -79,7 +79,7 @@ func newGeoIPMatcher(country string) (*geoIPMatcher, error) {
 	return m, nil
 }
 
-func (g *geoIPMatcher) Match(addr *protocol.Address) bool {
+func (g *geoIPMatcher) Match(addr *proxy.Address) bool {
 	if len(g.masks) == 0 {
 		return false
 	}

@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 	"time"
-	"yeager/protocol"
+	"yeager/proxy"
 	"yeager/util"
 )
 
@@ -115,7 +115,7 @@ func TestYeager(t *testing.T) {
 		})
 		ctx, cancel := context.WithTimeout(context.Background(),time.Second)
 		defer cancel()
-		cconn, err := client.DialContext(ctx,protocol.NewAddress("127.0.0.1", 0))
+		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 0))
 		if err != nil {
 			errCh <- err
 		}

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"yeager/protocol"
+	"yeager/proxy"
 	"yeager/util"
 )
 
@@ -42,7 +42,7 @@ func NewClient(config *ClientConfig) *Client {
 	return &c
 }
 
-func (c *Client) DialContext(ctx context.Context, dstAddr *protocol.Address) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, dstAddr *proxy.Address) (net.Conn, error) {
 	conn, err := c.pool.Get(ctx)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ const (
 
 // 为了降低握手时延，减少一次RTT，yeager出站代理将在建立tls连接后，第一次发送数据时，
 // 附带握手所需的信息（例如目的地址）。因此这里只是构造握手数据，并不是普遍意义上的握手
-func (c *Client) prepareHandshake(dstAddr *protocol.Address) (*bytes.Buffer, error) {
+func (c *Client) prepareHandshake(dstAddr *proxy.Address) (*bytes.Buffer, error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -78,10 +78,10 @@ func (c *Client) prepareHandshake(dstAddr *protocol.Address) (*bytes.Buffer, err
 
 	// write destination address
 	switch dstAddr.Type {
-	case protocol.AddrIPv4:
+	case proxy.AddrIPv4:
 		buf.WriteByte(addressIPv4)
 		buf.Write(dstAddr.IP)
-	case protocol.AddrDomainName:
+	case proxy.AddrDomainName:
 		buf.WriteByte(addressDomain)
 		buf.WriteByte(byte(len(dstAddr.Host)))
 		buf.WriteString(dstAddr.Host)

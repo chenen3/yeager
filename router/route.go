@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"yeager/protocol"
-	"yeager/protocol/direct"
+	"yeager/proxy"
+	"yeager/proxy/direct"
 )
 
 // rule type
@@ -43,14 +43,14 @@ func newRule(type_ string, value string, outboundTag string) (*rule, error) {
 	return ru, err
 }
 
-func (r *rule) Match(addr *protocol.Address) bool {
+func (r *rule) Match(addr *proxy.Address) bool {
 	switch r.type_ {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
-		if addr.Type != protocol.AddrDomainName {
+		if addr.Type != proxy.AddrDomainName {
 			return false
 		}
 	case ruleIP, ruleGeoIP:
-		if addr.Type != protocol.AddrIPv4 {
+		if addr.Type != proxy.AddrIPv4 {
 			// ipv6 not supported yet
 			return false
 		}
@@ -115,7 +115,7 @@ func parseRule(rule string) (*rule, error) {
 	}
 }
 
-func (r *Router) Dispatch(addr *protocol.Address) (outboundTag string) {
+func (r *Router) Dispatch(addr *proxy.Address) (outboundTag string) {
 	i, ok := r.cache.Load(addr.Host)
 	if ok {
 		return i.(string)

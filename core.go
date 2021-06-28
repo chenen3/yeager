@@ -10,27 +10,27 @@ import (
 
 	"yeager/config"
 	"yeager/log"
-	"yeager/protocol"
-	"yeager/protocol/direct"
-	_ "yeager/protocol/http"
-	"yeager/protocol/reject"
-	_ "yeager/protocol/socks"
-	_ "yeager/protocol/yeager"
+	"yeager/proxy"
+	"yeager/proxy/direct"
+	_ "yeager/proxy/http"
+	"yeager/proxy/reject"
+	_ "yeager/proxy/socks"
+	_ "yeager/proxy/yeager"
 	"yeager/router"
 )
 
 type Proxy struct {
-	inbounds  []protocol.Inbound
-	outbounds map[string]protocol.Outbound
+	inbounds  []proxy.Inbound
+	outbounds map[string]proxy.Outbound
 	router    *router.Router
 }
 
 func NewProxy(c config.Config) (*Proxy, error) {
 	p := &Proxy{
-		outbounds: make(map[string]protocol.Outbound, 2+len(c.Outbounds)),
+		outbounds: make(map[string]proxy.Outbound, 2+len(c.Outbounds)),
 	}
 	for _, conf := range c.Inbounds {
-		inbound, err := protocol.BuildInbound(conf.Protocol, conf.Setting)
+		inbound, err := proxy.BuildInbound(conf.Protocol, conf.Setting)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +38,7 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	}
 
 	for _, conf := range c.Outbounds {
-		outbound, err := protocol.BuildOutbound(conf.Protocol, conf.Setting)
+		outbound, err := proxy.BuildOutbound(conf.Protocol, conf.Setting)
 		if err != nil {
 			return nil, err
 		}
@@ -50,12 +50,12 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	}
 
 	// built-in outbound
-	directOutbound, err := protocol.BuildOutbound(direct.Tag, nil)
+	directOutbound, err := proxy.BuildOutbound(direct.Tag, nil)
 	if err != nil {
 		return nil, err
 	}
 	p.outbounds[direct.Tag] = directOutbound
-	rejectOutbound, err := protocol.BuildOutbound(reject.Tag, nil)
+	rejectOutbound, err := proxy.BuildOutbound(reject.Tag, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	return p, nil
 }
 
-func acceptConn(ctx context.Context, ib protocol.Inbound, ch chan<- protocol.Conn) {
+func acceptConn(ctx context.Context, ib proxy.Inbound, ch chan<- proxy.Conn) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,7 +85,7 @@ func acceptConn(ctx context.Context, ib protocol.Inbound, ch chan<- protocol.Con
 }
 
 func (p *Proxy) Start(ctx context.Context) {
-	connCh := make(chan protocol.Conn, 32)
+	connCh := make(chan proxy.Conn, 32)
 	for _, inbound := range p.inbounds {
 		go inbound.Serve()
 		go acceptConn(ctx, inbound, connCh)
@@ -118,7 +118,7 @@ func (p *Proxy) Start(ctx context.Context) {
 	}
 }
 
-func (p *Proxy) handleConnection(ctx context.Context, inConn protocol.Conn) {
+func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 	defer inConn.Close()
 	addr := inConn.DstAddr()
 	tag := p.router.Dispatch(addr)

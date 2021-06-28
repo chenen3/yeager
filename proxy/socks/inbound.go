@@ -11,26 +11,26 @@ import (
 	"time"
 
 	"yeager/log"
-	"yeager/protocol"
+	"yeager/proxy"
 	"yeager/util"
 )
 
 // Server implements protocol.Inbound interface
 type Server struct {
 	conf   *Config
-	connCh chan protocol.Conn
+	connCh chan proxy.Conn
 	done   chan struct{}
 }
 
 func NewServer(config *Config) *Server {
 	return &Server{
 		conf:   config,
-		connCh: make(chan protocol.Conn, 32),
+		connCh: make(chan proxy.Conn, 32),
 		done:   make(chan struct{}),
 	}
 }
 
-func (s *Server) Accept() <-chan protocol.Conn {
+func (s *Server) Accept() <-chan proxy.Conn {
 	return s.connCh
 }
 
@@ -82,11 +82,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 	case <-s.done:
 		conn.Close()
 		return
-	case s.connCh <- protocol.NewConn(conn, dstAddr):
+	case s.connCh <- proxy.NewConn(conn, dstAddr):
 	}
 }
 
-func (s *Server) handshake(conn net.Conn) (dst *protocol.Address, err error) {
+func (s *Server) handshake(conn net.Conn) (dst *proxy.Address, err error) {
 	err = s.socksAuth(conn)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (s *Server) socksAuth(conn net.Conn) error {
 	return nil
 }
 
-func (s *Server) socksConnect(conn net.Conn) (dstAddr *protocol.Address, err error) {
+func (s *Server) socksConnect(conn net.Conn) (dstAddr *proxy.Address, err error) {
 	var buf [4]byte
 	/*
 		客户端第二次请求格式(以字节为单位):
@@ -202,6 +202,6 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr *protocol.Address, err err
 		return nil, err
 	}
 
-	dstAddr = protocol.NewAddress(host, int(port))
+	dstAddr = proxy.NewAddress(host, int(port))
 	return dstAddr, nil
 }

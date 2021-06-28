@@ -2,11 +2,11 @@ package yeager
 
 import (
 	"encoding/json"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func init() {
-	protocol.RegisterOutboundBuilder("yeager", func(setting json.RawMessage) (protocol.Outbound, error) {
+	proxy.RegisterOutboundBuilder("yeager", func(setting json.RawMessage) (proxy.Outbound, error) {
 		conf := new(ClientConfig)
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err
@@ -14,7 +14,7 @@ func init() {
 		return NewClient(conf), nil
 	})
 
-	protocol.RegisterInboundBuilder("yeager", func(setting json.RawMessage) (protocol.Inbound, error) {
+	proxy.RegisterInboundBuilder("yeager", func(setting json.RawMessage) (proxy.Inbound, error) {
 		conf := new(ServerConfig)
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err

@@ -2,11 +2,11 @@ package http
 
 import (
 	"encoding/json"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func init() {
-	protocol.RegisterInboundBuilder("http", func(setting json.RawMessage) (inbound protocol.Inbound, err error) {
+	proxy.RegisterInboundBuilder("http", func(setting json.RawMessage) (inbound proxy.Inbound, err error) {
 		conf := new(Config)
 		if err = json.Unmarshal(setting, conf); err != nil {
 			return nil, err

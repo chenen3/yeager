@@ -15,25 +15,25 @@ import (
 
 	"github.com/google/uuid"
 	"yeager/log"
-	"yeager/protocol"
+	"yeager/proxy"
 	"yeager/util"
 )
 
 type Server struct {
 	conf   *ServerConfig
-	connCh chan protocol.Conn
+	connCh chan proxy.Conn
 	done   chan struct{}
 }
 
 func NewServer(config *ServerConfig) *Server {
 	return &Server{
 		conf:   config,
-		connCh: make(chan protocol.Conn, 32),
+		connCh: make(chan proxy.Conn, 32),
 		done:   make(chan struct{}),
 	}
 }
 
-func (s *Server) Accept() <-chan protocol.Conn {
+func (s *Server) Accept() <-chan proxy.Conn {
 	return s.connCh
 }
 
@@ -109,13 +109,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 	case <-s.done:
 		conn.Close()
 		return
-	case s.connCh <- protocol.NewConn(conn, dstAddr):
+	case s.connCh <- proxy.NewConn(conn, dstAddr):
 	}
 }
 
 // 为了降低握手时延，减少一次RTT，yeager出站代理将在建立tls连接后，第一次数据发送时，附带握手信息。
 // 当yeager入站代理收到握手信息，如果认证通过，则继续处理，无需回复连接建立；如果认证失败，则关闭连接。
-func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error) {
+func (s *Server) handshake(conn net.Conn) (dstAddr *proxy.Address, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -173,7 +173,7 @@ func (s *Server) handshake(conn net.Conn) (dstAddr *protocol.Address, err error)
 	}
 	port := binary.BigEndian.Uint16(bs[:])
 
-	dstAddr = protocol.NewAddress(host, int(port))
+	dstAddr = proxy.NewAddress(host, int(port))
 	return dstAddr, nil
 }
 

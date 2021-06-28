@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func init() {
-	protocol.RegisterOutboundBuilder(Tag, func(json.RawMessage) (protocol.Outbound, error) {
+	proxy.RegisterOutboundBuilder(Tag, func(json.RawMessage) (proxy.Outbound, error) {
 		return new(Client), nil
 	})
 }
@@ -17,7 +17,7 @@ const Tag = "direct"
 
 type Client struct{}
 
-func (f *Client) DialContext(ctx context.Context, addr *protocol.Address) (net.Conn, error) {
+func (f *Client) DialContext(ctx context.Context, addr *proxy.Address) (net.Conn, error) {
 	var d net.Dialer
 	return d.DialContext(ctx, "tcp", addr.String())
 }

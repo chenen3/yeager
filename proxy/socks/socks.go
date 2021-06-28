@@ -3,11 +3,11 @@ package socks
 
 import (
 	"encoding/json"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func init() {
-	protocol.RegisterInboundBuilder("socks", func(setting json.RawMessage) (protocol.Inbound, error) {
+	proxy.RegisterInboundBuilder("socks", func(setting json.RawMessage) (proxy.Inbound, error) {
 		conf := new(Config)
 		if err := json.Unmarshal(setting, conf); err != nil {
 			return nil, err

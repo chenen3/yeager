@@ -6,11 +6,11 @@ import (
 	"errors"
 	"net"
 
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func init() {
-	protocol.RegisterOutboundBuilder(Tag, func(json.RawMessage) (protocol.Outbound, error) {
+	proxy.RegisterOutboundBuilder(Tag, func(json.RawMessage) (proxy.Outbound, error) {
 		return new(Client), nil
 	})
 }
@@ -19,6 +19,6 @@ const Tag = "reject"
 
 type Client struct{}
 
-func (c *Client) DialContext(ctx context.Context, addr *protocol.Address) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, addr *proxy.Address) (net.Conn, error) {
 	return nil, errors.New("traffic rejected")
 }

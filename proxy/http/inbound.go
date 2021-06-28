@@ -12,25 +12,25 @@ import (
 	"time"
 
 	"yeager/log"
-	"yeager/protocol"
+	"yeager/proxy"
 	"yeager/util"
 )
 
 type Server struct {
 	conf   *Config
-	connCh chan protocol.Conn
+	connCh chan proxy.Conn
 	done   chan struct{}
 }
 
 func NewServer(conf *Config) *Server {
 	return &Server{
 		conf:   conf,
-		connCh: make(chan protocol.Conn, 32),
+		connCh: make(chan proxy.Conn, 32),
 		done:   make(chan struct{}),
 	}
 }
 
-func (s *Server) Accept() <-chan protocol.Conn {
+func (s *Server) Accept() <-chan proxy.Conn {
 	return s.connCh
 }
 
@@ -89,7 +89,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 // HTTP代理服务器接收到请求时：
 // - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
 // - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
-func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
+func (s *Server) handshake(conn net.Conn) (proxy.Conn, error) {
 	req, err := http.ReadRequest(bufio.NewReader(conn))
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (s *Server) handshake(conn net.Conn) (protocol.Conn, error) {
 	}
 }
 
-func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (protocol.Conn, error) {
+func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (proxy.Conn, error) {
 	host := req.URL.Hostname()
 	port := req.URL.Port()
 	if port == "" {
@@ -112,17 +112,17 @@ func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (protocol.Conn
 	if err != nil {
 		return nil, errors.New("invalid port: " + port)
 	}
-	dstAddr := protocol.NewAddress(host, portnum)
+	dstAddr := proxy.NewAddress(host, portnum)
 
 	_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
 	if err != nil {
 		return nil, err
 	}
-	newConn := protocol.NewConn(conn, dstAddr)
+	newConn := proxy.NewConn(conn, dstAddr)
 	return newConn, nil
 }
 
-func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn, error) {
+func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (proxy.Conn, error) {
 	host := req.URL.Hostname()
 	port := req.URL.Port()
 	if port == "" {
@@ -132,7 +132,7 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 	if err != nil {
 		return nil, errors.New("invalid port: " + port)
 	}
-	dstAddr := protocol.NewAddress(host, portNum)
+	dstAddr := proxy.NewAddress(host, portNum)
 
 	buf := new(bytes.Buffer)
 	// 对于HTTP代理请求，需要先行把请求转发一遍
@@ -140,5 +140,5 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (protocol.Conn,
 		return nil, errors.New("request write err: " + err.Error())
 	}
 	erc := util.EarlyReadConn(conn, buf)
-	return protocol.NewConn(erc, dstAddr), nil
+	return proxy.NewConn(erc, dstAddr), nil
 }

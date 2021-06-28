@@ -3,7 +3,7 @@ package router
 import (
 	"os"
 	"testing"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func TestMain(m *testing.M) {
@@ -16,7 +16,7 @@ func TestRouter_Dispatch(t *testing.T) {
 		rules []string
 	}
 	type args struct {
-		addr *protocol.Address
+		addr *proxy.Address
 	}
 	tests := []struct {
 		name    string
@@ -30,7 +30,7 @@ func TestRouter_Dispatch(t *testing.T) {
 			fields: fields{rules: []string{
 				"domain,,direct",
 			}},
-			args:    args{addr: protocol.NewAddress("www.apple.com", 80)},
+			args:    args{addr: proxy.NewAddress("www.apple.com", 80)},
 			wantErr: true,
 		},
 		{
@@ -39,7 +39,7 @@ func TestRouter_Dispatch(t *testing.T) {
 				"domain,apple.com,direct",
 				"final,faketag",
 			}},
-			args: args{addr: protocol.NewAddress("www.apple.com", 80)},
+			args: args{addr: proxy.NewAddress("www.apple.com", 80)},
 			want: "faketag",
 		},
 		{
@@ -48,31 +48,31 @@ func TestRouter_Dispatch(t *testing.T) {
 				"domain-suffix,le.com,direct",
 				"final,faketag",
 			}},
-			args: args{addr: protocol.NewAddress("www.google.com", 443)},
+			args: args{addr: proxy.NewAddress("www.google.com", 443)},
 			want: "faketag",
 		},
 		{
 			name:   "domain-keyword",
 			fields: fields{rules: []string{"domain-keyword,apple,faketag"}},
-			args:   args{addr: protocol.NewAddress("www.apple.com", 80)},
+			args:   args{addr: proxy.NewAddress("www.apple.com", 80)},
 			want:   "faketag",
 		},
 		{
 			name:   "geosite",
 			fields: fields{rules: []string{"geosite,private,faketag"}},
-			args:   args{addr: protocol.NewAddress("localhost", 80)},
+			args:   args{addr: proxy.NewAddress("localhost", 80)},
 			want:   "faketag",
 		},
 		{
 			name:   "ip",
 			fields: fields{rules: []string{"ip,127.0.0.1,faketag"}},
-			args:   args{addr: protocol.NewAddress("127.0.0.1", 80)},
+			args:   args{addr: proxy.NewAddress("127.0.0.1", 80)},
 			want:   "faketag",
 		},
 		{
 			name:   "geoip",
 			fields: fields{rules: []string{"geoip,private,faketag"}},
-			args:   args{addr: protocol.NewAddress("192.168.1.1", 80)},
+			args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
 			want:   "faketag",
 		},
 	}

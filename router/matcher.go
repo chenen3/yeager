@@ -5,11 +5,11 @@ import (
 	"regexp"
 	"strings"
 
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 type matcher interface {
-	Match(addr *protocol.Address) bool
+	Match(addr *proxy.Address) bool
 }
 
 func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
@@ -36,7 +36,7 @@ func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 
 type domainKeywordMatcher string
 
-func (d domainKeywordMatcher) Match(addr *protocol.Address) bool {
+func (d domainKeywordMatcher) Match(addr *proxy.Address) bool {
 	return strings.Contains(addr.Host, string(d))
 }
 
@@ -46,19 +46,19 @@ func newFinalMatcher() *finalMatcher {
 	return &finalMatcher{}
 }
 
-func (f *finalMatcher) Match(addr *protocol.Address) bool {
+func (f *finalMatcher) Match(addr *proxy.Address) bool {
 	return true
 }
 
 type domainMatcher string
 
-func (d domainMatcher) Match(addr *protocol.Address) bool {
+func (d domainMatcher) Match(addr *proxy.Address) bool {
 	return string(d) == addr.Host
 }
 
 type domainSuffixMatcher string
 
-func (m domainSuffixMatcher) Match(addr *protocol.Address) bool {
+func (m domainSuffixMatcher) Match(addr *proxy.Address) bool {
 	domain := addr.Host
 	if !strings.HasSuffix(domain, string(m)) {
 		return false
@@ -69,7 +69,7 @@ func (m domainSuffixMatcher) Match(addr *protocol.Address) bool {
 
 type ipMatcher string
 
-func (i ipMatcher) Match(addr *protocol.Address) bool {
+func (i ipMatcher) Match(addr *proxy.Address) bool {
 	return string(i) == addr.Host
 }
 
@@ -85,6 +85,6 @@ func newRegexMatcher(expr string) (*domainRegexMatcher, error) {
 	return &domainRegexMatcher{re: re}, nil
 }
 
-func (m *domainRegexMatcher) Match(addr *protocol.Address) bool {
+func (m *domainRegexMatcher) Match(addr *proxy.Address) bool {
 	return m.re.MatchString(addr.Host)
 }

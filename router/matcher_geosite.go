@@ -8,7 +8,7 @@ import (
 
 	"github.com/v2fly/v2ray-core/v4/app/router"
 	"google.golang.org/protobuf/proto"
-	"yeager/protocol"
+	"yeager/proxy"
 )
 
 func loadGeoSiteFile(country string) ([]*router.Domain, error) {
@@ -78,7 +78,7 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 	return g, nil
 }
 
-func (g geoSiteMatcher) Match(addr *protocol.Address) bool {
+func (g geoSiteMatcher) Match(addr *proxy.Address) bool {
 	for _, m := range g {
 		if m.Match(addr) {
 			return true
