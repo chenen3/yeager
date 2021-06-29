@@ -51,7 +51,6 @@ func (p *ConnPool) makeConn() {
 	for {
 		select {
 		case <-p.done:
-			close(p.ch)
 			return
 		default:
 		}
@@ -72,12 +71,19 @@ func (p *ConnPool) makeConn() {
 				pc.Close()
 			})
 		}
-		p.ch <- pc
+
+		select {
+		case <-p.done:
+			pc.Close()
+			return
+		case p.ch <- pc:
+		}
 	}
 }
 
 func (p *ConnPool) Close() error {
 	close(p.done)
+	close(p.ch)
 	for pc := range p.ch {
 		pc.Close()
 	}

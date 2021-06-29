@@ -113,7 +113,7 @@ func TestYeager(t *testing.T) {
 			UUID:               server.conf.UUID,
 			InsecureSkipVerify: true,
 		})
-		ctx, cancel := context.WithTimeout(context.Background(),time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 0))
 		if err != nil {

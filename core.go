@@ -127,14 +127,13 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	// glog.Printf("accepted %s [%s]", addr, tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	start := time.Now()
 	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("dial %s err: %s", addr, err)
 		return
 	}
 	defer outConn.Close()
