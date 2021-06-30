@@ -30,7 +30,7 @@ func TestConnPool(t *testing.T) {
 	p.Init()
 	defer p.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(),time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	conn, err := p.Get(ctx)
 	if err != nil {

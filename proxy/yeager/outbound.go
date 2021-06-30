@@ -43,6 +43,8 @@ func NewClient(config *ClientConfig) *Client {
 }
 
 func (c *Client) DialContext(ctx context.Context, dstAddr *proxy.Address) (net.Conn, error) {
+	// 从连接池拿预先建立的连接，而不是现场发起连接，
+	// 可以有效降低获取连接所需时间，改善网络体验。
 	conn, err := c.pool.Get(ctx)
 	if err != nil {
 		return nil, err

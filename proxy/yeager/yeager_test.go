@@ -105,9 +105,10 @@ func TestYeager(t *testing.T) {
 			UUID:               server.conf.UUID,
 			InsecureSkipVerify: true,
 		})
+		defer client.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 0))
+		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 1234))
 		if err != nil {
 			errCh <- err
 		}
@@ -123,13 +124,8 @@ func TestYeager(t *testing.T) {
 		t.Fatal(err)
 	case sconn := <-server.Accept():
 		defer sconn.Close()
-		buf := make([]byte, 6)
-		_, err := io.ReadFull(sconn, buf)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if string(buf) != "foobar" {
-			t.Fatalf("want foobar, got %s", buf)
+		if sconn.DstAddr().String() != "127.0.0.1:1234" {
+			t.Fatalf("received unexpected dst addr: %s", sconn.DstAddr())
 		}
 	}
 }
