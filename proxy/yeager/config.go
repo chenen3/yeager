@@ -9,13 +9,19 @@ type ClientConfig struct {
 }
 
 type ServerConfig struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	UUID        string `json:"uuid"`
-	CertFile    string `json:"certFile"`
-	KeyFile     string `json:"keyFile"`
-	FallbackUrl string `json:"fallbackUrl"` // while auth fail, fallback to HTTP server, such as nginx
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	UUID     string `json:"uuid"`
+	CertFile string `json:"certFile"`
+	KeyFile  string `json:"keyFile"`
+	// (optional) if auth fail, fallback to HTTP server, such as nginx
+	Fallback fallback `json:"fallback"`
 
 	certPEMBlock []byte
 	keyPEMBlock  []byte
+}
+
+type fallback struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
 }

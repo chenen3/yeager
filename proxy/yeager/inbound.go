@@ -8,7 +8,6 @@ import (
 	"io"
 	glog "log"
 	"net"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -23,6 +22,7 @@ type Server struct {
 	conf   *ServerConfig
 	connCh chan proxy.Conn
 	done   chan struct{}
+	ready  chan struct{} // imply that server is ready to accept connection
 }
 
 func NewServer(config *ServerConfig) *Server {
@@ -30,6 +30,7 @@ func NewServer(config *ServerConfig) *Server {
 		conf:   config,
 		connCh: make(chan proxy.Conn, 32),
 		done:   make(chan struct{}),
+		ready:  make(chan struct{}),
 	}
 }
 
@@ -66,6 +67,7 @@ func (s *Server) Serve() {
 	defer ln.Close()
 	glog.Println("yeager proxy listen on", addr)
 
+	close(s.ready)
 	for {
 		select {
 		case <-s.done:
@@ -86,23 +88,21 @@ func (s *Server) handleConnection(conn net.Conn) {
 	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
-		defer conn.Close()
 		log.Errorf("yeager handshake err: %s", err)
 		// 如果客户端主动关闭连接或者握手超时，即是客户端缓存的连接因为空闲超时而关闭
 		if err == io.EOF && errors.Is(err, os.ErrDeadlineExceeded) {
+			conn.Close()
 			return
 		}
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
 		// Learning from trojan, https://trojan-gfw.github.io/trojan/protocol
-		if s.conf.FallbackUrl != "" {
-			err = fallback(conn, s.conf.FallbackUrl)
-			if err != nil {
-				log.Errorf("fallback err: %s", err)
-			}
+		if s.conf.Fallback.Host == "" {
+			conn.Close()
+			return
 		}
-		return
+		dstAddr = proxy.NewAddress(s.conf.Fallback.Host, s.conf.Fallback.Port)
 	}
 
 	select {
@@ -175,14 +175,4 @@ func (s *Server) handshake(conn net.Conn) (dstAddr *proxy.Address, err error) {
 
 	dstAddr = proxy.NewAddress(host, int(port))
 	return dstAddr, nil
-}
-
-// fallback connect to target directly, does not go through the router,
-// to keep these code simple and clear
-func fallback(conn net.Conn, url string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	return resp.Write(conn)
 }

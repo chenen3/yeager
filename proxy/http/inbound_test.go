@@ -25,10 +25,9 @@ func TestServer(t *testing.T) {
 	})
 	go ps.Serve()
 	defer ps.Close()
-	// wait for the proxy server to start in the background
-	time.Sleep(time.Millisecond)
 
 	go func() {
+		<-ps.ready
 		proxyUrl, _ := url.Parse(fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
 		client := &http.Client{
 			Transport: &http.Transport{
