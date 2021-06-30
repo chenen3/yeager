@@ -3,20 +3,22 @@ package util
 import (
 	"context"
 	"net"
+	"sync"
 	"time"
 
 	"yeager/log"
 )
 
-// ConnPool implement connection pool, dials connection automatically
-// and keep it for future usage. MUST call Init() firstly to initialize itself
+// ConnPool implement connection pool, automatically create and cache connection,
+// MUST call Init() firstly to initialize itself
 type ConnPool struct {
 	ch            chan *persistConn
 	done          chan struct{}
+	once          sync.Once
 	retryInterval time.Duration
 
 	Capacity    int
-	IdleTimeout time.Duration
+	IdleTimeout time.Duration // how long the cached connection could remain idle
 	DialContext func(ctx context.Context) (net.Conn, error)
 }
 
@@ -29,11 +31,14 @@ func (p *ConnPool) Init() {
 	p.ch = make(chan *persistConn, capacity)
 	p.done = make(chan struct{})
 	p.retryInterval = 30 * time.Second
-	go p.makeConn()
 }
 
-// Get try to get an available connection from cache, if failed, dial one
+// Get return cached or newly-created connection
 func (p *ConnPool) Get(ctx context.Context) (net.Conn, error) {
+	p.once.Do(func() {
+		go p.createConn()
+	})
+
 	select {
 	case pc := <-p.ch:
 		if pc.expire {
@@ -47,10 +52,11 @@ func (p *ConnPool) Get(ctx context.Context) (net.Conn, error) {
 	return p.DialContext(ctx)
 }
 
-func (p *ConnPool) makeConn() {
+func (p *ConnPool) createConn() {
 	for {
 		select {
 		case <-p.done:
+			close(p.ch)
 			return
 		default:
 		}
@@ -75,6 +81,7 @@ func (p *ConnPool) makeConn() {
 		select {
 		case <-p.done:
 			pc.Close()
+			close(p.ch)
 			return
 		case p.ch <- pc:
 		}
@@ -83,7 +90,6 @@ func (p *ConnPool) makeConn() {
 
 func (p *ConnPool) Close() error {
 	close(p.done)
-	close(p.ch)
 	for pc := range p.ch {
 		pc.Close()
 	}

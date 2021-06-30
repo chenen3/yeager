@@ -85,15 +85,18 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	// yeager出站代理和入站代理建立连接后，可能把出站连接放入连接池，
+	// 不会立刻发来yeager握手信息。因此把入站连接的握手超时设置得长一点，
+	// 长达几分钟的握手超时的确很怪异，在找到更好的办法之前，先这么做
 	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
-		log.Errorf("yeager handshake err: %s", err)
-		// 如果客户端主动关闭连接或者握手超时，即是客户端缓存的连接因为空闲超时而关闭
-		if err == io.EOF && errors.Is(err, os.ErrDeadlineExceeded) {
+		// 客户端主动关闭连接或者握手超时
+		if err == io.EOF || errors.Is(err, os.ErrDeadlineExceeded) {
 			conn.Close()
 			return
 		}
+		log.Errorf("yeager handshake err: %s", err)
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.

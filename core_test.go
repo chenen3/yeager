@@ -16,7 +16,7 @@ import (
 	"yeager/util"
 )
 
-func TestProxy(t *testing.T) {
+func TestCore(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	proxyUrl, err := setupHttp2YeagerProxy(ctx)
