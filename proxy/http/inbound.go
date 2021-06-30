@@ -20,6 +20,7 @@ type Server struct {
 	conf   *Config
 	connCh chan proxy.Conn
 	done   chan struct{}
+	ready  chan struct{}
 }
 
 func NewServer(conf *Config) *Server {
@@ -27,6 +28,7 @@ func NewServer(conf *Config) *Server {
 		conf:   conf,
 		connCh: make(chan proxy.Conn, 32),
 		done:   make(chan struct{}),
+		ready:  make(chan struct{}),
 	}
 }
 
@@ -53,6 +55,7 @@ func (s *Server) Serve() {
 	defer ln.Close()
 	glog.Println("http proxy listening on", addr)
 
+	close(s.ready)
 	for {
 		select {
 		case <-s.done:

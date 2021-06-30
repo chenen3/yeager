@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
+
 	"yeager/proxy"
 	"yeager/util"
 )
@@ -66,18 +65,9 @@ FrU7u8m1bVe7FzwsfDLbsTw=
 `
 
 var (
-	fallbackServer *httptest.Server
-	fallbackRes    = "ok"
+	fbHost = "127.0.0.1"
+	fbPort = 1234
 )
-
-func TestMain(m *testing.M) {
-	fallbackServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, fallbackRes)
-	}))
-	code := m.Run()
-	fallbackServer.Close()
-	os.Exit(code)
-}
 
 func newYeagerServer() (*Server, error) {
 	port, err := util.ChoosePort()
@@ -90,7 +80,10 @@ func newYeagerServer() (*Server, error) {
 		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		certPEMBlock: []byte(certPEM),
 		keyPEMBlock:  []byte(keyPEM),
-		FallbackUrl:  fallbackServer.URL,
+		Fallback: fallback{
+			Host: fbHost,
+			Port: fbPort,
+		},
 	})
 	return s, nil
 }
@@ -102,11 +95,10 @@ func TestYeager(t *testing.T) {
 	}
 	go server.Serve()
 	defer server.Close()
-	// wait for the proxy server to start in the background
-	time.Sleep(time.Millisecond)
 
 	errCh := make(chan error, 1)
 	go func() {
+		<-server.ready
 		client := NewClient(&ClientConfig{
 			Host:               server.conf.Host,
 			Port:               server.conf.Port,
@@ -149,24 +141,28 @@ func TestFallback(t *testing.T) {
 	}
 	go server.Serve()
 	defer server.Close()
-	// wait for the proxy server to start in the background
-	time.Sleep(time.Millisecond)
 
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+	go func() {
+		<-server.ready
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
 			},
-		},
-	}
-	resp, err := client.Get(fmt.Sprintf("https://%s:%d", server.conf.Host, server.conf.Port))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+		}
+		resp, err := client.Get(fmt.Sprintf("https://%s:%d", server.conf.Host, server.conf.Port))
+		if err != nil {
+			return
+		}
+		defer resp.Body.Close()
+		io.Copy(io.Discard, resp.Body)
+	}()
 
-	bs, err := io.ReadAll(resp.Body)
-	if err != nil || string(bs) != fallbackRes {
-		t.Fatalf("ReadAll = %s, %v; want ok, nil", bs, err)
+	conn := <-server.Accept()
+	defer conn.Close()
+	want := fmt.Sprintf("%s:%d", fbHost, fbPort)
+	if got := conn.DstAddr().String(); got != want {
+		t.Fatalf("want %s, got %s", want, got)
 	}
 }

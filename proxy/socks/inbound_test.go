@@ -4,7 +4,6 @@ import (
 	"net"
 	"strconv"
 	"testing"
-	"time"
 
 	"golang.org/x/net/proxy"
 	"yeager/util"
@@ -21,10 +20,9 @@ func TestServer(t *testing.T) {
 	})
 	go ss.Serve()
 	defer ss.Close()
-	// wait for the proxy server to start in the background
-	time.Sleep(time.Millisecond)
 
 	go func() {
+		<-ss.ready
 		addr := net.JoinHostPort(ss.conf.Host, strconv.Itoa(ss.conf.Port))
 		client, err := proxy.SOCKS5("tcp", addr, nil, nil)
 		if err != nil {
