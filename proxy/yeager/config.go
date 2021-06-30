@@ -14,7 +14,7 @@ type ServerConfig struct {
 	UUID     string `json:"uuid"`
 	CertFile string `json:"certFile"`
 	KeyFile  string `json:"keyFile"`
-	// while auth fail, fallback to HTTP server, such as nginx
+	// (optional) if auth fail, fallback to HTTP server, such as nginx
 	Fallback fallback `json:"fallback"`
 
 	certPEMBlock []byte
