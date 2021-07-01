@@ -19,7 +19,7 @@ docker pull en180706/yeager
 
 ## Configure
 
-Ensure file `/usr/local/etc/yeager/config.json` exists, if doesn't, create new one.
+Ensure file `/usr/local/etc/yeager/config.json` exists, if doesn't, create one.
 
 Example for client side:
 
