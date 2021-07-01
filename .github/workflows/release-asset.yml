@@ -1,5 +1,9 @@
 name: Release asset
-on: push
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
   build:
