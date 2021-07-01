@@ -1,0 +1,29 @@
+name: Update homebrew formula
+
+on:
+  push:
+    tags: 'v*'
+
+jobs:
+  homebrew:
+    name: Bump Homebrew formula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version
+        id: extract-version
+        run: |
+          printf "::set-output name=%s::%s\n" tag-name "${GITHUB_REF#refs/tags/}"
+      - uses: mislav/bump-homebrew-formula-action@v1
+        if: "!contains(github.ref, '-')" # skip prereleases
+        with:
+          formula-name: yeager
+          formula-path: Formula/yeager.rb
+          homebrew-tap: chenen3/homebrew-yeager
+          base-branch: master
+          download-url: https://github.com/chenen3/yeager/releases/download/${{ steps.extract-version.outputs.tag-name }}/yeager-macos-amd64.tar.gz
+          commit-message: |
+            {{formulaName}} {{version}}
+
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
