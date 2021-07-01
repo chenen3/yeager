@@ -39,3 +39,23 @@ jobs:
             yeager-macos-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: extract-version
+        run: |
+          printf "::set-output name=%s::%s\n" tag-name "${GITHUB_REF#refs/tags/}"
+
+      - name: Update homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v1.12
+        with:
+          formula-name: yeager
+          formula-path: Formula/yeager.rb
+          homebrew-tap: chenen3/homebrew-yeager
+          base-branch: master
+          download-url: https://github.com/chenen3/yeager/releases/download/${{ steps.extract-version.outputs.tag-name }}/yeager-macos-amd64.tar.gz
+          commit-message: |
+            {{formulaName}} {{version}}
+
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}

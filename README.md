@@ -124,7 +124,7 @@ Homebrew:
 
 ```
 brew update
-brew upgrade v2ray-core
+brew upgrade yeager
 ```
 
 Docker:
