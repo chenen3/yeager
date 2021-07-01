@@ -49,7 +49,7 @@ func (s *Server) Serve() {
 	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Error("socks5 proxy failed to listen on %s, error: %s", addr, err)
+		log.Errorf("socks5 proxy failed to listen, err: %s", err)
 		return
 	}
 	defer ln.Close()
