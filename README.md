@@ -2,30 +2,26 @@
 
 A proxy aims to bypass network restriction.  Inspired by [v2ray](https://github.com/v2fly/v2ray-core), [trojan](https://github.com/trojan-gfw/trojan) and [trojan-go](https://github.com/p4gefau1t/trojan-go), for personal practising purpose, only implement the basic features: TCP based proxy and routing. Beside customize rule, the  router also support [domain-list-community](https://github.com/v2fly/domain-list-community/tree/master/data) and [geoip](https://github.com/v2fly/geoip)
 
-## Installation
+## Install
 
-### Docker
-For local machine, place the `config.json` in `/usr/local/etc/yeager`, then:
+Homebrew:
 
-```sh
-# assuming you want to expose ports 10800 and 10801 on host
-docker run -d --restart=always --name yeager -p 10800:10800 -p 10801:10801 -v /usr/local/etc/yeager:/usr/local/etc/yeager en180706/yeager
+```
+brew tap chenen3/yeager
+brew install yeager
 ```
 
-For remote machine(eg. VPS), place the config files in `/usr/local/etc/yeager` , includes `config.json`, `your-certificate-file` and `your-key-file`, then:
+Docker:
 
-```sh
-# prepare your domain which resolve to this machine and apply domain certificate.(eg. let's encrypt)
-# install nginx (or any other web server), nginx will listen on port 80
-apt install nginx
-systemctl enable nginx
-systemctl start nginx
-docker run -d --restart=always --name yeager -p 443:443 -v /usr/local/etc/yeager:/usr/local/etc/yeager en180706/yeager
+```
+docker pull en180706/yeager
 ```
 
-## Configuration
+## Configure
 
-Example for local machine:
+Ensure file `/usr/local/etc/yeager/config.json` exists, if doesn't, create new one.
+
+Example for client side:
 
 ```json
 {
@@ -52,7 +48,7 @@ Example for local machine:
             "setting": {
                 "host": "example.com",// replace with your domain name
                 "port": 443,
-                "uuid": "" // fill in UUID
+                "uuid": "" // fill in UUID (uuidgen can help create one)
             }
         }
     ],
@@ -82,7 +78,7 @@ Beside user specified outbound tag, there is two builtin:`DIRECT`, `REJECT`, for
 - `GEOSITE,private,DIRECT` 
 - `GEOSITE,category-ads,REJECT` 
 
-Example for remote machine(eg. VPS):
+Example for server side:
 
 ```json
 {
@@ -91,12 +87,12 @@ Example for remote machine(eg. VPS):
             "protocol": "yeager",
             "setting": {
                 "port": 443,
-                "uuid": "", // fill in UUID
+                "uuid": "", // fill in UUID (uuidgen can help create one)
                 "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
                 "keyFile": "/path/to/key.pem", // replace with absolute path of key
                 "fallback": {
-                    "host": "", // (optional) such as nginx http server host
-                    "port": 80 // (optional) such as nginx http server port
+                    "host": "", // (optional) any other http server host (eg. nginx)
+                    "port": 80 // (optional) any other http server port (eg. nginx)
                 }
             }
         }
@@ -104,7 +100,62 @@ Example for remote machine(eg. VPS):
 }
 ```
 
-The configuration file usually placed in path `/usr/local/etc/yeager/config.json.`
+## Run
 
-There is a simple command to generate UUID: `uuidgen`
+Homebrew:
+
+`brew services start yeager`
+
+Docker:
+
+```
+docker run \
+	--name yeager \
+	-d \
+	--restart=always \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	--network host \
+	en180706/yeager
+```
+
+## Update
+
+Homebrew:
+
+```
+brew update
+brew upgrade v2ray-core
+```
+
+Docker:
+
+```
+docker pull en180706/yeager
+docker stop yeager
+docker rm yeager
+docker run \
+	--name yeager \
+	-d \
+	--restart=always \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	--network host \
+	en180706/yeager
+```
+
+## Uninstall
+
+Homebrew:
+
+```
+brew uninstall yeager
+brew untap chenen3/yeager
+```
+
+Docker:
+
+```
+docker stop yeager
+docker rm yeager
+docker rmi en180706/yeager
+```
 
