@@ -23,17 +23,23 @@ jobs:
           registry: docker.pkg.github.com
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: extract-version
+        run: |
+          printf "::set-output name=%s::%s\n" version "${GITHUB_REF#refs/tags/}"
+
       - name: Push to Docker Hub
         uses: docker/build-push-action@v2
         with:
           push: true
           tags: |
             en180706/yeager:latest
-            en180706/yeager:${{ github.ref }}
+            en180706/yeager:${{ steps.extract-version.outputs.version }}
       - name: Build container image
         uses: docker/build-push-action@v2
         with:
           push: true
           tags: |
             docker.pkg.github.com/${{ github.repository }}/yeager:latest
-            docker.pkg.github.com/${{ github.repository }}/yeager:${{ github.ref }}
+            docker.pkg.github.com/${{ github.repository }}/yeager:${{ steps.extract-version.outputs.version }}
