@@ -1,6 +1,11 @@
 # yeager
 
-A proxy aims to bypass network restriction.  Inspired by [v2ray](https://github.com/v2fly/v2ray-core), [trojan](https://github.com/trojan-gfw/trojan) and [trojan-go](https://github.com/p4gefau1t/trojan-go), for personal practising purpose, only implement the basic features: TCP based proxy and routing. Beside customize rule, the  router also support [domain-list-community](https://github.com/v2fly/domain-list-community/tree/master/data) and [geoip](https://github.com/v2fly/geoip)
+A proxy aims to bypass network restriction. Mostly learn from [v2ray](https://github.com/v2fly/v2ray-core), and do it in my way. 
+
+For practice purposes, here pursue simplicity and efficiency, so I only implement the basic features:
+
+- TCP based proxy
+- rule based routing
 
 ## Install
 
@@ -19,9 +24,9 @@ docker pull en180706/yeager
 
 ## Configure
 
-Ensure file `/usr/local/etc/yeager/config.json` exists, if doesn't, create one.
+Edit config file`/usr/local/etc/yeager/config.json`
 
-Example for client side:
+**Example for client side**:
 
 ```json
 {
@@ -78,7 +83,7 @@ Beside user specified outbound tag, there is two builtin:`DIRECT`, `REJECT`, for
 - `GEOSITE,private,DIRECT` 
 - `GEOSITE,category-ads,REJECT` 
 
-Example for server side:
+**Example for server side**:
 
 ```json
 {
