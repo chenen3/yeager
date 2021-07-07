@@ -2,10 +2,11 @@
 
 A proxy aims to bypass network restriction. Mostly learn from [v2ray](https://github.com/v2fly/v2ray-core), and do it in my way. 
 
-For practice purposes, here pursue simplicity and efficiency, so I only implement the basic features:
+For practice purposes, only implement the basic features:
 
-- TCP based proxy
-- rule based routing
+- socks5, http inbound proxy
+- outbound proxy transported by TLS
+- rule routing
 
 ## Install
 
@@ -24,9 +25,9 @@ docker pull en180706/yeager
 
 ## Configure
 
-Edit config file`/usr/local/etc/yeager/config.json`
+### Example for client side
 
-**Example for client side**:
+Edit config file`/usr/local/etc/yeager/config.json`
 
 ```json
 {
@@ -58,11 +59,11 @@ Edit config file`/usr/local/etc/yeager/config.json`
         }
     ],
     "rules": [
+        "GEOIP,private,DIRECT",
+        "GEOIP,cn,DIRECT",
         "GEOSITE,private,DIRECT",
         "GEOSITE,apple@cn,DIRECT",
         "GEOSITE,cn,DIRECT",
-        "GEOIP,private,DIRECT",
-        "GEOIP,cn,DIRECT",
         "FINAL,PROXY"
     ]
 }
@@ -83,7 +84,11 @@ Beside user specified outbound tag, there is two builtin:`DIRECT`, `REJECT`, for
 - `GEOSITE,private,DIRECT` 
 - `GEOSITE,category-ads,REJECT` 
 
-**Example for server side**:
+### Example for server side
+
+> Ensure the TLS certificate and key installed in directory `/usr/local/etc/yeager`. (If not, checkout Let's Encrypt)
+
+Edit config file`/usr/local/etc/yeager/config.json`
 
 ```json
 {
@@ -93,8 +98,8 @@ Beside user specified outbound tag, there is two builtin:`DIRECT`, `REJECT`, for
             "setting": {
                 "port": 443,
                 "uuid": "", // fill in UUID (uuidgen can help create one)
-                "certFile": "/path/to/cert.pem", // replace with absolute path of certificate
-                "keyFile": "/path/to/key.pem", // replace with absolute path of key
+                "certFile": "/usr/local/etc/yeager/cert.pem", // replace with absolute path of certificate
+                "keyFile": "/usr/local/etc/yeager/key.pem", // replace with absolute path of key
                 "fallback": {
                     "host": "", // (optional) any other http server host (eg. nginx)
                     "port": 80 // (optional) any other http server port (eg. nginx)
@@ -130,6 +135,7 @@ Homebrew:
 ```
 brew update
 brew upgrade yeager
+brew services restart yeager
 ```
 
 Docker:

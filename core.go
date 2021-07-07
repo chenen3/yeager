@@ -85,6 +85,7 @@ func acceptConn(ctx context.Context, ib proxy.Inbound, ch chan<- proxy.Conn) {
 }
 
 func (p *Proxy) Start(ctx context.Context) {
+	glog.Printf("Starting ...")
 	connCh := make(chan proxy.Conn, 32)
 	for _, inbound := range p.inbounds {
 		go inbound.Serve()
@@ -127,17 +128,16 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
+	glog.Printf("accepted %s [%s]\n", addr, tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-	start := time.Now()
 	outConn, err := outbound.DialContext(dialCtx, addr)
+	cancel()
 	if err != nil {
 		log.Errorf("dial %s err: %s", addr, err)
 		return
 	}
 	defer outConn.Close()
-	glog.Printf("accepted %s [%s], dial %dms", addr, tag, time.Since(start).Milliseconds())
 
 	errCh := link(inConn, outConn)
 	select {
