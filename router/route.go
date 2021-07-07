@@ -66,10 +66,10 @@ type Router struct {
 
 func NewRouter(rules []string) (*Router, error) {
 	if len(rules) == 0 {
-		return &Router{rules: []*rule{defaultFinalRule}}, nil
+		return new(Router), nil
 	}
 
-	r := new(Router)
+	var r Router
 	parsedRules := make([]*rule, 0, len(rules))
 	for i, rawRule := range rules {
 		ru, err := parseRule(rawRule)
@@ -81,12 +81,8 @@ func NewRouter(rules []string) (*Router, error) {
 		}
 		parsedRules = append(parsedRules, ru)
 	}
-
 	r.rules = parsedRules
-	if lastRule := r.rules[len(r.rules)-1]; lastRule.type_ != ruleFinal {
-		r.rules = append(r.rules, defaultFinalRule)
-	}
-	return r, nil
+	return &r, nil
 }
 
 // 规则格式分两种：
@@ -116,6 +112,10 @@ func parseRule(rule string) (*rule, error) {
 }
 
 func (r *Router) Dispatch(addr *proxy.Address) (outboundTag string) {
+	if len(r.rules) == 0 {
+		return defaultFinalRule.outboundTag
+	}
+
 	i, ok := r.cache.Load(addr.Host)
 	if ok {
 		return i.(string)
