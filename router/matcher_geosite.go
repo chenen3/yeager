@@ -17,8 +17,8 @@ func loadGeoSiteFile(country string) ([]*router.Domain, error) {
 	var err error
 	for _, dir := range assetDirs {
 		data, err = os.ReadFile(path.Join(dir, "geosite.dat"))
-		if err != nil {
-			continue
+		if err == nil {
+			break
 		}
 	}
 	if err != nil {

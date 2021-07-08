@@ -23,9 +23,9 @@ var confFile = flag.String("config", "/usr/local/etc/yeager/config.json", "confi
 func main() {
 	flag.Parse()
 
-	router.RegisterAssetsDir(
-		"config/dev", // developer test
+	router.RegisterAssetDir(
 		"/usr/local/share/yeager",
+		"config/dev", // developer only
 	)
 
 	conf, err := config.Load(*confFile)

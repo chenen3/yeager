@@ -15,7 +15,7 @@ import (
 
 var assetDirs []string
 
-func RegisterAssetsDir(dir ...string) {
+func RegisterAssetDir(dir ...string) {
 	assetDirs = append(assetDirs, dir...)
 }
 
@@ -24,8 +24,8 @@ func loadGeoIp(country string) ([]*router.CIDR, error) {
 	var err error
 	for _, dir := range assetDirs {
 		data, err = os.ReadFile(path.Join(dir, "geoip.dat"))
-		if err != nil {
-			continue
+		if err == nil {
+			break
 		}
 	}
 	if err != nil {
