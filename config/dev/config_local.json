@@ -18,9 +18,11 @@
             "tag": "PROXY",
             "protocol": "yeager",
             "setting": {
+                "host": "127.0.0.1",
                 "port": 10812,
                 "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-                "insecureSkipVerify": true
+                "insecure": true,
+                "transport": "grpc"
             }
         }
     ],

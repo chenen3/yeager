@@ -15,6 +15,7 @@ type Conn interface {
 	DstAddr() *Address
 }
 
+// TODO: 可以简化为net.Listener
 type Inbound interface {
 	// block until closed
 	Serve()
@@ -23,6 +24,7 @@ type Inbound interface {
 	io.Closer
 }
 
+// TODO: 其实是net.Dialer
 type Outbound interface {
 	DialContext(ctx context.Context, address *Address) (net.Conn, error)
 }

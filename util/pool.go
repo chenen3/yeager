@@ -31,14 +31,11 @@ func (p *ConnPool) Init() {
 	p.ch = make(chan *persistConn, capacity)
 	p.done = make(chan struct{})
 	p.retryInterval = 30 * time.Second
+	go p.createConn()
 }
 
 // Get return cached or newly-created connection
 func (p *ConnPool) Get(ctx context.Context) (net.Conn, error) {
-	p.once.Do(func() {
-		go p.createConn()
-	})
-
 	select {
 	case pc := <-p.ch:
 		if pc.expire {

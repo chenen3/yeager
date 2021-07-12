@@ -3,6 +3,7 @@ package yeager
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,8 @@ import (
 	"yeager/util"
 )
 
-// 生成证书用来测试: go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
+// how to generate TLS certificate and private key:
+// go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
 var certPEM = `-----BEGIN CERTIFICATE-----
 MIIC+TCCAeGgAwIBAgIQDb5nH79/oPWE8qsGrcedHzANBgkqhkiG9w0BAQsFADAS
 MRAwDgYDVQQKEwdBY21lIENvMB4XDTIxMDMyMTA5MDkyNFoXDTIyMDMyMTA5MDky
@@ -66,30 +68,32 @@ FrU7u8m1bVe7FzwsfDLbsTw=
 
 var (
 	fbHost = "127.0.0.1"
-	fbPort = 1234
+	fbPort = 5678
 )
 
-func newYeagerServer() (*Server, error) {
+func newYeagerServerTLS() (*Server, error) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
 	}
-	s := NewServer(&ServerConfig{
-		Host:         "127.0.0.1",
-		Port:         port,
-		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		certPEMBlock: []byte(certPEM),
-		keyPEMBlock:  []byte(keyPEM),
+	return NewServer(&ServerConfig{
+		Host:      "127.0.0.1",
+		Port:      port,
+		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
+		Transport: "tls",
+		TLS: tlsServerConfig{
+			certPEMBlock: []byte(certPEM),
+			keyPEMBlock:  []byte(keyPEM),
+		},
 		Fallback: fallback{
 			Host: fbHost,
 			Port: fbPort,
 		},
 	})
-	return s, nil
 }
 
-func TestYeager(t *testing.T) {
-	server, err := newYeagerServer()
+func TestYeager_tls(t *testing.T) {
+	server, err := newYeagerServerTLS()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,11 +103,15 @@ func TestYeager(t *testing.T) {
 	errCh := make(chan error, 1)
 	go func() {
 		<-server.ready
-		client := NewClient(&ClientConfig{
-			Host:               server.conf.Host,
-			Port:               server.conf.Port,
-			UUID:               server.conf.UUID,
-			InsecureSkipVerify: true,
+		client, err := NewClient(&ClientConfig{
+			Host:      server.conf.Host,
+			Port:      server.conf.Port,
+			UUID:      server.conf.UUID,
+			Transport: "tls",
+			TLS: tlsClientConfig{
+				ServerName: server.conf.Host,
+				Insecure:   true,
+			},
 		})
 		defer client.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -111,11 +119,86 @@ func TestYeager(t *testing.T) {
 		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 1234))
 		if err != nil {
 			errCh <- err
+			return
 		}
 		defer cconn.Close()
 		_, err = io.WriteString(cconn, "foobar")
 		if err != nil {
 			errCh <- err
+			return
+		}
+	}()
+
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	case sconn := <-server.Accept():
+		defer sconn.Close()
+		if sconn.DstAddr().String() != "127.0.0.1:1234" {
+			t.Fatalf("received unexpected dst addr: %s", sconn.DstAddr())
+		}
+	}
+}
+
+func newYeagerServerGRPC() (*Server, error) {
+	port, err := util.ChoosePort()
+	if err != nil {
+		return nil, err
+	}
+	return NewServer(&ServerConfig{
+		Host:      "127.0.0.1",
+		Port:      port,
+		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
+		Transport: "grpc",
+		TLS: tlsServerConfig{
+			certPEMBlock: []byte(certPEM),
+			keyPEMBlock:  []byte(keyPEM),
+		},
+		Fallback: fallback{
+			Host: fbHost,
+			Port: fbPort,
+		},
+	})
+}
+
+func TestYeager_grpc(t *testing.T) {
+	server, err := newYeagerServerGRPC()
+	if err != nil {
+		t.Fatal(err)
+	}
+	go server.Serve()
+	defer server.Close()
+
+	errCh := make(chan error, 1)
+	go func() {
+		<-server.ready
+		client, err := NewClient(&ClientConfig{
+			Host:      server.conf.Host,
+			Port:      server.conf.Port,
+			UUID:      server.conf.UUID,
+			Transport: "grpc",
+			TLS: tlsClientConfig{
+				ServerName: server.conf.Host,
+				Insecure:   true,
+			},
+		})
+		if err != nil {
+			errCh<-errors.New("NewClient err: "+err.Error())
+			return
+		}
+		defer client.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 1234))
+		if err != nil {
+			errCh <- errors.New("dial err: " + err.Error())
+			return
+		}
+		defer cconn.Close()
+		_, err = io.WriteString(cconn, "foobar")
+		if err != nil {
+			errCh <- errors.New("write err: " + err.Error())
+			return
 		}
 	}()
 
@@ -131,7 +214,7 @@ func TestYeager(t *testing.T) {
 }
 
 func TestFallback(t *testing.T) {
-	server, err := newYeagerServer()
+	server, err := newYeagerServerTLS()
 	if err != nil {
 		t.Fatal(err)
 	}

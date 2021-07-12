@@ -2,6 +2,7 @@ package yeager
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"yeager/proxy"
 )
@@ -13,7 +14,10 @@ func init() {
 		if err != nil {
 			return nil, err
 		}
-		return NewClient(&conf), nil
+		if conf.TLS.ServerName == "" {
+			conf.TLS.ServerName = conf.Host
+		}
+		return NewClient(&conf)
 	})
 
 	proxy.RegisterInboundBuilder(Tag, func(setting json.RawMessage) (proxy.Inbound, error) {
@@ -24,16 +28,16 @@ func init() {
 			return nil, err
 		}
 
-		conf.certPEMBlock, err = os.ReadFile(conf.CertFile)
+		conf.TLS.certPEMBlock, err = os.ReadFile(conf.TLS.CertFile)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("read tls certificate file err: " + err.Error())
 		}
-		conf.keyPEMBlock, err = os.ReadFile(conf.KeyFile)
+		conf.TLS.keyPEMBlock, err = os.ReadFile(conf.TLS.KeyFile)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("read tls key file err: " + err.Error())
 		}
 
-		return NewServer(&conf), nil
+		return NewServer(&conf)
 	})
 }
 

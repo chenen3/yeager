@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"yeager/log"
 	"yeager/proxy"
+	"yeager/transport/grpc"
+	tls2 "yeager/transport/tls"
 	"yeager/util"
 )
 
@@ -23,15 +25,45 @@ type Server struct {
 	connCh chan proxy.Conn
 	done   chan struct{}
 	ready  chan struct{} // imply that server is ready to accept connection
+	lis    net.Listener
 }
 
-func NewServer(config *ServerConfig) *Server {
-	return &Server{
+func NewServer(config *ServerConfig) (*Server, error) {
+	s := &Server{
 		conf:   config,
 		connCh: make(chan proxy.Conn, 32),
 		done:   make(chan struct{}),
 		ready:  make(chan struct{}),
 	}
+
+	addr := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
+	cert, err := tls.X509KeyPair(config.TLS.certPEMBlock, config.TLS.keyPEMBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConf := &tls.Config{
+		Certificates:             []tls.Certificate{cert},
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+		// TODO NextProtos:
+	}
+
+	var lis net.Listener
+	switch config.Transport {
+	case "tls":
+		lis, err = tls2.Listen(addr, tlsConf)
+	case "grpc":
+		lis, err = grpc.Listen(addr, tlsConf)
+	default:
+		return nil, errors.New("unsupported transport: " + config.Transport)
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.lis = lis
+
+	return s, nil
 }
 
 func (s *Server) Accept() <-chan proxy.Conn {
@@ -48,24 +80,8 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) Serve() {
-	cert, err := tls.X509KeyPair(s.conf.certPEMBlock, s.conf.keyPEMBlock)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	config := &tls.Config{
-		Certificates:             []tls.Certificate{cert},
-		MinVersion:               tls.VersionTLS12,
-		PreferServerCipherSuites: true,
-	}
-	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
-	ln, err := tls.Listen("tcp", addr, config)
-	if err != nil {
-		log.Errorf("yeager proxy failed to listen, err: %s", err)
-		return
-	}
-	defer ln.Close()
-	glog.Println("yeager proxy listen on", addr)
+	defer s.lis.Close()
+	glog.Println("yeager proxy listen on", s.lis.Addr().String())
 
 	close(s.ready)
 	for {
@@ -75,7 +91,7 @@ func (s *Server) Serve() {
 		default:
 		}
 
-		conn, err := ln.Accept()
+		conn, err := s.lis.Accept()
 		if err != nil {
 			log.Error(err)
 			continue

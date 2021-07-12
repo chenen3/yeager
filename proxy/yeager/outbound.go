@@ -3,52 +3,54 @@ package yeager
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
+	gtls "crypto/tls"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"io"
 	"net"
-	"time"
+	"strconv"
 
 	"github.com/google/uuid"
 	"yeager/proxy"
+	"yeager/transport"
+	"yeager/transport/grpc"
+	"yeager/transport/tls"
 	"yeager/util"
 )
 
 type Client struct {
-	conf *ClientConfig
-	pool *util.ConnPool
+	conf   *ClientConfig
+	dialer transport.Dialer
 }
 
-func NewClient(config *ClientConfig) *Client {
+func NewClient(config *ClientConfig) (*Client, error) {
 	var c Client
 	c.conf = config
-	pool := &util.ConnPool{
-		IdleTimeout: 5 * time.Minute,
-		DialContext: func(ctx context.Context) (net.Conn, error) {
-			addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-			d := tls.Dialer{
-				Config: &tls.Config{
-					ServerName:         c.conf.Host,
-					InsecureSkipVerify: c.conf.InsecureSkipVerify,
-					ClientSessionCache: tls.NewLRUClientSessionCache(0),
-				},
-			}
-			return d.DialContext(ctx, "tcp", addr)
-		},
+
+	addr := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
+	tlsConf := &gtls.Config{
+		ServerName:         config.TLS.ServerName,
+		InsecureSkipVerify: config.TLS.Insecure,
+		ClientSessionCache: gtls.NewLRUClientSessionCache(64),
 	}
-	pool.Init()
-	c.pool = pool
-	return &c
+	switch config.Transport {
+	case "tls":
+		c.dialer = tls.NewDialer(addr, tlsConf)
+	case "grpc":
+		c.dialer = grpc.NewDialer(addr, tlsConf)
+	default:
+		return nil, errors.New("unsupported transport: " + config.Transport)
+	}
+
+	return &c, nil
 }
 
 func (c *Client) DialContext(ctx context.Context, dstAddr *proxy.Address) (net.Conn, error) {
-	// 从连接池拿预先建立的连接，而不是现场发起连接，
-	// 可以有效降低获取连接所需时间，改善网络体验。
-	conn, err := c.pool.Get(ctx)
+	conn, err := c.dialer.DialContext(ctx)
 	if err != nil {
 		return nil, err
 	}
+	// TODO: rename to metadata would be better ?
 	buf, err := c.prepareHandshake(dstAddr)
 	if err != nil {
 		return nil, err
@@ -98,5 +100,8 @@ func (c *Client) prepareHandshake(dstAddr *proxy.Address) (*bytes.Buffer, error)
 }
 
 func (c *Client) Close() error {
-	return c.pool.Close()
+	if closer, ok := c.dialer.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
