@@ -43,3 +43,7 @@ func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 
 	return streamToConn(stream), nil
 }
+
+func (d *dialer) Close() error {
+	return d.conn.Close()
+}

@@ -25,7 +25,6 @@ type Server struct {
 	connCh chan proxy.Conn
 	done   chan struct{}
 	ready  chan struct{} // imply that server is ready to accept connection
-	lis    net.Listener
 }
 
 func NewServer(config *ServerConfig) (*Server, error) {
@@ -35,52 +34,44 @@ func NewServer(config *ServerConfig) (*Server, error) {
 		done:   make(chan struct{}),
 		ready:  make(chan struct{}),
 	}
+	return s, nil
+}
 
-	addr := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
-	cert, err := tls.X509KeyPair(config.TLS.certPEMBlock, config.TLS.keyPEMBlock)
+func (s *Server) listen() (net.Listener, error) {
+	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
+	cert, err := tls.X509KeyPair(s.conf.TLS.certPEMBlock, s.conf.TLS.keyPEMBlock)
 	if err != nil {
 		return nil, err
 	}
 
+	var lis net.Listener
 	tlsConf := &tls.Config{
 		Certificates:             []tls.Certificate{cert},
 		MinVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
 	}
-
-	var lis net.Listener
-	switch config.Transport {
+	switch s.conf.Transport {
 	case "tls":
 		lis, err = tls2.Listen(addr, tlsConf)
 	case "grpc":
 		lis, err = grpc.Listen(addr, tlsConf)
 	default:
-		return nil, errors.New("unsupported transport: " + config.Transport)
+		err = errors.New("unsupported transport: " + s.conf.Transport)
 	}
 	if err != nil {
 		return nil, err
 	}
-	s.lis = lis
 
-	return s, nil
-}
-
-func (s *Server) Accept() <-chan proxy.Conn {
-	return s.connCh
-}
-
-func (s *Server) Close() error {
-	close(s.done)
-	close(s.connCh)
-	for conn := range s.connCh {
-		conn.Close()
-	}
-	return nil
+	glog.Printf("yeager proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
+	return lis, err
 }
 
 func (s *Server) Serve() {
-	defer s.lis.Close()
-	glog.Println("yeager proxy listen on", s.lis.Addr().String())
+	lis, err := s.listen()
+	if err != nil {
+		panic(err)
+	}
+	defer lis.Close()
 
 	close(s.ready)
 	for {
@@ -90,7 +81,7 @@ func (s *Server) Serve() {
 		default:
 		}
 
-		conn, err := s.lis.Accept()
+		conn, err := lis.Accept()
 		if err != nil {
 			log.Error(err)
 			continue
@@ -109,7 +100,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		log.Errorf("yeager parse credential err: %s", err)
+		log.Warn("yeager parse credential err: " + err.Error())
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
@@ -190,4 +181,17 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 
 	dstAddr = proxy.NewAddress(host, int(port))
 	return dstAddr, nil
+}
+
+func (s *Server) Accept() <-chan proxy.Conn {
+	return s.connCh
+}
+
+func (s *Server) Close() error {
+	close(s.done)
+	close(s.connCh)
+	for conn := range s.connCh {
+		conn.Close()
+	}
+	return nil
 }

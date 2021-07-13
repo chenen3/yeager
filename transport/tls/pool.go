@@ -1,4 +1,4 @@
-package util
+package tls
 
 import (
 	"context"
@@ -62,7 +62,7 @@ func (p *ConnPool) createConn() {
 		conn, err := p.DialContext(ctx)
 		cancel()
 		if err != nil {
-			log.Error(err)
+			log.Warn(err)
 			time.Sleep(p.retryInterval)
 			continue
 		}

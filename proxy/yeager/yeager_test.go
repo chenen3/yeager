@@ -3,7 +3,6 @@ package yeager
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,44 +99,46 @@ func TestYeager_tls(t *testing.T) {
 	go server.Serve()
 	defer server.Close()
 
-	errCh := make(chan error, 1)
 	go func() {
-		<-server.ready
-		client, err := NewClient(&ClientConfig{
-			Host:      server.conf.Host,
-			Port:      server.conf.Port,
-			UUID:      server.conf.UUID,
-			Transport: "tls",
-			TLS: tlsClientConfig{
-				ServerName: server.conf.Host,
-				Insecure:   true,
-			},
-		})
-		defer client.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 1234))
-		if err != nil {
-			errCh <- err
+		sconn := <-server.Accept()
+		defer sconn.Close()
+		if sconn.DstAddr().String() != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", sconn.DstAddr())
 			return
 		}
-		defer cconn.Close()
-		_, err = io.WriteString(cconn, "foobar")
-		if err != nil {
-			errCh <- err
-			return
-		}
+		io.Copy(sconn, sconn)
 	}()
 
-	select {
-	case err := <-errCh:
+	<-server.ready
+	client, err := NewClient(&ClientConfig{
+		Host:      server.conf.Host,
+		Port:      server.conf.Port,
+		UUID:      server.conf.UUID,
+		Transport: "tls",
+		TLS: tlsClientConfig{
+			ServerName: server.conf.Host,
+			Insecure:   true,
+		},
+	})
+	if err != nil {
 		t.Fatal(err)
-	case sconn := <-server.Accept():
-		defer sconn.Close()
-		if sconn.DstAddr().String() != "127.0.0.1:1234" {
-			t.Fatalf("received unexpected dst addr: %s", sconn.DstAddr())
-		}
 	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	cconn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cconn.Close()
+
+	_, err = cconn.Write([]byte("1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 1)
+	io.ReadFull(cconn, buf)
 }
 
 func newYeagerServerGRPC() (*Server, error) {
@@ -168,49 +169,46 @@ func TestYeager_grpc(t *testing.T) {
 	}
 	go server.Serve()
 	defer server.Close()
-
-	errCh := make(chan error, 1)
 	go func() {
-		<-server.ready
-		client, err := NewClient(&ClientConfig{
-			Host:      server.conf.Host,
-			Port:      server.conf.Port,
-			UUID:      server.conf.UUID,
-			Transport: "grpc",
-			TLS: tlsClientConfig{
-				ServerName: server.conf.Host,
-				Insecure:   true,
-			},
-		})
-		if err != nil {
-			errCh<-errors.New("NewClient err: "+err.Error())
+		sconn := <-server.Accept()
+		defer sconn.Close()
+		if sconn.DstAddr().String() != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", sconn.DstAddr())
 			return
 		}
-		defer client.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		cconn, err := client.DialContext(ctx, proxy.NewAddress("127.0.0.1", 1234))
-		if err != nil {
-			errCh <- errors.New("dial err: " + err.Error())
-			return
-		}
-		defer cconn.Close()
-		_, err = io.WriteString(cconn, "foobar")
-		if err != nil {
-			errCh <- errors.New("write err: " + err.Error())
-			return
-		}
+		io.Copy(sconn, sconn)
 	}()
 
-	select {
-	case err := <-errCh:
-		t.Fatal(err)
-	case sconn := <-server.Accept():
-		defer sconn.Close()
-		if sconn.DstAddr().String() != "127.0.0.1:1234" {
-			t.Fatalf("received unexpected dst addr: %s", sconn.DstAddr())
-		}
+	<-server.ready
+	client, err := NewClient(&ClientConfig{
+		Host:      server.conf.Host,
+		Port:      server.conf.Port,
+		UUID:      server.conf.UUID,
+		Transport: "grpc",
+		TLS: tlsClientConfig{
+			ServerName: server.conf.Host,
+			Insecure:   true,
+		},
+	})
+	if err != nil {
+		t.Fatal("NewClient err: " + err.Error())
 	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	cconn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
+	if err != nil {
+		t.Fatal("dial err: " + err.Error())
+	}
+	defer cconn.Close()
+
+	_, err = cconn.Write([]byte{1})
+	if err != nil {
+		t.Fatal("write err: " + err.Error())
+	}
+	buf := make([]byte, 1)
+	io.ReadFull(cconn, buf)
 }
 
 func TestFallback(t *testing.T) {

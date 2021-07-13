@@ -19,6 +19,12 @@ func Errorf(format string, v ...interface{}) {
 	logger.Output(2, fmt.Sprintf(format, v...))
 }
 
+func Warn(v ...interface{}) {
+	nv := []interface{}{"WARN: "}
+	nv = append(nv, v...)
+	logger.Output(2, fmt.Sprint(nv...))
+}
+
 func Infof(format string, v ...interface{}) {
 	logger.Output(2, fmt.Sprintf(format, v...))
 }

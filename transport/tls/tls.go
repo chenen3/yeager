@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
-
-	"yeager/util"
 )
 
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
@@ -14,11 +12,11 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 }
 
 type dialer struct {
-	pool *util.ConnPool
+	pool *ConnPool
 }
 
 func NewDialer(addr string, config *tls.Config) *dialer {
-	pool := &util.ConnPool{
+	pool := &ConnPool{
 		IdleTimeout: 5 * time.Minute,
 		DialContext: func(ctx context.Context) (net.Conn, error) {
 			d := tls.Dialer{Config: config}
