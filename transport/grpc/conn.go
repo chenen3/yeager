@@ -95,6 +95,7 @@ func (c *streamConn) Close() error {
 }
 
 func (c *streamConn) LocalAddr() net.Addr {
+	// this is a virtual connection, does not need real IP
 	addr := &net.TCPAddr{
 		IP:   []byte{0, 0, 0, 0},
 		Port: 0,
@@ -103,6 +104,7 @@ func (c *streamConn) LocalAddr() net.Addr {
 }
 
 func (c *streamConn) RemoteAddr() net.Addr {
+	// this is a virtual connection, does not need real IP
 	addr := &net.TCPAddr{
 		IP:   []byte{0, 0, 0, 0},
 		Port: 0,

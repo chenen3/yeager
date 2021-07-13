@@ -13,7 +13,7 @@ import (
 	"yeager/util"
 )
 
-// how to generate TLS certificate and private key:
+// how to generate TLS certificate and private key for testing:
 // go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
 var certPEM = `-----BEGIN CERTIFICATE-----
 MIIC+TCCAeGgAwIBAgIQDb5nH79/oPWE8qsGrcedHzANBgkqhkiG9w0BAQsFADAS

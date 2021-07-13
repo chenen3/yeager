@@ -120,7 +120,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
-// parseCredential 解析凭证，若认证通过则返回其目的地址
+// parseCredential 解析凭证，若凭证有效则返回其目的地址
 func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
