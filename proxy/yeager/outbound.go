@@ -3,57 +3,63 @@ package yeager
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
+	gtls "crypto/tls"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"io"
 	"net"
-	"time"
+	"strconv"
 
 	"github.com/google/uuid"
 	"yeager/proxy"
+	"yeager/transport"
+	"yeager/transport/grpc"
+	"yeager/transport/tls"
 	"yeager/util"
 )
 
 type Client struct {
-	conf *ClientConfig
-	pool *util.ConnPool
+	conf   *ClientConfig
+	dialer transport.Dialer
 }
 
-func NewClient(config *ClientConfig) *Client {
+func NewClient(config *ClientConfig) (*Client, error) {
 	var c Client
 	c.conf = config
-	pool := &util.ConnPool{
-		IdleTimeout: 5 * time.Minute,
-		DialContext: func(ctx context.Context) (net.Conn, error) {
-			addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-			d := tls.Dialer{
-				Config: &tls.Config{
-					ServerName:         c.conf.Host,
-					InsecureSkipVerify: c.conf.InsecureSkipVerify,
-					ClientSessionCache: tls.NewLRUClientSessionCache(0),
-				},
-			}
-			return d.DialContext(ctx, "tcp", addr)
-		},
+
+	addr := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
+	tlsConf := &gtls.Config{
+		ServerName:         config.TLS.ServerName,
+		InsecureSkipVerify: config.TLS.Insecure,
+		ClientSessionCache: gtls.NewLRUClientSessionCache(64),
 	}
-	pool.Init()
-	c.pool = pool
-	return &c
+	switch config.Transport {
+	case "tls":
+		c.dialer = tls.NewDialer(addr, tlsConf)
+	case "grpc":
+		c.dialer = grpc.NewDialer(addr, tlsConf)
+	default:
+		return nil, errors.New("unsupported transport: " + config.Transport)
+	}
+
+	return &c, nil
 }
 
+// 为什么这里实现认证不像socks5/http代理协议那样握手？
+// 出站代理与入站代理建立连接时，tcp握手延时加上tls握手延时已经够大了，
+// (例如本地机器ping远端VPS是50ms，建立tls连接延时约150ms)，
+// 如果为了实现认证而再次握手，正是雪上加霜。
+// 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
 func (c *Client) DialContext(ctx context.Context, dstAddr *proxy.Address) (net.Conn, error) {
-	// 从连接池拿预先建立的连接，而不是现场发起连接，
-	// 可以有效降低获取连接所需时间，改善网络体验。
-	conn, err := c.pool.Get(ctx)
+	conn, err := c.dialer.DialContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	buf, err := c.prepareHandshake(dstAddr)
+	cred, err := c.buildCredential(dstAddr)
 	if err != nil {
 		return nil, err
 	}
-	return util.EarlyWriteConn(conn, buf), nil
+	return util.EarlyWriteConn(conn, cred), nil
 }
 
 const (
@@ -61,9 +67,8 @@ const (
 	addressDomain = 0x03
 )
 
-// 为了降低握手时延，减少一次RTT，yeager出站代理将在建立tls连接后，第一次发送数据时，
-// 附带握手所需的信息（例如目的地址）。因此这里只是构造握手数据，并不是普遍意义上的握手
-func (c *Client) prepareHandshake(dstAddr *proxy.Address) (*bytes.Buffer, error) {
+// buildCredential 构造凭证，包含UUID和目的地址
+func (c *Client) buildCredential(dstAddr *proxy.Address) (*bytes.Buffer, error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -98,5 +103,8 @@ func (c *Client) prepareHandshake(dstAddr *proxy.Address) (*bytes.Buffer, error)
 }
 
 func (c *Client) Close() error {
-	return c.pool.Close()
+	if closer, ok := c.dialer.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }

@@ -1,22 +1,30 @@
 package yeager
 
 type ClientConfig struct {
-	Host string `json:"host"` // 必须填写域名
-	Port int    `json:"port"`
-	UUID string `json:"uuid"`
-	// 控制客户端是否验证服务器的证书，仅供测试，不能在生产环境开启此选项
-	InsecureSkipVerify bool `json:"insecureSkipVerify"`
+	Host      string          `json:"host"`
+	Port      int             `json:"port"`
+	UUID      string          `json:"uuid"`
+	Transport string          `json:"transport"` // tls, grpc
+	TLS       tlsClientConfig `json:"tls"`
+}
+
+type tlsClientConfig struct {
+	ServerName string `json:"serverName"`
+	Insecure   bool   `json:"insecure"` // (optional) developer only
 }
 
 type ServerConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	UUID     string `json:"uuid"`
-	CertFile string `json:"certFile"`
-	KeyFile  string `json:"keyFile"`
-	// (optional) if auth fail, fallback to HTTP server, such as nginx
-	Fallback fallback `json:"fallback"`
+	Host      string          `json:"host"`
+	Port      int             `json:"port"`
+	UUID      string          `json:"uuid"`
+	Transport string          `json:"transport"` // tls, grpc
+	TLS       tlsServerConfig `json:"tls"`
+	Fallback  fallback        `json:"fallback"` // (optional) if auth fail, fallback to HTTP server, such as nginx
+}
 
+type tlsServerConfig struct {
+	CertFile     string `json:"certFile"`
+	KeyFile      string `json:"keyFile"`
 	certPEMBlock []byte
 	keyPEMBlock  []byte
 }

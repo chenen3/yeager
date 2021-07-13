@@ -144,7 +144,8 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 	case <-ctx.Done():
 	case err := <-errCh:
 		if err != nil {
-			log.Error(err)
+			// mostly idle timeout
+			log.Warn(err)
 		}
 	}
 }

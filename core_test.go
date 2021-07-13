@@ -109,7 +109,10 @@ func makeClientProxyConf(inboundPort, outboundPort int) (config.Config, error) {
 				"host": "127.0.0.1",
                 "port": %d,
                 "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-                "insecureSkipVerify": true
+				"transport": "tls",
+				"tls": {
+					"insecure": true
+				}
             }
         }
     ],
@@ -137,8 +140,11 @@ func makeServerProxyConf(inboundPort int) (config.Config, error) {
 				"host": "127.0.0.1",
                 "port": %d,
                 "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-                "certFile": "%s",
-                "keyFile": "%s"
+				"transport": "tls",
+				"tls": {
+					"certFile": "%s",
+					"keyFile": "%s"
+				}
             }
         }
     ]

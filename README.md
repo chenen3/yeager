@@ -1,11 +1,13 @@
 # yeager
 
-A proxy aims to bypass network restriction. Mostly learn from [v2ray](https://github.com/v2fly/v2ray-core), and do it in my way. 
+> Note: yeager is my personal training project, mostly learn from v2ray-core and xray-core, and do it in my way. If you are beginner and looking for proxy tool, please consider [v2ray-core](https://github.com/v2fly/v2ray-core) or [Xray-core](https://github.com/XTLS/Xray-core) firstly, they are strong enough and having better community support.
 
-For practice purposes, only implement the basic features:
+yeager aims to bypass network restriction, has basic features:
 
 - socks5, http inbound proxy
-- outbound proxy transported by TLS
+- lightweight outbound proxy, secure transport via:
+  - TLS
+  - gRPC
 - rule routing
 
 ## Install
@@ -52,9 +54,10 @@ Edit config file`/usr/local/etc/yeager/config.json`
             "tag": "PROXY",
             "protocol": "yeager",
             "setting": {
-                "host": "example.com",// replace with your domain name
+                "host": "example.com", // replace with domain name
                 "port": 443,
-                "uuid": "" // fill in UUID (uuidgen can help create one)
+                "uuid": "", // fill in UUID (uuidgen can help create one)
+                "transport": "tls" // tls, grpc
             }
         }
     ],
@@ -98,8 +101,11 @@ Edit config file`/usr/local/etc/yeager/config.json`
             "setting": {
                 "port": 443,
                 "uuid": "", // fill in UUID (uuidgen can help create one)
-                "certFile": "/usr/local/etc/yeager/cert.pem", // replace with absolute path of certificate
-                "keyFile": "/usr/local/etc/yeager/key.pem", // replace with absolute path of key
+                "transport": "tls", // tls, grpc
+                "tls": {
+                    "certFile": "/usr/local/etc/yeager/cert.pem", // replace with absolute path of certificate
+                    "keyFile": "/usr/local/etc/yeager/key.pem", // replace with absolute path of key
+                },
                 "fallback": {
                     "host": "", // (optional) any other http server host (eg. nginx)
                     "port": 80 // (optional) any other http server port (eg. nginx)
