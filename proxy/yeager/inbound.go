@@ -46,7 +46,6 @@ func NewServer(config *ServerConfig) (*Server, error) {
 		Certificates:             []tls.Certificate{cert},
 		MinVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
-		// TODO NextProtos:
 	}
 
 	var lis net.Listener
@@ -101,18 +100,16 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	// yeager出站代理和入站代理建立连接后，可能把出站连接放入连接池，
-	// 不会立刻发来yeager握手信息。因此把入站连接的握手超时设置得长一点，
-	// 长达几分钟的握手超时的确很怪异，在找到更好的办法之前，先这么做
+	// yeager出站代理和入站代理建立连接后，可能把连接放入连接池，不会立刻发来凭证。
 	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
-	dstAddr, err := s.handshake(conn)
+	dstAddr, err := s.parseCredential(conn)
 	if err != nil {
 		// 客户端主动关闭连接或者握手超时
 		if err == io.EOF || errors.Is(err, os.ErrDeadlineExceeded) {
 			conn.Close()
 			return
 		}
-		log.Errorf("yeager handshake err: %s", err)
+		log.Errorf("yeager parse credential err: %s", err)
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
@@ -132,9 +129,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
-// 为了降低握手时延，减少一次RTT，yeager出站代理将在建立tls连接后，第一次数据发送时，附带握手信息。
-// 当yeager入站代理收到握手信息，如果认证通过，则继续处理，无需回复连接建立；如果认证失败，则关闭连接。
-func (s *Server) handshake(conn net.Conn) (dstAddr *proxy.Address, err error) {
+// parseCredential 解析凭证，若认证通过则返回其目的地址
+func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		UUID	ATYP	DST.ADDR	DST.PORT
@@ -155,7 +151,7 @@ func (s *Server) handshake(conn net.Conn) (dstAddr *proxy.Address, err error) {
 		return nil, err
 	}
 	if gotUUID != wantUUID {
-		return nil, fmt.Errorf("want uuid: %s, got: %s", wantUUID, gotUUID)
+		return nil, errors.New("mismatch UUID: " + gotUUID.String())
 	}
 
 	var host string

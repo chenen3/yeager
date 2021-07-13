@@ -14,9 +14,7 @@ import (
 type dialer struct {
 	addr   string
 	config *tls.Config
-	// TODO: connection pool, reconnect
-	// 参考 https://grpc.io/docs/guides/performance/
-	clientConn *grpc.ClientConn
+	conn   *grpc.ClientConn
 }
 
 func NewDialer(addr string, config *tls.Config) *dialer {
@@ -26,19 +24,19 @@ func NewDialer(addr string, config *tls.Config) *dialer {
 	}
 }
 
-func (d dialer) DialContext(ctx context.Context) (net.Conn, error) {
-	if d.clientConn == nil || d.clientConn.GetState() == connectivity.Shutdown {
+func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
+	// TODO: connection pool (https://grpc.io/docs/guides/performance/)
+	if d.conn == nil || d.conn.GetState() == connectivity.Shutdown {
 		opt := grpc.WithTransportCredentials(credentials.NewTLS(d.config))
 		conn, err := grpc.DialContext(ctx, d.addr, opt)
 		if err != nil {
 			return nil, err
 		}
-		d.clientConn = conn
+		d.conn = conn
 	}
 
-	client := pb.NewTransportClient(d.clientConn)
-	var callOpts []grpc.CallOption
-	stream, err := client.Tunnel(context.Background(), callOpts...)
+	client := pb.NewTransportClient(d.conn)
+	stream, err := client.Tunnel(context.Background())
 	if err != nil {
 		return nil, err
 	}
