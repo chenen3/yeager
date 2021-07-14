@@ -100,7 +100,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		log.Warn("yeager parse credential err: " + err.Error())
+		log.Warn("bad credential: " + err.Error())
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
@@ -135,7 +135,7 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 	uuidBytes, atyp := buf[:36], buf[36]
 	gotUUID, err := uuid.ParseBytes(uuidBytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s, UUID: %q", err, uuidBytes)
 	}
 	wantUUID, err := uuid.Parse(s.conf.UUID)
 	if err != nil {

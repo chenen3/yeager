@@ -14,6 +14,7 @@ type streamer interface {
 	Recv() (*pb.Data, error)
 }
 
+// streamConn implement net.Conn
 type streamConn struct {
 	stream     streamer
 	buf        []byte
@@ -23,7 +24,7 @@ type streamConn struct {
 	writeTimer *time.Timer
 }
 
-// use grpc stream to implement net.Conn
+// streamToConn convert grpc stream to virtual network connection
 func streamToConn(stream streamer) net.Conn {
 	return &streamConn{
 		stream: stream,
@@ -95,7 +96,7 @@ func (c *streamConn) Close() error {
 }
 
 func (c *streamConn) LocalAddr() net.Addr {
-	// this is a virtual connection, does not need real IP
+	// virtual connection does not need real IP
 	addr := &net.TCPAddr{
 		IP:   []byte{0, 0, 0, 0},
 		Port: 0,
@@ -104,7 +105,7 @@ func (c *streamConn) LocalAddr() net.Addr {
 }
 
 func (c *streamConn) RemoteAddr() net.Addr {
-	// this is a virtual connection, does not need real IP
+	// virtual connection does not need real IP
 	addr := &net.TCPAddr{
 		IP:   []byte{0, 0, 0, 0},
 		Port: 0,

@@ -70,7 +70,7 @@ var (
 	fbPort = 5678
 )
 
-func newYeagerServerTLS() (*Server, error) {
+func yeagerServeTLS() (*Server, error) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
@@ -84,15 +84,11 @@ func newYeagerServerTLS() (*Server, error) {
 			certPEMBlock: []byte(certPEM),
 			keyPEMBlock:  []byte(keyPEM),
 		},
-		Fallback: fallback{
-			Host: fbHost,
-			Port: fbPort,
-		},
 	})
 }
 
 func TestYeager_tls(t *testing.T) {
-	server, err := newYeagerServerTLS()
+	server, err := yeagerServeTLS()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +137,7 @@ func TestYeager_tls(t *testing.T) {
 	io.ReadFull(cconn, buf)
 }
 
-func newYeagerServerGRPC() (*Server, error) {
+func yeagerServeGRPC() (*Server, error) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
@@ -155,28 +151,33 @@ func newYeagerServerGRPC() (*Server, error) {
 			certPEMBlock: []byte(certPEM),
 			keyPEMBlock:  []byte(keyPEM),
 		},
-		Fallback: fallback{
-			Host: fbHost,
-			Port: fbPort,
-		},
 	})
 }
 
 func TestYeager_grpc(t *testing.T) {
-	server, err := newYeagerServerGRPC()
+	server, err := yeagerServeGRPC()
 	if err != nil {
 		t.Fatal(err)
 	}
 	go server.Serve()
 	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
 	go func() {
-		sconn := <-server.Accept()
-		defer sconn.Close()
-		if sconn.DstAddr().String() != "fake.domain.com:1234" {
-			t.Errorf("received unexpected dst addr: %s", sconn.DstAddr())
+		select {
+		case <-ctx.Done():
+			t.Error(ctx.Err())
 			return
+		case sconn := <-server.Accept():
+			defer sconn.Close()
+			if sconn.DstAddr().String() != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", sconn.DstAddr())
+				return
+			}
+			io.Copy(sconn, sconn)
 		}
-		io.Copy(sconn, sconn)
 	}()
 
 	<-server.ready
@@ -195,8 +196,6 @@ func TestYeager_grpc(t *testing.T) {
 	}
 	defer client.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 	cconn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
 	if err != nil {
 		t.Fatal("dial err: " + err.Error())
@@ -211,8 +210,29 @@ func TestYeager_grpc(t *testing.T) {
 	io.ReadFull(cconn, buf)
 }
 
+func yeagerServerWithFallback() (*Server, error) {
+	port, err := util.ChoosePort()
+	if err != nil {
+		return nil, err
+	}
+	return NewServer(&ServerConfig{
+		Host:      "127.0.0.1",
+		Port:      port,
+		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
+		Transport: "tls",
+		TLS: tlsServerConfig{
+			certPEMBlock: []byte(certPEM),
+			keyPEMBlock:  []byte(keyPEM),
+		},
+		Fallback: fallback{
+			Host: fbHost,
+			Port: fbPort,
+		},
+	})
+}
+
 func TestFallback(t *testing.T) {
-	server, err := newYeagerServerTLS()
+	server, err := yeagerServerWithFallback()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,10 +256,18 @@ func TestFallback(t *testing.T) {
 		io.Copy(io.Discard, resp.Body)
 	}()
 
-	conn := <-server.Accept()
-	defer conn.Close()
-	want := fmt.Sprintf("%s:%d", fbHost, fbPort)
-	if got := conn.DstAddr().String(); got != want {
-		t.Fatalf("want %s, got %s", want, got)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	case conn := <-server.Accept():
+		defer conn.Close()
+		want := fmt.Sprintf("%s:%d", fbHost, fbPort)
+		if got := conn.DstAddr().String(); got != want {
+			t.Fatalf("want %s, got %s", want, got)
+		}
 	}
+
 }
