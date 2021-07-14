@@ -1,13 +1,24 @@
+/*
+ * refer to gRPC performance best practices:
+ *     - reuse gRPC channels (grpc.ClientConn)
+ *     - use keepalive pings
+ *
+ * https://grpc.io/docs/guides/performance/
+ * https://grpc.io/blog/grpc-on-http2/
+ */
+
 package grpc
 
 import (
 	"context"
 	"crypto/tls"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"yeager/transport/grpc/pb"
 )
 
@@ -25,10 +36,15 @@ func NewDialer(addr string, config *tls.Config) *dialer {
 }
 
 func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
-	// TODO: connection pool (https://grpc.io/docs/guides/performance/)
 	if d.conn == nil || d.conn.GetState() == connectivity.Shutdown {
-		opt := grpc.WithTransportCredentials(credentials.NewTLS(d.config))
-		conn, err := grpc.DialContext(ctx, d.addr, opt)
+		opts := []grpc.DialOption{
+			grpc.WithTransportCredentials(credentials.NewTLS(d.config)),
+			grpc.WithKeepaliveParams(keepalive.ClientParameters{
+				Time:    60 * time.Second,
+				Timeout: 30 * time.Second,
+			}),
+		}
+		conn, err := grpc.DialContext(ctx, d.addr, opts...)
 		if err != nil {
 			return nil, err
 		}
