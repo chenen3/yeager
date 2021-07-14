@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -26,6 +27,11 @@ func newServer() *server {
 }
 
 func (s server) Tunnel(stream pb.Transport_TunnelServer) error {
+	if stream.Context().Err() == context.Canceled {
+		log.Debugf("client cancelled, abandoning")
+		return errors.New("client cancelled, abandoning")
+	}
+
 	s.connCh <- streamToConn(stream)
 	<-stream.Context().Done()
 	return nil
