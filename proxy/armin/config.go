@@ -1,4 +1,4 @@
-package yeager
+package armin
 
 type ClientConfig struct {
 	Host      string          `json:"host"`

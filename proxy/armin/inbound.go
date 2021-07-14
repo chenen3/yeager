@@ -1,4 +1,4 @@
-package yeager
+package armin
 
 import (
 	"crypto/tls"
@@ -62,7 +62,7 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, err
 	}
 
-	glog.Printf("yeager proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
+	glog.Printf("armin proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
 	return lis, err
 }
 
@@ -91,7 +91,7 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	// yeager出站代理和入站代理建立连接后，可能把连接放入连接池，不会立刻发来凭证。
+	// 出站代理和入站代理建立连接后，可能把连接放入连接池，不会立刻发来凭证。
 	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
 	dstAddr, err := s.parseCredential(conn)
 	if err != nil {

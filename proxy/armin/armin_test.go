@@ -1,4 +1,4 @@
-package yeager
+package armin
 
 import (
 	"context"
@@ -70,7 +70,7 @@ var (
 	fbPort = 5678
 )
 
-func yeagerServeTLS() (*Server, error) {
+func serveTLS() (*Server, error) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
@@ -87,8 +87,8 @@ func yeagerServeTLS() (*Server, error) {
 	})
 }
 
-func TestYeager_tls(t *testing.T) {
-	server, err := yeagerServeTLS()
+func TestArmin_tls(t *testing.T) {
+	server, err := serveTLS()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestYeager_tls(t *testing.T) {
 	io.ReadFull(cconn, buf)
 }
 
-func yeagerServeGRPC() (*Server, error) {
+func serveGRPC() (*Server, error) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
@@ -154,8 +154,8 @@ func yeagerServeGRPC() (*Server, error) {
 	})
 }
 
-func TestYeager_grpc(t *testing.T) {
-	server, err := yeagerServeGRPC()
+func TestArmin_grpc(t *testing.T) {
+	server, err := serveGRPC()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestYeager_grpc(t *testing.T) {
 	io.ReadFull(cconn, buf)
 }
 
-func yeagerServerWithFallback() (*Server, error) {
+func serverWithFallback() (*Server, error) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		return nil, err
@@ -232,7 +232,7 @@ func yeagerServerWithFallback() (*Server, error) {
 }
 
 func TestFallback(t *testing.T) {
-	server, err := yeagerServerWithFallback()
+	server, err := serverWithFallback()
 	if err != nil {
 		t.Fatal(err)
 	}

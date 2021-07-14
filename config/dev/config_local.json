@@ -16,7 +16,7 @@
     "outbounds": [
         {
             "tag": "PROXY",
-            "protocol": "yeager",
+            "protocol": "armin",
             "setting": {
                 "host": "127.0.0.1",
                 "port": 10812,

@@ -1,4 +1,4 @@
-package yeager
+package armin
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"yeager/proxy"
 )
+
+const Tag = "armin"
 
 func init() {
 	proxy.RegisterOutboundBuilder(Tag, func(setting json.RawMessage) (proxy.Outbound, error) {
@@ -40,5 +42,3 @@ func init() {
 		return NewServer(&conf)
 	})
 }
-
-const Tag = "yeager"

@@ -104,7 +104,7 @@ func makeClientProxyConf(inboundPort, outboundPort int) (config.Config, error) {
     "outbounds": [
         {
             "tag": "PROXY",
-            "protocol": "yeager",
+            "protocol": "armin",
             "setting": {
 				"host": "127.0.0.1",
                 "port": %d,
@@ -135,7 +135,7 @@ func makeServerProxyConf(inboundPort int) (config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": [
         {
-            "protocol": "yeager",
+            "protocol": "armin",
             "setting": {
 				"host": "127.0.0.1",
                 "port": %d,

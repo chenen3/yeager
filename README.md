@@ -52,7 +52,7 @@ Edit config file`/usr/local/etc/yeager/config.json`
     "outbounds": [
         {
             "tag": "PROXY",
-            "protocol": "yeager",
+            "protocol": "armin",
             "setting": {
                 "host": "example.com", // replace with domain name
                 "port": 443,
@@ -97,7 +97,7 @@ Edit config file`/usr/local/etc/yeager/config.json`
 {
     "inbounds": [
         {
-            "protocol": "yeager",
+            "protocol": "armin",
             "setting": {
                 "port": 443,
                 "uuid": "", // fill in UUID (uuidgen can help create one)

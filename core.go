@@ -11,11 +11,11 @@ import (
 	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
+	_ "yeager/proxy/armin"
 	"yeager/proxy/direct"
 	_ "yeager/proxy/http"
 	"yeager/proxy/reject"
 	_ "yeager/proxy/socks"
-	_ "yeager/proxy/yeager"
 	"yeager/router"
 )
 
@@ -85,7 +85,6 @@ func acceptConn(ctx context.Context, ib proxy.Inbound, ch chan<- proxy.Conn) {
 }
 
 func (p *Proxy) Start(ctx context.Context) {
-	glog.Printf("Starting ...")
 	connCh := make(chan proxy.Conn, 32)
 	for _, inbound := range p.inbounds {
 		go inbound.Serve()

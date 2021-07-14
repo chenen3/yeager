@@ -53,10 +53,11 @@ func main() {
 
 	go func() {
 		sig := <-c
-		log.Printf("Received signal \"%v\", canceling the start context and closing in %v", sig, stopTime)
+		log.Printf("received signal \"%v\", canceling the start context and closing in %v", sig, stopTime)
 		cancel()
 		time.Sleep(stopTime)
 		os.Exit(0)
 	}()
+	log.Printf("starting ...")
 	p.Start(ctx)
 }
