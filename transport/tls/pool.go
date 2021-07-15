@@ -10,32 +10,38 @@ import (
 )
 
 // ConnPool implement connection pool, automatically create and cache connection,
-// MUST call Init() firstly to initialize itself
 type ConnPool struct {
 	ch            chan *persistConn
 	done          chan struct{}
 	once          sync.Once
 	retryInterval time.Duration
 
-	Capacity    int
-	IdleTimeout time.Duration // how long the cached connection could remain idle
-	DialContext func(ctx context.Context) (net.Conn, error)
+	cap         int
+	idleTimeout time.Duration
+	DialContext func(ctx context.Context, addr string) (net.Conn, error)
 }
 
-func (p *ConnPool) Init() {
-	defaultCapacity := 10
-	capacity := p.Capacity
+func NewPool(capacity int, idleTimeout time.Duration,
+	dialFunc func(ctx context.Context, addr string) (net.Conn, error)) *ConnPool {
 	if capacity <= 0 {
-		capacity = defaultCapacity
+		capacity = 10
 	}
-	p.ch = make(chan *persistConn, capacity)
-	p.done = make(chan struct{})
-	p.retryInterval = 30 * time.Second
-	go p.createConn()
+	return &ConnPool{
+		cap:           capacity,
+		idleTimeout:   idleTimeout,
+		DialContext:   dialFunc,
+		ch:            make(chan *persistConn, capacity),
+		done:          make(chan struct{}),
+		retryInterval: 30 * time.Second,
+	}
 }
 
 // Get return cached or newly-created connection
-func (p *ConnPool) Get(ctx context.Context) (net.Conn, error) {
+func (p *ConnPool) Get(ctx context.Context, addr string) (net.Conn, error) {
+	p.once.Do(func() {
+		go p.createConn(addr)
+	})
+
 	select {
 	case pc := <-p.ch:
 		if pc.expire {
@@ -46,10 +52,10 @@ func (p *ConnPool) Get(ctx context.Context) (net.Conn, error) {
 	default:
 	}
 
-	return p.DialContext(ctx)
+	return p.DialContext(ctx, addr)
 }
 
-func (p *ConnPool) createConn() {
+func (p *ConnPool) createConn(addr string) {
 	for {
 		select {
 		case <-p.done:
@@ -59,7 +65,7 @@ func (p *ConnPool) createConn() {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		conn, err := p.DialContext(ctx)
+		conn, err := p.DialContext(ctx, addr)
 		cancel()
 		if err != nil {
 			log.Warn(err)
@@ -69,8 +75,8 @@ func (p *ConnPool) createConn() {
 
 		pc := new(persistConn)
 		pc.Conn = conn
-		if p.IdleTimeout > 0 {
-			pc.idleTimer = time.AfterFunc(p.IdleTimeout, func() {
+		if p.idleTimeout > 0 {
+			pc.idleTimer = time.AfterFunc(p.idleTimeout, func() {
 				pc.Close()
 			})
 		}

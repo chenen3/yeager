@@ -36,8 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	// parsing geoip.dat obviously raise up the memory consumption,
-	// trigger GC to reduce it.
+	// trigger GC to release memory usage. (especially routing rule parsing)
 	runtime.GC()
 
 	// http server for profiling

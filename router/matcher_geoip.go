@@ -19,7 +19,26 @@ func RegisterAssetDir(dir ...string) {
 	assetDirs = append(assetDirs, dir...)
 }
 
-func loadGeoIp(country string) ([]*router.CIDR, error) {
+var globalGeoIPList *router.GeoIPList
+
+func extractCountryIP(country string) ([]*router.CIDR, error) {
+	if globalGeoIPList == nil {
+		geoIPList, err := loadGeoIPFile()
+		if err != nil {
+			return nil, err
+		}
+		globalGeoIPList = geoIPList
+	}
+
+	for _, geoip := range globalGeoIPList.Entry {
+		if strings.EqualFold(geoip.CountryCode, country) {
+			return geoip.Cidr, nil
+		}
+	}
+	return nil, errors.New("unsupported geoip country: " + country)
+}
+
+func loadGeoIPFile() (*router.GeoIPList, error) {
 	var data []byte
 	var err error
 	for _, dir := range assetDirs {
@@ -32,18 +51,12 @@ func loadGeoIp(country string) ([]*router.CIDR, error) {
 		return nil, err
 	}
 
-	var geoIPList router.GeoIPList
-	err = proto.Unmarshal(data, &geoIPList)
+	geoIPList := new(router.GeoIPList)
+	err = proto.Unmarshal(data, geoIPList)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, geoip := range geoIPList.Entry {
-		if strings.EqualFold(geoip.CountryCode, country) {
-			return geoip.Cidr, nil
-		}
-	}
-	return nil, errors.New("unsupported geoip country: " + country)
+	return geoIPList, nil
 }
 
 type geoIPMatcher struct {
@@ -53,7 +66,7 @@ type geoIPMatcher struct {
 }
 
 func newGeoIPMatcher(country string) (*geoIPMatcher, error) {
-	cidrs, err := loadGeoIp(country)
+	cidrs, err := extractCountryIP(country)
 	if err != nil {
 		return nil, err
 	}

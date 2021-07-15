@@ -27,7 +27,6 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	var c Client
 	c.conf = config
 
-	addr := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
 	tlsConf := &gtls.Config{
 		ServerName:         config.TLS.ServerName,
 		InsecureSkipVerify: config.TLS.Insecure,
@@ -35,9 +34,9 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	}
 	switch config.Transport {
 	case "tls":
-		c.dialer = tls.NewDialer(addr, tlsConf)
+		c.dialer = tls.NewDialer(tlsConf)
 	case "grpc":
-		c.dialer = grpc.NewDialer(addr, tlsConf)
+		c.dialer = grpc.NewDialer(tlsConf)
 	default:
 		return nil, errors.New("unsupported transport: " + config.Transport)
 	}
@@ -50,12 +49,13 @@ func NewClient(config *ClientConfig) (*Client, error) {
 // (例如本地机器ping远端VPS是50ms，建立tls连接延时约150ms)，
 // 如果为了实现认证而再次握手，正是雪上加霜。
 // 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
-func (c *Client) DialContext(ctx context.Context, dstAddr *proxy.Address) (net.Conn, error) {
-	conn, err := c.dialer.DialContext(ctx)
+func (c *Client) DialContext(ctx context.Context, dst *proxy.Address) (net.Conn, error) {
+	addr := net.JoinHostPort(c.conf.Host, strconv.Itoa(c.conf.Port))
+	conn, err := c.dialer.DialContext(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-	cred, err := c.buildCredential(dstAddr)
+	cred, err := c.buildCredential(dst)
 	if err != nil {
 		return nil, err
 	}
@@ -71,19 +71,20 @@ const (
 func (c *Client) buildCredential(dstAddr *proxy.Address) (*bytes.Buffer, error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		UUID	ATYP	DST.ADDR	DST.PORT
-		36		1		动态			2
+		VER UUID ATYP DST.ADDR DST.PORT
+		1   36   1    动态     2
 	*/
 
 	var buf bytes.Buffer
-	// write UUID
+	// keep version number for backward compatibility
+	buf.WriteByte(1)
+
 	sendUUID, err := uuid.Parse(c.conf.UUID)
 	if err != nil {
 		return nil, err
 	}
 	buf.WriteString(sendUUID.String())
 
-	// write destination address
 	switch dstAddr.Type {
 	case proxy.AddrIPv4:
 		buf.WriteByte(addressIPv4)

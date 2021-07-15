@@ -11,8 +11,7 @@ import (
 	"yeager/proxy"
 )
 
-func loadGeoSiteFile(country string) ([]*router.Domain, error) {
-	geositeList := new(router.GeoSiteList)
+func loadGeoSiteFile() (*router.GeoSiteList, error) {
 	var data []byte
 	var err error
 	for _, dir := range assetDirs {
@@ -25,11 +24,27 @@ func loadGeoSiteFile(country string) ([]*router.Domain, error) {
 		return nil, err
 	}
 
-	err = proto.Unmarshal(data, geositeList)
+	geoSiteList := new(router.GeoSiteList)
+	err = proto.Unmarshal(data, geoSiteList)
 	if err != nil {
 		return nil, err
 	}
-	for _, g := range geositeList.Entry {
+
+	return geoSiteList, nil
+}
+
+var globalGeoSiteList *router.GeoSiteList
+
+func extractCountrySite(country string) ([]*router.Domain, error) {
+	if globalGeoSiteList == nil {
+		geoSiteList, err := loadGeoSiteFile()
+		if err != nil {
+			return nil, err
+		}
+		globalGeoSiteList = geoSiteList
+	}
+
+	for _, g := range globalGeoSiteList.Entry {
 		if strings.EqualFold(g.CountryCode, country) {
 			return g.Domain, nil
 		}
@@ -48,7 +63,7 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 		attrs = append(attrs, strings.TrimSpace(attr))
 	}
 
-	sites, err := loadGeoSiteFile(geoValue)
+	sites, err := extractCountrySite(geoValue)
 	if err != nil {
 		return nil, err
 	}
