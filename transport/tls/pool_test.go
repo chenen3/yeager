@@ -22,25 +22,24 @@ func TestConnPool(t *testing.T) {
 		conn.Close()
 	}()
 
-	dialContext := func(ctx context.Context) (net.Conn, error) {
+	dialFunc := func(ctx context.Context, addr string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, l.Addr().Network(), l.Addr().String())
 	}
-	p := ConnPool{DialContext: dialContext, IdleTimeout: time.Millisecond}
-	p.Init()
+	p := NewPool(5, time.Millisecond, dialFunc)
 	defer p.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	conn, err := p.Get(ctx)
+	conn, err := p.Get(ctx, l.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
 	conn.Close()
 
 	// wait for idle timeout
-	time.Sleep(2 * time.Millisecond)
-	conn, err = p.Get(ctx)
+	// time.Sleep(2 * time.Millisecond)
+	conn, err = p.Get(ctx, l.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,19 +23,15 @@ import (
 )
 
 type dialer struct {
-	addr   string
 	config *tls.Config
 	conn   *grpc.ClientConn
 }
 
-func NewDialer(addr string, config *tls.Config) *dialer {
-	return &dialer{
-		addr:   addr,
-		config: config,
-	}
+func NewDialer(config *tls.Config) *dialer {
+	return &dialer{config: config}
 }
 
-func (d *dialer) grpcDial(ctx context.Context) (*grpc.ClientConn, error) {
+func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, error) {
 	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
 		return d.conn, nil
 	}
@@ -47,7 +43,7 @@ func (d *dialer) grpcDial(ctx context.Context) (*grpc.ClientConn, error) {
 			Timeout: 30 * time.Second,
 		}),
 	}
-	conn, err := grpc.DialContext(ctx, d.addr, opts...)
+	conn, err := grpc.DialContext(ctx, addr, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +52,8 @@ func (d *dialer) grpcDial(ctx context.Context) (*grpc.ClientConn, error) {
 	return d.conn, nil
 }
 
-func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
-	conn, err := d.grpcDial(ctx)
+func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+	conn, err := d.grpcDial(addr, ctx)
 	if err != nil {
 		return nil, err
 	}

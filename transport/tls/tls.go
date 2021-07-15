@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -12,25 +13,29 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 }
 
 type dialer struct {
-	pool *ConnPool
+	config *tls.Config
+	pool   *ConnPool
+	once   sync.Once
 }
 
-func NewDialer(addr string, config *tls.Config) *dialer {
-	pool := &ConnPool{
-		IdleTimeout: 5 * time.Minute,
-		DialContext: func(ctx context.Context) (net.Conn, error) {
-			d := tls.Dialer{Config: config}
+func NewDialer(config *tls.Config) *dialer {
+	return &dialer{config: config}
+}
+
+func (d *dialer) onceInitConnPool() {
+	d.once.Do(func() {
+		dialFunc := func(ctx context.Context, addr string) (net.Conn, error) {
+			d := tls.Dialer{Config: d.config}
 			return d.DialContext(ctx, "tcp", addr)
-		},
-	}
-	pool.Init()
-	return &dialer{pool}
+		}
+		d.pool = NewPool(10, 5*time.Minute, dialFunc)
+	})
 }
 
-func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
-	// 从连接池拿预先建立的连接，而不是现场发起连接，
-	// 可以有效降低获取连接所需时间，改善网络体验。
-	return d.pool.Get(ctx)
+func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+	d.onceInitConnPool()
+	// 现场建立TLS连接所需延时较大，因此从连接池获取预先建立的连接
+	return d.pool.Get(ctx, addr)
 }
 
 func (d *dialer) Close() error {
