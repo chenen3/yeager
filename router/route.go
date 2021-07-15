@@ -82,6 +82,11 @@ func NewRouter(rules []string) (*Router, error) {
 		parsedRules = append(parsedRules, ru)
 	}
 	r.rules = parsedRules
+
+	// parsing geoip file obviously increase memory usage,
+	// set nil to release objects, memory shall release in future GC
+	globalGeoIPList = nil
+	globalGeoSiteList = nil
 	return &r, nil
 }
 
