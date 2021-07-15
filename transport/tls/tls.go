@@ -39,5 +39,8 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 }
 
 func (d *dialer) Close() error {
+	if d.pool == nil {
+		return nil
+	}
 	return d.pool.Close()
 }
