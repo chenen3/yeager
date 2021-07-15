@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -25,31 +26,11 @@ import (
 type dialer struct {
 	config *tls.Config
 	conn   *grpc.ClientConn
+	connMu sync.RWMutex
 }
 
 func NewDialer(config *tls.Config) *dialer {
 	return &dialer{config: config}
-}
-
-func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, error) {
-	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
-		return d.conn, nil
-	}
-
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(d.config)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    60 * time.Second,
-			Timeout: 30 * time.Second,
-		}),
-	}
-	conn, err := grpc.DialContext(ctx, addr, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	d.conn = conn
-	return d.conn, nil
 }
 
 func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
@@ -65,6 +46,56 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	}
 
 	return streamToConn(stream), nil
+}
+
+// tryGetClientConn return true if get conn successfully
+func (d *dialer) tryGetClientConn() (*grpc.ClientConn, bool) {
+	d.connMu.RLock()
+	defer d.connMu.RUnlock()
+	if d.conn == nil || d.conn.GetState() == connectivity.Shutdown {
+		return nil, false
+	}
+	return d.conn, true
+}
+
+// trySetClientConn return true if set conn successfully
+func (d *dialer) trySetClientConn(conn *grpc.ClientConn) bool {
+	d.connMu.Lock()
+	defer d.connMu.Unlock()
+	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
+		return false
+	}
+
+	d.conn = conn
+	return true
+}
+
+func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, error) {
+	conn, ok := d.tryGetClientConn()
+	if ok {
+		return conn, nil
+	}
+
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(credentials.NewTLS(d.config)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    60 * time.Second,
+			Timeout: 30 * time.Second,
+		}),
+	}
+	conn, err := grpc.DialContext(ctx, addr, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	ok = d.trySetClientConn(conn)
+	if !ok {
+		// means that another goroutine has set the grpc connection,
+		// this unused connection shall be discard
+		conn.Close()
+	}
+
+	return d.conn, nil
 }
 
 func (d *dialer) Close() error {
