@@ -124,15 +124,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		UUID	ATYP	DST.ADDR	DST.PORT
-		36		1		动态			2
+		VER UUID ATYP DST.ADDR DST.PORT
+		1   36   1    动态     2
 	*/
-	var buf [37]byte
+	var buf [1 + 36 + 1]byte
 	_, err = io.ReadFull(conn, buf[:])
 	if err != nil {
 		return nil, err
 	}
-	uuidBytes, atyp := buf[:36], buf[36]
+
+	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
+	// keep version number for backward compatibility
+	_ = version
 	gotUUID, err := uuid.ParseBytes(uuidBytes)
 	if err != nil {
 		return nil, fmt.Errorf("%s, UUID: %q", err, uuidBytes)

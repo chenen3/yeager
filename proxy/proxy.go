@@ -26,7 +26,7 @@ type Inbound interface {
 
 // TODO: 其实是net.Dialer
 type Outbound interface {
-	DialContext(ctx context.Context, address *Address) (net.Conn, error)
+	DialContext(ctx context.Context, addr *Address) (net.Conn, error)
 }
 
 type inboundBuilderFunc func(setting json.RawMessage) (Inbound, error)
