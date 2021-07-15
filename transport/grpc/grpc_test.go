@@ -34,10 +34,10 @@ func TestGRPC(t *testing.T) {
 		io.Copy(conn, conn)
 	}()
 
-	d := NewDialer(lis.Addr().String(), &tls.Config{InsecureSkipVerify: true})
+	d := NewDialer(&tls.Config{InsecureSkipVerify: true})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	conn, err := d.DialContext(ctx)
+	conn, err := d.DialContext(ctx, lis.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
