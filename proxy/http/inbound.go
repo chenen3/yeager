@@ -83,7 +83,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	newConn, err := s.handshake(conn)
 	if err != nil {
 		log.Error("failed to handshake: " + err.Error())
-		newConn.Close()
+		conn.Close()
 		return
 	}
 
