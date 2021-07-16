@@ -73,11 +73,24 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
+	err := conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	if err != nil {
+		log.Error("failed to set handshake timeout: " + err.Error())
+		conn.Close()
+		return
+	}
+
 	newConn, err := s.handshake(conn)
 	if err != nil {
-		log.Error(err)
-		conn.Close()
+		log.Error("failed to handshake: " + err.Error())
+		newConn.Close()
+		return
+	}
+
+	err = newConn.SetDeadline(time.Time{})
+	if err != nil {
+		log.Error("failed to clear handshake timeout: " + err.Error())
+		newConn.Close()
 		return
 	}
 

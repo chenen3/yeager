@@ -55,10 +55,13 @@ func (c *Client) DialContext(ctx context.Context, dst *proxy.Address) (net.Conn,
 	if err != nil {
 		return nil, err
 	}
+
 	cred, err := c.buildCredential(dst)
 	if err != nil {
 		return nil, err
 	}
+
+	conn = util.NewMaxIdleConn(conn, proxy.IdleConnTimeout)
 	return util.EarlyWriteConn(conn, cred), nil
 }
 

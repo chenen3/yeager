@@ -7,6 +7,12 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"time"
+)
+
+const (
+	HandshakeTimeout = 5 * time.Second
+	IdleConnTimeout  = 5 * time.Minute
 )
 
 // Conn is the interface that wrap net.Conn with destination address method

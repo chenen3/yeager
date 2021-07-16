@@ -91,32 +91,55 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	// 出站代理和入站代理建立连接后，可能把连接放入连接池，不会立刻发来凭证。
-	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
+	handshakeTimeout := proxy.HandshakeTimeout
+	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
+	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
+	if s.conf.Transport == "tls" {
+		handshakeTimeout = proxy.IdleConnTimeout
+	}
+	err := conn.SetDeadline(time.Now().Add(handshakeTimeout))
+	if err != nil {
+		log.Error("failed to set handshake timeout: " + err.Error())
+		conn.Close()
+		return
+	}
+
 	dstAddr, err := s.parseCredential(conn)
 	if err != nil {
 		// 客户端主动关闭连接或者握手超时
 		if err == io.EOF || errors.Is(err, os.ErrDeadlineExceeded) {
+			log.Warn("failed to handshake: " + err.Error())
 			conn.Close()
 			return
 		}
-		log.Warn("bad credential: " + err.Error())
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
 		// Learning from trojan, https://trojan-gfw.github.io/trojan/protocol
 		if s.conf.Fallback.Host == "" {
+			log.Warn("bad credential: " + err.Error())
 			conn.Close()
 			return
 		}
+
 		dstAddr = proxy.NewAddress(s.conf.Fallback.Host, s.conf.Fallback.Port)
+		log.Warnf("bad credential: %s, redirect to %s", err, dstAddr)
 	}
 
-	select {
-	case <-s.done:
+	err = conn.SetDeadline(time.Time{})
+	if err != nil {
+		log.Error("failed to clear handshake timeout: " + err.Error())
 		conn.Close()
 		return
-	case s.connCh <- proxy.NewConn(conn, dstAddr):
+	}
+
+	conn = util.NewMaxIdleConn(conn, proxy.IdleConnTimeout)
+	newConn := proxy.NewConn(conn, dstAddr)
+	select {
+	case <-s.done:
+		newConn.Close()
+		return
+	case s.connCh <- newConn:
 	}
 }
 
