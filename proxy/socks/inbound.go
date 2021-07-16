@@ -12,7 +12,6 @@ import (
 
 	"yeager/log"
 	"yeager/proxy"
-	"yeager/util"
 )
 
 // Server implements protocol.Inbound interface
@@ -73,10 +72,23 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	conn = util.NewMaxIdleConn(conn, 5*time.Minute)
+	err := conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	if err != nil {
+		log.Error("failed to set handshake timeout: " + err.Error())
+		conn.Close()
+		return
+	}
+
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
-		log.Error(err)
+		log.Error("failed to handshake: " + err.Error())
+		conn.Close()
+		return
+	}
+
+	err = conn.SetDeadline(time.Time{})
+	if err != nil {
+		log.Error("failed to clear handshake timeout: " + err.Error())
 		conn.Close()
 		return
 	}

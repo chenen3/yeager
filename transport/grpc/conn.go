@@ -18,7 +18,7 @@ type streamer interface {
 type streamConn struct {
 	stream     streamer
 	buf        []byte
-	index      int
+	off        int
 	done       chan struct{}
 	readTimer  *time.Timer
 	writeTimer *time.Timer
@@ -46,19 +46,19 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 		}
 	}
 
-	if c.index >= len(c.buf) {
+	if c.off >= len(c.buf) {
 		data, err := c.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
 		if data != nil {
 			c.buf = data.Data
-			c.index = 0
+			c.off = 0
 		}
 	}
 
-	n = copy(b, c.buf[c.index:])
-	c.index += n
+	n = copy(b, c.buf[c.off:])
+	c.off += n
 	return n, nil
 }
 
@@ -122,6 +122,15 @@ func (c *streamConn) SetDeadline(t time.Time) error {
 }
 
 func (c *streamConn) SetReadDeadline(t time.Time) error {
+	// given zero value of t means never timeout
+	if t.Equal(time.Time{}) {
+		if c.readTimer != nil {
+			c.readTimer.Stop()
+			c.readTimer = nil
+		}
+		return nil
+	}
+
 	if c.readTimer == nil {
 		c.readTimer = time.NewTimer(time.Until(t))
 		return nil
@@ -135,6 +144,15 @@ func (c *streamConn) SetReadDeadline(t time.Time) error {
 }
 
 func (c *streamConn) SetWriteDeadline(t time.Time) error {
+	// given zero value of t means never timeout
+	if t.Equal(time.Time{}) {
+		if c.writeTimer != nil {
+			c.writeTimer.Stop()
+			c.writeTimer = nil
+		}
+		return nil
+	}
+
 	if c.writeTimer == nil {
 		c.writeTimer = time.NewTimer(time.Until(t))
 		return nil
