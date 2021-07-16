@@ -127,8 +127,8 @@ func (c *streamConn) SetReadDeadline(t time.Time) error {
 		if c.readTimer != nil {
 			c.readTimer.Stop()
 			c.readTimer = nil
-			return nil
 		}
+		return nil
 	}
 
 	if c.readTimer == nil {
@@ -149,8 +149,8 @@ func (c *streamConn) SetWriteDeadline(t time.Time) error {
 		if c.writeTimer != nil {
 			c.writeTimer.Stop()
 			c.writeTimer = nil
-			return nil
 		}
+		return nil
 	}
 
 	if c.writeTimer == nil {
