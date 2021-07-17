@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
@@ -18,6 +19,16 @@ import (
 	_ "yeager/proxy/socks"
 	"yeager/router"
 )
+
+var activeConn prometheus.Gauge
+
+func init() {
+	activeConn = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "active_connections",
+		Help: "Number of active connections.",
+	})
+	prometheus.MustRegister(activeConn)
+}
 
 type Proxy struct {
 	inbounds  []proxy.Inbound
@@ -119,6 +130,9 @@ func (p *Proxy) Start(ctx context.Context) {
 }
 
 func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
+	activeConn.Inc()
+	defer activeConn.Dec()
+
 	defer inConn.Close()
 	addr := inConn.DstAddr()
 	tag := p.router.Dispatch(addr)
@@ -130,8 +144,8 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 	glog.Printf("accept %s [%s]\n", addr, tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
 	outConn, err := outbound.DialContext(dialCtx, addr)
-	cancel()
 	if err != nil {
 		log.Errorf("dial %s err: %s", addr, err)
 		return

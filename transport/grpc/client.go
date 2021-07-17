@@ -40,12 +40,15 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	}
 
 	client := pb.NewTransportClient(conn)
-	stream, err := client.Tunnel(context.Background())
+	// 用来发起连接的参数ctx通常时间很短，而双向流可能会存在一段时间，
+	// 因此使用新的context来控制双向流
+	ctx2, cancel := context.WithCancel(context.Background())
+	stream, err := client.Tunnel(ctx2)
 	if err != nil {
 		return nil, err
 	}
 
-	return streamToConn(stream), nil
+	return streamToConn(stream, cancel), nil
 }
 
 // tryGetClientConn return true if get conn successfully
