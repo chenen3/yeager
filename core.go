@@ -24,8 +24,8 @@ var activeConn prometheus.Gauge
 
 func init() {
 	activeConn = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name:      "active_connections",
-		Help:      "Number of active connections.",
+		Name: "active_connections",
+		Help: "Number of active connections.",
 	})
 	prometheus.MustRegister(activeConn)
 }
@@ -144,8 +144,8 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 	glog.Printf("accept %s [%s]\n", addr, tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
 	outConn, err := outbound.DialContext(dialCtx, addr)
-	cancel()
 	if err != nil {
 		log.Errorf("dial %s err: %s", addr, err)
 		return

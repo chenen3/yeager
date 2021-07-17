@@ -27,14 +27,12 @@ func newServer() *server {
 }
 
 func (s server) Tunnel(stream pb.Transport_TunnelServer) error {
-	if stream.Context().Err() == context.Canceled {
-		log.Debugf("client cancelled, abandoning")
-		return errors.New("client cancelled, abandoning")
+	ctx, cancel := context.WithCancel(stream.Context())
+	s.connCh <- streamToConn(stream, cancel)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-
-	s.connCh <- streamToConn(stream)
-	<-stream.Context().Done()
-	return nil
 }
 
 func (s server) Accept() (net.Conn, error) {
