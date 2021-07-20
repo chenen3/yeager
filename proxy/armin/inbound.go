@@ -17,7 +17,6 @@ import (
 	"yeager/proxy"
 	"yeager/transport/grpc"
 	tls2 "yeager/transport/tls"
-	"yeager/util"
 )
 
 type Server struct {
@@ -133,8 +132,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-	conn = util.NewMaxIdleConn(conn, proxy.IdleConnTimeout)
-	newConn := proxy.NewConn(conn, dstAddr)
+	newConn := &Conn{
+		Conn:        conn,
+		dstAddr:     dstAddr,
+		idleTimeout: proxy.IdleConnTimeout,
+	}
 	select {
 	case <-s.done:
 		newConn.Close()
@@ -209,6 +211,7 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 	return dstAddr, nil
 }
 
+// TODO: 可以改为在外边注册注册handler，然后所有连接都在此server中处理，不需要传给外面，减少堆内存分配
 func (s *Server) Accept() <-chan proxy.Conn {
 	return s.connCh
 }

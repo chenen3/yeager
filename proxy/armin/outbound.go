@@ -15,7 +15,6 @@ import (
 	"yeager/transport"
 	"yeager/transport/grpc"
 	"yeager/transport/tls"
-	"yeager/util"
 )
 
 type Client struct {
@@ -61,8 +60,12 @@ func (c *Client) DialContext(ctx context.Context, dst *proxy.Address) (net.Conn,
 		return nil, err
 	}
 
-	conn = util.NewMaxIdleConn(conn, proxy.IdleConnTimeout)
-	return util.EarlyWriteConn(conn, cred), nil
+	newConn := &Conn{
+		Conn:        conn,
+		earlyWrite:  cred,
+		idleTimeout: proxy.IdleConnTimeout,
+	}
+	return newConn, nil
 }
 
 const (
@@ -71,20 +74,19 @@ const (
 )
 
 // buildCredential 构造凭证，包含UUID和目的地址
-func (c *Client) buildCredential(dstAddr *proxy.Address) (*bytes.Buffer, error) {
+func (c *Client) buildCredential(dstAddr *proxy.Address) (buf bytes.Buffer, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		VER UUID ATYP DST.ADDR DST.PORT
 		1   36   1    动态     2
 	*/
 
-	var buf bytes.Buffer
 	// keep version number for backward compatibility
 	buf.WriteByte(1)
 
 	sendUUID, err := uuid.Parse(c.conf.UUID)
 	if err != nil {
-		return nil, err
+		return
 	}
 	buf.WriteString(sendUUID.String())
 
@@ -97,13 +99,14 @@ func (c *Client) buildCredential(dstAddr *proxy.Address) (*bytes.Buffer, error) 
 		buf.WriteByte(byte(len(dstAddr.Host)))
 		buf.WriteString(dstAddr.Host)
 	default:
-		return nil, errors.New("unsupported address type: " + dstAddr.String())
+		err = errors.New("unsupported address type: " + dstAddr.String())
+		return
 	}
 
 	var b [2]byte
 	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
 	buf.Write(b[:])
-	return &buf, nil
+	return buf, nil
 }
 
 func (c *Client) Close() error {

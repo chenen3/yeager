@@ -67,20 +67,6 @@ func BuildOutbound(proto string, conf json.RawMessage) (Outbound, error) {
 	return build(conf)
 }
 
-// Connection implements the Conn interface
-type Connection struct {
-	net.Conn
-	dstAddr *Address
-}
-
-func NewConn(conn net.Conn, dstAddr *Address) *Connection {
-	return &Connection{Conn: conn, dstAddr: dstAddr}
-}
-
-func (c *Connection) DstAddr() *Address {
-	return c.dstAddr
-}
-
 type AddrType int
 
 const (

@@ -97,7 +97,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	case <-s.done:
 		conn.Close()
 		return
-	case s.connCh <- proxy.NewConn(conn, dstAddr):
+	case s.connCh <- &Conn{Conn: conn, dstAddr: dstAddr}:
 	}
 }
 
@@ -219,4 +219,14 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr *proxy.Address, err error)
 
 	dstAddr = proxy.NewAddress(host, int(port))
 	return dstAddr, nil
+}
+
+// Conn implements the proxy.Conn interface
+type Conn struct {
+	net.Conn
+	dstAddr *proxy.Address
+}
+
+func (c *Conn) DstAddr() *proxy.Address {
+	return c.dstAddr
 }
