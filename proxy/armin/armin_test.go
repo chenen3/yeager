@@ -1,14 +1,15 @@
 package armin
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"testing"
 	"time"
-
 	"yeager/proxy"
 	"yeager/util"
 )
@@ -92,18 +93,19 @@ func TestArmin_tls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go server.Serve()
-	defer server.Close()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		sconn := <-server.Accept()
-		defer sconn.Close()
-		if sconn.DstAddr().String() != "fake.domain.com:1234" {
-			t.Errorf("received unexpected dst addr: %s", sconn.DstAddr())
+		t.Log(server.ListenAndServe(ctx))
+	}()
+	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		defer conn.Close()
+		if addr.String() != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", addr.String())
 			return
 		}
-		io.Copy(sconn, sconn)
-	}()
+		io.Copy(conn, conn)
+	})
 
 	<-server.ready
 	client, err := NewClient(&ClientConfig{
@@ -121,20 +123,24 @@ func TestArmin_tls(t *testing.T) {
 	}
 	defer client.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	cconn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
+	defer cancel2()
+	conn, err := client.DialContext(ctx2, proxy.NewAddress("fake.domain.com", 1234))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cconn.Close()
+	defer conn.Close()
 
-	_, err = cconn.Write([]byte("1"))
+	want := []byte("1")
+	_, err = conn.Write(want)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf := make([]byte, 1)
-	io.ReadFull(cconn, buf)
+	got := make([]byte, 1)
+	io.ReadFull(conn, got)
+	if !bytes.Equal(want, got) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func serveGRPC() (*Server, error) {
@@ -159,26 +165,19 @@ func TestArmin_grpc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go server.Serve()
-	defer server.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	go func() {
-		select {
-		case <-ctx.Done():
-			t.Error(ctx.Err())
-			return
-		case sconn := <-server.Accept():
-			defer sconn.Close()
-			if sconn.DstAddr().String() != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", sconn.DstAddr())
-				return
-			}
-			io.Copy(sconn, sconn)
-		}
+		t.Log(server.ListenAndServe(ctx))
 	}()
+	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		defer conn.Close()
+		if addr.String() != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", addr.String())
+			return
+		}
+		io.Copy(conn, conn)
+	})
 
 	<-server.ready
 	client, err := NewClient(&ClientConfig{
@@ -196,18 +195,22 @@ func TestArmin_grpc(t *testing.T) {
 	}
 	defer client.Close()
 
-	cconn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
+	conn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
 	if err != nil {
 		t.Fatal("dial err: " + err.Error())
 	}
-	defer cconn.Close()
+	defer conn.Close()
 
-	_, err = cconn.Write([]byte{1})
+	want := []byte("1")
+	_, err = conn.Write(want)
 	if err != nil {
-		t.Fatal("write err: " + err.Error())
+		t.Fatal(err)
 	}
-	buf := make([]byte, 1)
-	io.ReadFull(cconn, buf)
+	got := make([]byte, 1)
+	io.ReadFull(conn, got)
+	if !bytes.Equal(want, got) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func serverWithFallback() (*Server, error) {
@@ -236,38 +239,33 @@ func TestFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go server.Serve()
-	defer server.Close()
-
-	go func() {
-		<-server.ready
-		client := http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-		}
-		resp, err := client.Get(fmt.Sprintf("https://%s:%d", server.conf.Host, server.conf.Port))
-		if err != nil {
-			return
-		}
-		defer resp.Body.Close()
-		io.Copy(io.Discard, resp.Body)
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	select {
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
-	case conn := <-server.Accept():
+	go func() {
+		t.Log(server.ListenAndServe(ctx))
+	}()
+	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
 		defer conn.Close()
 		want := fmt.Sprintf("%s:%d", fbHost, fbPort)
-		if got := conn.DstAddr().String(); got != want {
-			t.Fatalf("want %s, got %s", want, got)
+		if addr.String() != want {
+			t.Errorf("received unexpected dst addr: %s", addr.String())
+			return
 		}
-	}
+		io.Copy(conn, conn)
+	})
 
+	<-server.ready
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	resp, err := client.Get(fmt.Sprintf("https://%s:%d", server.conf.Host, server.conf.Port))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 }

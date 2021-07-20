@@ -4,33 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"strconv"
 	"time"
 )
 
 const (
+	DialTimeout      = 4 * time.Second
 	HandshakeTimeout = 5 * time.Second
 	IdleConnTimeout  = 5 * time.Minute
 )
 
-// Conn is the interface that wrap net.Conn with destination address method
-type Conn interface {
-	net.Conn
-	DstAddr() *Address
-}
-
-// TODO: 可以简化为net.Listener
 type Inbound interface {
-	// block until closed
-	Serve()
-	// the channel shall be closed when server closed
-	Accept() <-chan Conn
-	io.Closer
+	// ListenAndServe start the proxy server and block until context closed or encounter error
+	ListenAndServe(context.Context) error
+	// RegisterHandler register handler for income connection
+	RegisterHandler(func(context.Context, net.Conn, *Address))
 }
 
-// TODO: 其实是net.Dialer
 type Outbound interface {
 	DialContext(ctx context.Context, addr *Address) (net.Conn, error)
 }

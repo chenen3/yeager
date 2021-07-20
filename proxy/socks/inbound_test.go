@@ -1,11 +1,15 @@
 package socks
 
 import (
+	"bytes"
+	"context"
+	"io"
 	"net"
 	"strconv"
 	"testing"
 
-	"golang.org/x/net/proxy"
+	gproxy "golang.org/x/net/proxy"
+	"yeager/proxy"
 	"yeager/util"
 )
 
@@ -14,32 +18,47 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ss := NewServer(&Config{
+
+	server := NewServer(&Config{
 		Host: "127.0.0.1",
 		Port: port,
 	})
-	go ss.Serve()
-	defer ss.Close()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		<-ss.ready
-		addr := net.JoinHostPort(ss.conf.Host, strconv.Itoa(ss.conf.Port))
-		client, err := proxy.SOCKS5("tcp", addr, nil, nil)
-		if err != nil {
-			t.Log(err)
-			return
-		}
-		c, err := client.Dial("tcp", "1.2.3.4:80")
-		if err != nil {
-			t.Log(err)
-			return
-		}
-		c.Close()
+		t.Log(server.ListenAndServe(ctx))
 	}()
+	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		defer conn.Close()
+		if addr.String() != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", addr.String())
+			return
+		}
+		io.Copy(conn, conn)
+	})
 
-	conn := <-ss.Accept()
+	<-server.ready
+	addr := net.JoinHostPort(server.conf.Host, strconv.Itoa(server.conf.Port))
+	client, err := gproxy.SOCKS5("tcp", addr, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	conn, err := client.Dial("tcp", "fake.domain.com:1234")
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	defer conn.Close()
-	if dst := conn.DstAddr().Host; dst != "1.2.3.4" {
-		t.Fatalf("proxy server got unexpected destination address: %s", dst)
+
+	want := []byte("1")
+	_, err = conn.Write(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, 1)
+	io.ReadFull(conn, got)
+	if !bytes.Equal(want, got) {
+		t.Fatalf("want %v, got %v", want, got)
 	}
 }

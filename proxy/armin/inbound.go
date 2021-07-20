@@ -1,6 +1,7 @@
 package armin
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -20,18 +21,16 @@ import (
 )
 
 type Server struct {
-	conf   *ServerConfig
-	connCh chan proxy.Conn
-	done   chan struct{}
-	ready  chan struct{} // imply that server is ready to accept connection
+	conf *ServerConfig
+	// imply that server is ready to accept connection, development testing only
+	ready       chan struct{}
+	handlerFunc func(context.Context, net.Conn, *proxy.Address)
 }
 
 func NewServer(config *ServerConfig) (*Server, error) {
 	s := &Server{
-		conf:   config,
-		connCh: make(chan proxy.Conn, 32),
-		done:   make(chan struct{}),
-		ready:  make(chan struct{}),
+		conf:  config,
+		ready: make(chan struct{}),
 	}
 	return s, nil
 }
@@ -65,18 +64,18 @@ func (s *Server) listen() (net.Listener, error) {
 	return lis, err
 }
 
-func (s *Server) Serve() {
+func (s *Server) ListenAndServe(ctx context.Context) error {
 	lis, err := s.listen()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer lis.Close()
 
 	close(s.ready)
 	for {
 		select {
-		case <-s.done:
-			return
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 		}
 
@@ -85,11 +84,11 @@ func (s *Server) Serve() {
 			log.Error(err)
 			continue
 		}
-		go s.handleConnection(conn)
+		go s.handleConnection(ctx, conn)
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
+func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	dstAddr, err := s.parseCredential(conn)
 	if err != nil {
 		// 客户端主动关闭连接或者握手超时
@@ -107,22 +106,15 @@ func (s *Server) handleConnection(conn net.Conn) {
 			conn.Close()
 			return
 		}
-
 		dstAddr = proxy.NewAddress(s.conf.Fallback.Host, s.conf.Fallback.Port)
 		log.Warnf("bad credential: %s, redirect to %s", err, dstAddr)
 	}
 
 	newConn := &Conn{
 		Conn:        conn,
-		dstAddr:     dstAddr,
 		idleTimeout: proxy.IdleConnTimeout,
 	}
-	select {
-	case <-s.done:
-		newConn.Close()
-		return
-	case s.connCh <- newConn:
-	}
+	s.handlerFunc(ctx, newConn, dstAddr)
 }
 
 // parseCredential 解析凭证，若凭证有效则返回其目的地址
@@ -209,15 +201,6 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 }
 
 // TODO: 可以改为在外边注册注册handler，然后所有连接都在此server中处理，不需要传给外面，减少堆内存分配
-func (s *Server) Accept() <-chan proxy.Conn {
-	return s.connCh
-}
-
-func (s *Server) Close() error {
-	close(s.done)
-	close(s.connCh)
-	for conn := range s.connCh {
-		conn.Close()
-	}
-	return nil
+func (s *Server) RegisterHandler(handlerFunc func(context.Context, net.Conn, *proxy.Address)) {
+	s.handlerFunc = handlerFunc
 }

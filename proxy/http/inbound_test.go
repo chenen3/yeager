@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"testing"
 	"time"
+	"yeager/proxy"
 
 	"yeager/log"
 	"yeager/util"
@@ -19,46 +21,53 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ps := NewServer(&Config{
+
+	server := NewServer(&Config{
 		Host: "127.0.0.1",
 		Port: port,
 	})
-	go ps.Serve()
-	defer ps.Close()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		<-ps.ready
-		proxyUrl, _ := url.Parse(fmt.Sprintf("http://%s:%d", ps.conf.Host, ps.conf.Port))
-		client := &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyURL(proxyUrl),
-				DialContext: (&net.Dialer{
-					Timeout:   30 * time.Second,
-					KeepAlive: 30 * time.Second,
-				}).DialContext,
-			},
-		}
-		res, err := client.Get("http://1.2.3.4")
-		if err != nil {
-			log.Error(err)
+		t.Log(server.ListenAndServe(ctx))
+	}()
+	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		defer conn.Close()
+		if addr.String() != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", addr.String())
 			return
 		}
-		defer res.Body.Close()
-		io.Copy(io.Discard, res.Body)
-	}()
 
-	conn := <-ps.Accept()
-	defer conn.Close()
-	if got := conn.DstAddr().Host; got != "1.2.3.4" {
-		t.Fatalf("proxy server got wrong destination address: %s", got)
+		rec := httptest.NewRecorder()
+		_, err = rec.WriteString("1")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		err = rec.Result().Write(conn)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	})
+
+	<-server.ready
+	proxyUrl, _ := url.Parse(fmt.Sprintf("http://%s:%d", server.conf.Host, server.conf.Port))
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyUrl),
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+		},
 	}
-	rec := httptest.NewRecorder()
-	_, err = rec.WriteString("1")
+	res, err := client.Get("http://fake.domain.com:1234")
 	if err != nil {
-		t.Fatal(err)
+		log.Error(err)
+		return
 	}
-	err = rec.Result().Write(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer res.Body.Close()
+	io.Copy(io.Discard, res.Body)
 }
