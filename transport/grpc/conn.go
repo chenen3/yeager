@@ -85,7 +85,7 @@ func (c *streamConn) Write(b []byte) (n int, err error) {
 
 func (c *streamConn) Close() error {
 	if c.cancel != nil {
-		c.cancel()
+		defer c.cancel()
 	}
 
 	close(c.done)
