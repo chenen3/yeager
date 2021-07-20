@@ -90,19 +90,6 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	handshakeTimeout := proxy.HandshakeTimeout
-	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
-	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
-	if s.conf.Transport == "tls" {
-		handshakeTimeout = proxy.IdleConnTimeout
-	}
-	err := conn.SetDeadline(time.Now().Add(handshakeTimeout))
-	if err != nil {
-		log.Error("failed to set handshake timeout: " + err.Error())
-		conn.Close()
-		return
-	}
-
 	dstAddr, err := s.parseCredential(conn)
 	if err != nil {
 		// 客户端主动关闭连接或者握手超时
@@ -125,13 +112,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 		log.Warnf("bad credential: %s, redirect to %s", err, dstAddr)
 	}
 
-	err = conn.SetDeadline(time.Time{})
-	if err != nil {
-		log.Error("failed to clear handshake timeout: " + err.Error())
-		conn.Close()
-		return
-	}
-
 	newConn := &Conn{
 		Conn:        conn,
 		dstAddr:     dstAddr,
@@ -147,6 +127,23 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 // parseCredential 解析凭证，若凭证有效则返回其目的地址
 func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err error) {
+	timeout := proxy.HandshakeTimeout
+	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
+	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
+	if s.conf.Transport == "tls" {
+		timeout = proxy.IdleConnTimeout
+	}
+	err = conn.SetDeadline(time.Now().Add(timeout))
+	if err != nil {
+		return
+	}
+	defer func() {
+		er := conn.SetDeadline(time.Time{})
+		if er != nil && err == nil {
+			err = er
+		}
+	}()
+
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		VER UUID ATYP DST.ADDR DST.PORT

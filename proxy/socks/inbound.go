@@ -72,23 +72,9 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	err := conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
-	if err != nil {
-		log.Error("failed to set handshake timeout: " + err.Error())
-		conn.Close()
-		return
-	}
-
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
 		log.Error("failed to handshake: " + err.Error())
-		conn.Close()
-		return
-	}
-
-	err = conn.SetDeadline(time.Time{})
-	if err != nil {
-		log.Error("failed to clear handshake timeout: " + err.Error())
 		conn.Close()
 		return
 	}
@@ -102,6 +88,17 @@ func (s *Server) handleConnection(conn net.Conn) {
 }
 
 func (s *Server) handshake(conn net.Conn) (dst *proxy.Address, err error) {
+	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	if err != nil {
+		return
+	}
+	defer func() {
+		er := conn.SetDeadline(time.Time{})
+		if er != nil && err == nil {
+			err = er
+		}
+	}()
+
 	err = s.socksAuth(conn)
 	if err != nil {
 		return nil, err

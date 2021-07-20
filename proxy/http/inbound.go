@@ -97,7 +97,10 @@ func (s *Server) handshake(conn net.Conn) (newConn proxy.Conn, err error) {
 		return nil, err
 	}
 	defer func() {
-		err = conn.SetDeadline(time.Time{})
+		er := conn.SetDeadline(time.Time{})
+		if er != nil && err == nil {
+			err = er
+		}
 	}()
 
 	req, err := http.ReadRequest(bufio.NewReader(conn))
