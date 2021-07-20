@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 	glog "log"
+	"net"
 	"strings"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"yeager/config"
@@ -80,61 +80,31 @@ func NewProxy(c config.Config) (*Proxy, error) {
 	return p, nil
 }
 
-func acceptConn(ctx context.Context, ib proxy.Inbound, ch chan<- proxy.Conn) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case conn, ok := <-ib.Accept():
-			if !ok {
-				// inbound server closed
-				return
-			}
-			ch <- conn
-		}
-	}
-}
-
 func (p *Proxy) Start(ctx context.Context) {
-	connCh := make(chan proxy.Conn, 32)
 	for _, inbound := range p.inbounds {
-		go inbound.Serve()
-		go acceptConn(ctx, inbound, connCh)
+		go func(ib proxy.Inbound) {
+			log.Error(ib.ListenAndServe(ctx))
+		}(inbound)
+		inbound.RegisterHandler(p.handle)
 	}
 
 	// cleanup if context ends
 	defer func() {
-		for _, inbound := range p.inbounds {
-			_ = inbound.Close()
-		}
 		for _, outbound := range p.outbounds {
 			if c, ok := outbound.(io.Closer); ok {
 				c.Close()
 			}
 		}
-		// drain the channel, prevent connections from being not closed
-		close(connCh)
-		for conn := range connCh {
-			_ = conn.Close()
-		}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case conn := <-connCh:
-			go p.handleConnection(ctx, conn)
-		}
-	}
+	<-ctx.Done()
 }
 
-func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
+func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr *proxy.Address) {
 	activeConn.Inc()
 	defer activeConn.Dec()
 
 	defer inConn.Close()
-	addr := inConn.DstAddr()
 	tag := p.router.Dispatch(addr)
 	outbound, ok := p.outbounds[tag]
 	if !ok {
@@ -143,7 +113,7 @@ func (p *Proxy) handleConnection(ctx context.Context, inConn proxy.Conn) {
 	}
 	glog.Printf("accept %s [%s]\n", addr, tag)
 
-	dialCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	dialCtx, cancel := context.WithTimeout(ctx, proxy.DialTimeout)
 	defer cancel()
 	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {

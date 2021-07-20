@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -16,40 +17,23 @@ import (
 
 // Server implements protocol.Inbound interface
 type Server struct {
-	conf   *Config
-	connCh chan proxy.Conn
-	done   chan struct{}
-	ready  chan struct{}
+	conf        *Config
+	ready       chan struct{}
+	handlerFunc func(context.Context, net.Conn, *proxy.Address)
 }
 
 func NewServer(config *Config) *Server {
 	return &Server{
-		conf:   config,
-		connCh: make(chan proxy.Conn, 32),
-		done:   make(chan struct{}),
-		ready:  make(chan struct{}),
+		conf:  config,
+		ready: make(chan struct{}),
 	}
 }
 
-func (s *Server) Accept() <-chan proxy.Conn {
-	return s.connCh
-}
-
-func (s *Server) Close() error {
-	close(s.done)
-	close(s.connCh)
-	for conn := range s.connCh {
-		conn.Close()
-	}
-	return nil
-}
-
-func (s *Server) Serve() {
+func (s *Server) ListenAndServe(ctx context.Context) error {
 	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Errorf("socks5 proxy failed to listen, err: %s", err)
-		return
+		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
 	defer ln.Close()
 	glog.Println("socks5 proxy listening on", addr)
@@ -57,8 +41,8 @@ func (s *Server) Serve() {
 	close(s.ready)
 	for {
 		select {
-		case <-s.done:
-			return
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 		}
 
@@ -67,18 +51,15 @@ func (s *Server) Serve() {
 			log.Error(err)
 			continue
 		}
-		go s.handleConnection(conn)
+		go s.handleConnection(ctx, conn)
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
-	err := conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
-	if err != nil {
-		log.Error("failed to set handshake timeout: " + err.Error())
-		conn.Close()
-		return
-	}
+func (s *Server) RegisterHandler(handlerFunc func(context.Context, net.Conn, *proxy.Address)) {
+	s.handlerFunc = handlerFunc
+}
 
+func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
 		log.Error("failed to handshake: " + err.Error())
@@ -86,22 +67,21 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-	err = conn.SetDeadline(time.Time{})
-	if err != nil {
-		log.Error("failed to clear handshake timeout: " + err.Error())
-		conn.Close()
-		return
-	}
-
-	select {
-	case <-s.done:
-		conn.Close()
-		return
-	case s.connCh <- proxy.NewConn(conn, dstAddr):
-	}
+	s.handlerFunc(ctx, conn, dstAddr)
 }
 
 func (s *Server) handshake(conn net.Conn) (dst *proxy.Address, err error) {
+	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	if err != nil {
+		return
+	}
+	defer func() {
+		er := conn.SetDeadline(time.Time{})
+		if er != nil && err == nil {
+			err = er
+		}
+	}()
+
 	err = s.socksAuth(conn)
 	if err != nil {
 		return nil, err
