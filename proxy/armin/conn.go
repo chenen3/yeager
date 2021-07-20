@@ -9,7 +9,6 @@ import (
 	"yeager/log"
 )
 
-// Conn implement interface proxy.Conn
 type Conn struct {
 	net.Conn
 	earlyWrite  bytes.Buffer
