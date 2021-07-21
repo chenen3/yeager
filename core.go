@@ -127,8 +127,7 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr *proxy.Address
 	case <-ctx.Done():
 	case err := <-errCh:
 		if err != nil {
-			// mostly idle timeout
-			log.Warn(err)
+			log.Warnf("%s, dst %s", err, addr)
 		}
 	}
 }
