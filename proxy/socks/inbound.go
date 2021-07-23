@@ -62,7 +62,7 @@ func (s *Server) RegisterHandler(handlerFunc func(context.Context, net.Conn, *pr
 func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	dstAddr, err := s.handshake(conn)
 	if err != nil {
-		log.Error("failed to handshake: " + err.Error())
+		log.Error("handshake: " + err.Error())
 		conn.Close()
 		return
 	}

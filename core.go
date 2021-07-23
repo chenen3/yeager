@@ -82,10 +82,10 @@ func NewProxy(c config.Config) (*Proxy, error) {
 
 func (p *Proxy) Start(ctx context.Context) {
 	for _, inbound := range p.inbounds {
-		go func(ib proxy.Inbound) {
-			log.Error(ib.ListenAndServe(ctx))
-		}(inbound)
 		inbound.RegisterHandler(p.handle)
+		go func(inbound proxy.Inbound) {
+			log.Error(inbound.ListenAndServe(ctx))
+		}(inbound)
 	}
 
 	// cleanup if context ends
@@ -117,7 +117,7 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr *proxy.Address
 	defer cancel()
 	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {
-		log.Errorf("dial %s err: %s", addr, err)
+		log.Error(err)
 		return
 	}
 	defer outConn.Close()
