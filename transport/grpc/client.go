@@ -45,6 +45,7 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	ctx2, cancel := context.WithCancel(context.Background())
 	stream, err := client.Tunnel(ctx2)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
