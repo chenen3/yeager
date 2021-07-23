@@ -93,7 +93,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	if err != nil {
 		// 客户端主动关闭连接或者握手超时
 		if err == io.EOF || errors.Is(err, os.ErrDeadlineExceeded) {
-			log.Warn("failed to handshake: " + err.Error())
+			log.Warn("handshake: " + err.Error())
 			conn.Close()
 			return
 		}

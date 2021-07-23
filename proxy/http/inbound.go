@@ -63,7 +63,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	newConn, dst, err := s.handshake(conn)
 	if err != nil {
-		log.Error("failed to handshake: " + err.Error())
+		log.Error("handshake: " + err.Error())
 		conn.Close()
 		return
 	}

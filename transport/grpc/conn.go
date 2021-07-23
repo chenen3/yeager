@@ -1,7 +1,6 @@
 package grpc
 
 import (
-	"context"
 	"io"
 	"net"
 	"os"
@@ -15,7 +14,7 @@ type streamer interface {
 	Recv() (*pb.Data, error)
 }
 
-// streamConn implement net.Conn
+// streamConn implement net.Conn interface
 type streamConn struct {
 	stream     streamer
 	buf        []byte
@@ -23,15 +22,15 @@ type streamConn struct {
 	done       chan struct{}
 	readTimer  *time.Timer
 	writeTimer *time.Timer
-	cancel     context.CancelFunc
+	onClose    func()
 }
 
 // streamToConn convert grpc stream to virtual network connection
-func streamToConn(stream streamer, cancelFunc context.CancelFunc) net.Conn {
+func streamToConn(stream streamer, onClose func()) net.Conn {
 	return &streamConn{
-		stream: stream,
-		done:   make(chan struct{}),
-		cancel: cancelFunc,
+		stream:  stream,
+		done:    make(chan struct{}),
+		onClose: onClose,
 	}
 }
 
@@ -84,8 +83,8 @@ func (c *streamConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *streamConn) Close() error {
-	if c.cancel != nil {
-		defer c.cancel()
+	if c.onClose != nil {
+		defer c.onClose()
 	}
 
 	close(c.done)
