@@ -48,7 +48,9 @@ func (s server) Accept() (net.Conn, error) {
 }
 
 func (s server) Close() error {
-	s.onClose()
+	if s.onClose != nil {
+		s.onClose()
+	}
 	close(s.connCh)
 	return nil
 }
