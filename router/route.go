@@ -15,7 +15,7 @@ const (
 	ruleDomainSuffix  = "domain-suffix"  // 根域名
 	ruleDomainKeyword = "domain-keyword" // 域名关键字
 	ruleGeoSite       = "geosite"        // 预定义域名集合
-	ruleIP            = "ip"             // IP
+	ruleIPCIDR        = "ip-cidr"        // 无类别域间路由
 	ruleGeoIP         = "geoip"          // 预定义IP集合
 	ruleFinal         = "final"          // 最终规则
 )
@@ -49,7 +49,7 @@ func (r *rule) Match(addr *proxy.Address) bool {
 		if addr.Type != proxy.AddrDomainName {
 			return false
 		}
-	case ruleIP, ruleGeoIP:
+	case ruleIPCIDR, ruleGeoIP:
 		if addr.Type != proxy.AddrIPv4 {
 			// ipv6 not supported yet
 			return false
