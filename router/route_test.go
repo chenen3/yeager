@@ -64,9 +64,15 @@ func TestRouter_Dispatch(t *testing.T) {
 			want:   "faketag",
 		},
 		{
-			name:   "ip",
-			fields: fields{rules: []string{"ip,127.0.0.1,faketag"}},
+			name:   "ip-cidr",
+			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},
 			args:   args{addr: proxy.NewAddress("127.0.0.1", 80)},
+			want:   "faketag",
+		},
+		{
+			name:   "ip-cidr",
+			fields: fields{rules: []string{"ip-cidr,192.168.0.0/16,faketag"}},
+			args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
 			want:   "faketag",
 		},
 		{

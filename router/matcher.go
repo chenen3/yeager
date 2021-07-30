@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"net"
 	"regexp"
 	"strings"
 
@@ -22,8 +23,8 @@ func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 		m = domainKeywordMatcher(value)
 	case ruleGeoSite:
 		m, err = newGeoSiteMatcher(value)
-	case ruleIP:
-		m = ipMatcher(value)
+	case ruleIPCIDR:
+		m, err = newCIDRMatcher(value)
 	case ruleGeoIP:
 		m, err = newGeoIPMatcher(value)
 	case ruleFinal:
@@ -67,10 +68,20 @@ func (m domainSuffixMatcher) Match(addr *proxy.Address) bool {
 	return len(m) == len(domain) || domain[len(domain)-len(m)-1] == '.'
 }
 
-type ipMatcher string
+type cidrMatcher struct {
+	*net.IPNet
+}
 
-func (i ipMatcher) Match(addr *proxy.Address) bool {
-	return string(i) == addr.Host
+func newCIDRMatcher(s string) (*cidrMatcher, error) {
+	_, ipNet, err := net.ParseCIDR(s)
+	if err != nil {
+		return nil, err
+	}
+	return &cidrMatcher{ipNet}, nil
+}
+
+func (c *cidrMatcher) Match(addr *proxy.Address) bool {
+	return c.Contains(addr.IP)
 }
 
 type domainRegexMatcher struct {
