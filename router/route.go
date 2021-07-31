@@ -3,7 +3,6 @@ package router
 import (
 	"errors"
 	"strings"
-	"sync"
 
 	"yeager/proxy"
 	"yeager/proxy/direct"
@@ -61,7 +60,6 @@ func (r *rule) Match(addr *proxy.Address) bool {
 
 type Router struct {
 	rules []*rule
-	cache sync.Map
 }
 
 func NewRouter(rules []string) (*Router, error) {
@@ -121,14 +119,8 @@ func (r *Router) Dispatch(addr *proxy.Address) (outboundTag string) {
 		return defaultFinalRule.outboundTag
 	}
 
-	i, ok := r.cache.Load(addr.Host)
-	if ok {
-		return i.(string)
-	}
-
 	for _, ru := range r.rules {
 		if ru.Match(addr) {
-			r.cache.Store(addr.Host, ru.outboundTag)
 			return ru.outboundTag
 		}
 	}
