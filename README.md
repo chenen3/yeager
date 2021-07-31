@@ -57,32 +57,34 @@ Edit config file`/usr/local/etc/yeager/config.json`
                 "host": "example.com", // replace with domain name
                 "port": 443,
                 "uuid": "", // fill in UUID (uuidgen can help create one)
-                "transport": "tls" // tls, grpc
+                "transport": "tls" // tls or grpc
             }
         }
     ],
     "rules": [
-        "GEOIP,private,DIRECT",
-        "GEOIP,cn,DIRECT",
-        "GEOSITE,private,DIRECT",
-        "GEOSITE,apple@cn,DIRECT",
-        "GEOSITE,cn,DIRECT",
-        "FINAL,PROXY"
+		"IP-CIDR,127.0.0.1/8,DIRECT",
+		"IP-CIDR,192.168.0.0/16,DIRECT",
+		"GEOSITE,private,DIRECT",
+		"GEOSITE,google,PROXY",
+		"GEOSITE,twitter,PROXY",
+		"GEOSITE,cn,DIRECT",
+		"GEOSITE,apple@cn,DIRECT",
+		"FINAL,PROXY"
     ]
 }
 ```
 
 The priority of rules is the order in config, the form could be `ruleType,value,outboundTag` and `FINAL,outboundTag`, for example:
 
-- `DOMAIN,www.apple.com,DIRECT` matches if the domain of traffic is the given one
-- `DOMAIN-SUFFIX,apple.com,DIRECT` matches if the domain of traffic has the suffix, AKA subdomain name
-- `DOMAIN-KEYWORD,apple,DIRECT ` matches if the domain of traffic has the keyword
-- `GEOSITE,cn,DIRECT` matches if the domain in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
-- `IP,127.0.0.1,DIRECT ` matches if the IP of traffic is the given one
-- `GEOIP,cn,DIRECT` matches if the IP of traffic in [geoip](https://github.com/v2fly/geoip)
-- `FINAL,PROXY` determine the behavior where would the traffic be send to if all above rule not match. The final rule must be the last rule in config.
+- `IP-CIDR,127.0.0.1/8,DIRECT ` matches if the traffic IP is in specified CIDR
+- `GEOIP,cn,DIRECT` matches if the traffic IP is in [geoip](https://github.com/v2fly/geoip)
+- `DOMAIN,www.apple.com,DIRECT` matches if the traffic domain is the given one
+- `DOMAIN-SUFFIX,apple.com,DIRECT` matches if the traffic domain has the suffix, AKA subdomain name
+- `DOMAIN-KEYWORD,apple,DIRECT ` matches if the traffic domain has the keyword
+- `GEOSITE,cn,DIRECT` matches if the traffic domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
+- `FINAL,PROXY` determine the behavior where would the traffic be send to while all above rule not match, it must be the last rule in config. The default final rule is `FINAL,DIRECT`
 
-Beside user specified outbound tag, there is two builtin:`DIRECT`, `REJECT`, for example:
+Beside user specified outbound tag, there are two builtin: `DIRECT`, `REJECT`, for example:
 
 - `GEOSITE,private,DIRECT` 
 - `GEOSITE,category-ads,REJECT` 
