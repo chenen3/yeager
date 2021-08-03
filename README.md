@@ -2,7 +2,7 @@
 
 > Note: yeager is my personal training project, mostly learn from v2ray-core and xray-core, and do it in my way. If you are beginner looking for proxy tool, please consider [v2ray-core](https://github.com/v2fly/v2ray-core) or [Xray-core](https://github.com/XTLS/Xray-core) firstly, they are strong enough and having better community support.
 
-yeager aims to bypass network restriction, has the basic features:
+yeager aims to bypass network restriction, supports features:
 
 - socks5, http inbound proxy
 - lightweight outbound proxy, secure transport via:
@@ -77,7 +77,6 @@ Edit config file`/usr/local/etc/yeager/config.json`
 The priority of rules is the order in config, the form could be `ruleType,value,outboundTag` and `FINAL,outboundTag`, for example:
 
 - `IP-CIDR,127.0.0.1/8,DIRECT ` matches if the traffic IP is in specified CIDR
-- `GEOIP,cn,DIRECT` matches if the traffic IP is in [geoip](https://github.com/v2fly/geoip)
 - `DOMAIN,www.apple.com,DIRECT` matches if the traffic domain is the given one
 - `DOMAIN-SUFFIX,apple.com,DIRECT` matches if the traffic domain has the suffix, AKA subdomain name
 - `DOMAIN-KEYWORD,apple,DIRECT ` matches if the traffic domain has the keyword
@@ -136,7 +135,7 @@ docker run \
 	en180706/yeager
 ```
 
-## Update
+## Upgrade
 
 Homebrew:
 

@@ -75,12 +75,12 @@ func TestRouter_Dispatch(t *testing.T) {
 			args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
 			want:   "faketag",
 		},
-		{
-			name:   "geoip",
-			fields: fields{rules: []string{"geoip,private,faketag"}},
-			args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
-			want:   "faketag",
-		},
+		// {
+		// 	name:   "geoip",
+		// 	fields: fields{rules: []string{"geoip,private,faketag"}},
+		// 	args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
+		// 	want:   "faketag",
+		// },
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
