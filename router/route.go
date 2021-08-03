@@ -15,8 +15,14 @@ const (
 	ruleDomainKeyword = "domain-keyword" // 域名关键字
 	ruleGeoSite       = "geosite"        // 预定义域名集合
 	ruleIPCIDR        = "ip-cidr"        // 无类别域间路由
-	ruleGeoIP         = "geoip"          // 预定义IP集合
 	ruleFinal         = "final"          // 最终规则
+
+	// TODO: disable geoip rule type in future release
+	// The geoip.dat was only 4MB size, but now it is 46MB.
+	// While yeager startup with it, the memory usage raise up to 300MB.
+	// Considering GEOIP rule is not the essential feature, disable it,
+	// so that the startup memory would beneath 15MB
+	ruleGeoIP = "geoip" // 预定义IP集合
 )
 
 var defaultFinalRule, _ = newRule(ruleFinal, "", direct.Tag)
