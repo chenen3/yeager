@@ -25,8 +25,8 @@ func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 		m, err = newGeoSiteMatcher(value)
 	case ruleIPCIDR:
 		m, err = newCIDRMatcher(value)
-	case ruleGeoIP:
-		m, err = newGeoIPMatcher(value)
+	// case ruleGeoIP:
+	// 	m, err = newGeoIPMatcher(value)
 	case ruleFinal:
 		m = newFinalMatcher()
 	default:
