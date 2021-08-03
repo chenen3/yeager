@@ -65,6 +65,7 @@ type geoIPMatcher struct {
 	prefixes []uint32
 }
 
+// deprecated
 func newGeoIPMatcher(country string) (*geoIPMatcher, error) {
 	cidrs, err := extractCountryIP(country)
 	if err != nil {

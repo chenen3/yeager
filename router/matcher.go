@@ -27,7 +27,7 @@ func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 	case ruleIPCIDR:
 		m, err = newCIDRMatcher(value)
 	case ruleGeoIP:
-		log.Warn("GEOIP rule has been disabled, it would be removed in future release")
+		log.Warn("deprecated GEOIP rule, it would be removed in future release")
 		// m, err = newGeoIPMatcher(value)
 		m = new(nullMatcher)
 	case ruleFinal:
