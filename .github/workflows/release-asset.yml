@@ -23,13 +23,15 @@ jobs:
       - name: Build
         run: |
           wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O geosite.dat
-          wget https://github.com/v2fly/geoip/raw/release/geoip.dat -O geoip.dat
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o yeager ./cmd/main.go
-          tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat geoip.dat README.md
+          tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat README.md
 
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o yeager ./cmd/main.go
-          tar -czf yeager-macos-amd64.tar.gz yeager geosite.dat geoip.dat README.md
+          tar -czf yeager-macos-amd64.tar.gz yeager geosite.dat README.md
+
+          CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o yeager ./cmd/main.go
+          tar -czf yeager-freebsd-amd64.tar.gz yeager geosite.dat README.md
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -37,6 +39,7 @@ jobs:
           files: |
             yeager-linux-amd64.tar.gz
             yeager-macos-amd64.tar.gz
+            yeager-freebsd-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
