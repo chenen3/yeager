@@ -21,7 +21,7 @@ yeager aims to bypass network restriction, supports features:
 
 3. enable BBR congestion control algorithm.
 
-The last two step could be done manually. To ease my pain, I wrote a script having things done automatically  (require root, at your own risk)
+The last two step could be done manually. To ease my pain, I wrote a script having things done automatically  (require root, use at your own risk)
 
 ```
 sudo -i
