@@ -18,7 +18,7 @@ TLS_KEY=${DIR_ETC}/key.pem
 TLS_CERT=${DIR_ETC}/fullchain.pem
 
 create_cert() {
-    if ! [ -n "$(command -v acme.sh)" ]; then
+    if [ ! -n "$(command -v acme.sh)" ]; then
         echo "安装acme.sh ..."
         curl  https://get.acme.sh | sh
         ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
