@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 此脚本为 yeager 服务端代理准备生产环境，意在简化部署流程，
-# 自动开启BBR拥塞控制算法、申请TLS证书、安装docker
+# 启用BBR拥塞控制算法、申请TLS证书、安装docker
 
 install_bbr() {
     echo "启用BBR ..."
