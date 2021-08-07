@@ -25,7 +25,7 @@ The last two step could be done manually, or with following script (require root
 
 ```
 sudo -i
-wget https://raw.githubusercontent.com/chenen3/yeager/dev/prepare.sh && bash prepare.sh
+wget https://raw.githubusercontent.com/chenen3/yeager/master/prepare.sh && bash prepare.sh
 ```
 
 ## Server side
