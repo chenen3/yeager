@@ -25,11 +25,17 @@ create_cert() {
     fi
 
     if [ ! -d $DIR_ETC ] ; then
-        mkdir -p DIR_ETC
+        mkdir -p $DIR_ETC
+    fi
+
+    read -p "请输入指向本机IP的域名: " domain
+    has_cert=$(~/.acme.sh/acme.sh --list|grep $$domain)
+    if [ -n "$has_cert" ] ;then
+        echo "本地已有该域名的TLS证书，无需申请"
+        return
     fi
 
     echo "申请 TLS 证书 ..."
-    read -p "请输入指向本机IP的域名: " domain
     ~/.acme.sh/acme.sh --issue -d $domain --standalone --keylength ec-256
     ~/.acme.sh/acme.sh --install-cert -d $domain --ecc \
     --key-file       $TLS_KEY  \
@@ -90,7 +96,6 @@ main() {
         echo "请使用root权限运行"
         return 1
     fi
-    echo "此脚本适用于 Debian 与 Ubuntu 系统..."
 
     install_bbr
     if [ $? != 0 ]; then 
