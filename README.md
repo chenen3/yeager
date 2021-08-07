@@ -1,4 +1,4 @@
-# yeager
+## yeager
 
 > Note: yeager is my personal training project, mostly learn from v2ray-core and xray-core, and do it in my way. If you are beginner looking for proxy tool, please consider [v2ray-core](https://github.com/v2fly/v2ray-core) or [Xray-core](https://github.com/XTLS/Xray-core) firstly, they are strong enough and having better community support.
 
@@ -10,24 +10,103 @@ yeager aims to bypass network restriction, supports features:
   - gRPC
 - rule routing
 
-## Install
+## Prerequisite
+1. buy VPS and domain name.
 
-Homebrew:
+   - VPS firewall allow inbound traffic from 80 and 443 port.
+
+   - update domain name DNS, add an "A record" which point to the VPS IP
+
+2. issue TLS certificate.
+
+3. enable BBR congestion control algorithm.
+
+The last two step could be done manually. To ease my pain, I wrote a script having things done automatically  (require root, at your own risk)
+
+```
+sudo -i
+wget https://raw.githubusercontent.com/chenen3/yeager/dev/prepare.sh && bash prepare.sh
+```
+
+## Server side
+
+### Install
+
+#### Docker
+
+```
+docker pull en180706/yeager
+```
+
+#### Manual
+
+checkout the latest [release](https://github.com/chenen3/yeager/releases).
+
+### Configure
+
+Edit file `/usr/local/etc/yeager/config.json`
+
+```json
+{
+    "inbounds": [
+        {
+            "protocol": "armin",
+            "setting": {
+                "port": 443,
+                "uuid": "", // fill in UUID (uuidgen can help)
+                "transport": "tls", // tls, grpc
+                "tls": {
+                    "certFile": "/usr/local/etc/yeager/fullchain.pem",
+                    "keyFile": "/usr/local/etc/yeager/key.pem",
+                },
+                "fallback": {
+                    "host": "", // (optional) any other http server host (eg. nginx)
+                    "port": 80 // (optional) any other http server port (eg. nginx)
+                }
+            }
+        }
+    ]
+}
+```
+
+### Run
+
+#### Docker
+
+```
+docker run \
+	--name yeager \
+	-d \
+	--restart=always \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	--network host \
+	en180706/yeager
+```
+
+#### Manual
+
+`yeager -config /usr/local/etc/yeager/config.json`
+
+## Client side
+
+### Install
+
+#### MacOS using Homebrew
 
 ```
 brew tap chenen3/yeager
 brew install yeager
 ```
 
-Docker:
+#### Linux distro Using Docker
 
-```
-docker pull en180706/yeager
-```
+`docker pull en180706/yeager`
 
-## Configure
+#### Manual
 
-### Example for client side
+checkout the latest [release](https://github.com/chenen3/yeager/releases).
+
+### Configure
 
 Edit config file`/usr/local/etc/yeager/config.json`
 
@@ -88,42 +167,15 @@ Beside user specified outbound tag, there are two builtin: `DIRECT`, `REJECT`, f
 - `GEOSITE,private,DIRECT` 
 - `GEOSITE,category-ads,REJECT` 
 
-### Example for server side
+### Run
 
-> Ensure the TLS certificate and key installed in directory `/usr/local/etc/yeager`. (If not, checkout Let's Encrypt)
+> After running client side yeager, do not forget to config the local device's SOCKS5 or HTTP proxy. Good luck
 
-Edit config file`/usr/local/etc/yeager/config.json`
-
-```json
-{
-    "inbounds": [
-        {
-            "protocol": "armin",
-            "setting": {
-                "port": 443,
-                "uuid": "", // fill in UUID (uuidgen can help create one)
-                "transport": "tls", // tls, grpc
-                "tls": {
-                    "certFile": "/usr/local/etc/yeager/cert.pem", // replace with absolute path of certificate
-                    "keyFile": "/usr/local/etc/yeager/key.pem", // replace with absolute path of key
-                },
-                "fallback": {
-                    "host": "", // (optional) any other http server host (eg. nginx)
-                    "port": 80 // (optional) any other http server port (eg. nginx)
-                }
-            }
-        }
-    ]
-}
-```
-
-## Run
-
-Homebrew:
+#### Homebrew
 
 `brew services start yeager`
 
-Docker:
+#### Docker
 
 ```
 docker run \
@@ -134,6 +186,10 @@ docker run \
 	--network host \
 	en180706/yeager
 ```
+
+#### Manual
+
+`yeager -config /usr/local/etc/yeager/config.json`
 
 ## Upgrade
 
