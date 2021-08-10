@@ -57,7 +57,7 @@ Edit file `/usr/local/etc/yeager/config.json`
                 "transport": "tls", // tls, grpc
                 "tls": {
                     "certFile": "/usr/local/etc/yeager/fullchain.pem",
-                    "keyFile": "/usr/local/etc/yeager/key.pem",
+                    "keyFile": "/usr/local/etc/yeager/key.pem"
                 },
                 "fallback": {
                     "host": "", // (optional) any other http server host (eg. nginx)
