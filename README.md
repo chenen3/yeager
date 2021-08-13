@@ -11,22 +11,11 @@ yeager aims to bypass network restriction, supports features:
 - rule routing
 
 ## Prerequisite
-1. buy VPS and domain name.
+1. virtual private server (VPS) abroad; VPS's firewall allow inbound traffic from 80 and 443 port.
 
-   - VPS firewall allow inbound traffic from 80 and 443 port.
+2. domain name; add an "A record" to the domain name, pointing to the VPS public IP
 
-   - update domain name DNS, add an "A record" which point to the VPS IP
-
-2. issue TLS certificate.
-
-3. enable BBR congestion control algorithm.
-
-The last two step could be done manually, or with following script (require root, use at your own risk):
-
-```
-sudo -i
-wget https://raw.githubusercontent.com/chenen3/yeager/master/prepare.sh && bash prepare.sh
-```
+3. issue TLS certificate; CertBot or acme.sh can help.
 
 ## Server side
 
@@ -53,15 +42,11 @@ Edit file `/usr/local/etc/yeager/config.json`
             "protocol": "armin",
             "setting": {
                 "port": 443,
-                "uuid": "", // fill in UUID (uuidgen can help)
-                "transport": "tls", // tls, grpc
+                "uuid": "", // fill in UUID (command uuidgen to create one)
+                "transport": "grpc", // grpc or tls
                 "tls": {
-                    "certFile": "/usr/local/etc/yeager/fullchain.pem",
-                    "keyFile": "/usr/local/etc/yeager/key.pem"
-                },
-                "fallback": {
-                    "host": "", // (optional) any other http server host (eg. nginx)
-                    "port": 80 // (optional) any other http server port (eg. nginx)
+                    "certFile": "/usr/local/etc/yeager/fullchain.pem", // install the TLS certificate to this path
+                    "keyFile": "/usr/local/etc/yeager/key.pem" // install the TLS key to this path
                 }
             }
         }
@@ -135,8 +120,8 @@ Edit config file`/usr/local/etc/yeager/config.json`
             "setting": {
                 "host": "example.com", // replace with domain name
                 "port": 443,
-                "uuid": "", // fill in UUID (uuidgen can help)
-                "transport": "tls" // tls or grpc
+                "uuid": "", // fill in UUID
+                "transport": "grpc" // grpc or tls
             }
         }
     ],
