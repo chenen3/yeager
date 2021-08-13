@@ -11,22 +11,11 @@ yeager aims to bypass network restriction, supports features:
 - rule routing
 
 ## Prerequisite
-1. buy VPS and domain name.
+1. virtual private server (VPS) abroad; VPS's firewall allow inbound traffic from 80 and 443 port.
 
-   - VPS firewall allow inbound traffic from 80 and 443 port.
+2. domain name; add an "A record" to the domain name, pointing to the VPS public IP
 
-   - update domain name DNS, add an "A record" which point to the VPS IP
-
-2. issue TLS certificate.
-
-3. enable BBR congestion control algorithm.
-
-The last two step could be done manually, or with following script (require root, use at your own risk):
-
-```
-sudo -i
-wget https://raw.githubusercontent.com/chenen3/yeager/master/prepare.sh && bash prepare.sh
-```
+3. issue TLS certificate; CertBot or acme.sh can help.
 
 ## Server side
 
