@@ -83,7 +83,7 @@ brew tap chenen3/yeager
 brew install yeager
 ```
 
-#### Linux distro Using Docker
+#### Linux distro using Docker
 
 `docker pull en180706/yeager`
 
