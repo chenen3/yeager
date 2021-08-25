@@ -46,7 +46,6 @@ func (s *Server) listen() (net.Listener, error) {
 	tlsConf := &tls.Config{
 		Certificates:             []tls.Certificate{cert},
 		MinVersion:               tls.VersionTLS13,
-		PreferServerCipherSuites: true,
 	}
 	switch s.conf.Transport {
 	case "tls":

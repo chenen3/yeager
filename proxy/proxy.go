@@ -26,11 +26,11 @@ type Outbound interface {
 	DialContext(ctx context.Context, addr *Address) (net.Conn, error)
 }
 
-type inboundBuilderFunc func(setting json.RawMessage) (Inbound, error)
+type inboundBuilder func(setting json.RawMessage) (Inbound, error)
 
-var inboundBuilders = make(map[string]inboundBuilderFunc)
+var inboundBuilders = make(map[string]inboundBuilder)
 
-func RegisterInboundBuilder(name string, b inboundBuilderFunc) {
+func RegisterInboundBuilder(name string, b inboundBuilder) {
 	inboundBuilders[name] = b
 }
 
@@ -42,11 +42,11 @@ func BuildInbound(proto string, conf json.RawMessage) (Inbound, error) {
 	return build(conf)
 }
 
-type outboundBuilderFunc func(setting json.RawMessage) (Outbound, error)
+type outboundBuilder func(setting json.RawMessage) (Outbound, error)
 
-var outboundBuilders = make(map[string]outboundBuilderFunc)
+var outboundBuilders = make(map[string]outboundBuilder)
 
-func RegisterOutboundBuilder(name string, b outboundBuilderFunc) {
+func RegisterOutboundBuilder(name string, b outboundBuilder) {
 	outboundBuilders[name] = b
 }
 

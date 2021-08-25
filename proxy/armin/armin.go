@@ -7,10 +7,10 @@ import (
 	"yeager/proxy"
 )
 
-const Tag = "armin"
+const protocol = "armin"
 
 func init() {
-	proxy.RegisterOutboundBuilder(Tag, func(setting json.RawMessage) (proxy.Outbound, error) {
+	proxy.RegisterOutboundBuilder(protocol, func(setting json.RawMessage) (proxy.Outbound, error) {
 		var conf ClientConfig
 		err := json.Unmarshal(setting, &conf)
 		if err != nil {
@@ -22,7 +22,7 @@ func init() {
 		return NewClient(&conf)
 	})
 
-	proxy.RegisterInboundBuilder(Tag, func(setting json.RawMessage) (proxy.Inbound, error) {
+	proxy.RegisterInboundBuilder(protocol, func(setting json.RawMessage) (proxy.Inbound, error) {
 		var conf ServerConfig
 		var err error
 		err = json.Unmarshal(setting, &conf)
