@@ -49,7 +49,8 @@ func serveTLS() (*Server, error) {
 		Host:      "127.0.0.1",
 		Port:      port,
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "tls",
+		Transport: "tcp",
+		Security:  "tls",
 		TLS: tlsServerConfig{
 			certPEMBlock: certPEM,
 			keyPEMBlock:  keyPEM,
@@ -122,6 +123,7 @@ func serveGRPC() (*Server, error) {
 		Port:      port,
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		Transport: "grpc",
+		Security:  "tls",
 		TLS: tlsServerConfig{
 			certPEMBlock: certPEM,
 			keyPEMBlock:  keyPEM,
@@ -155,8 +157,7 @@ func TestArmin_grpc(t *testing.T) {
 		UUID:      server.conf.UUID,
 		Transport: "grpc",
 		TLS: tlsClientConfig{
-			ServerName: server.conf.Host,
-			Insecure:   true,
+			Insecure: true,
 		},
 	})
 	if err != nil {
@@ -196,7 +197,8 @@ func serverWithFallback() (*Server, error) {
 		Host:      "127.0.0.1",
 		Port:      port,
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "tls",
+		Transport: "tcp",
+		Security:  "tls",
 		TLS: tlsServerConfig{
 			certPEMBlock: certPEM,
 			keyPEMBlock:  keyPEM,

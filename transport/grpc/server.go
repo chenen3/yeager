@@ -65,7 +65,11 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 		return nil, errors.New("failed to listen: " + err.Error())
 	}
 
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConf)))
+	var opt []grpc.ServerOption
+	if tlsConf != nil {
+		opt = append(opt, grpc.Creds(credentials.NewTLS(tlsConf)))
+	}
+	grpcServer := grpc.NewServer(opt...)
 	srv := newServer()
 	pb.RegisterTransportServer(grpcServer, srv)
 	go func() {

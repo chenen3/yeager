@@ -12,6 +12,7 @@ import (
 	"path"
 	"testing"
 	"time"
+
 	"yeager/config"
 	"yeager/util"
 )
@@ -140,9 +141,10 @@ func makeServerProxyConf(inboundPort int) (config.Config, error) {
 				"host": "127.0.0.1",
                 "port": %d,
                 "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-				"transport": "tls",
+				"transport": "tcp",
+				"security": "tls",
 				"tls": {
-					"certFile": "%s",
+					"certificateFile": "%s",
 					"keyFile": "%s"
 				}
             }

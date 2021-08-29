@@ -17,7 +17,6 @@ import (
 	"yeager/log"
 	"yeager/proxy"
 	"yeager/transport/grpc"
-	tls2 "yeager/transport/tls"
 )
 
 type Server struct {
@@ -36,20 +35,29 @@ func NewServer(config *ServerConfig) (*Server, error) {
 }
 
 func (s *Server) listen() (net.Listener, error) {
-	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
-	cert, err := tls.X509KeyPair(s.conf.TLS.certPEMBlock, s.conf.TLS.keyPEMBlock)
-	if err != nil {
-		return nil, err
+	var tlsConf *tls.Config
+	if s.conf.Security == "tls" {
+		cert, err := tls.X509KeyPair(s.conf.TLS.certPEMBlock, s.conf.TLS.keyPEMBlock)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConf = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS13,
+		}
 	}
 
 	var lis net.Listener
-	tlsConf := &tls.Config{
-		Certificates:             []tls.Certificate{cert},
-		MinVersion:               tls.VersionTLS13,
-	}
+	var err error
+	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
 	switch s.conf.Transport {
-	case "tls":
-		lis, err = tls2.Listen(addr, tlsConf)
+	case "tcp":
+		if s.conf.Security == "tls" {
+			lis, err = tls.Listen("tcp", addr, tlsConf)
+		} else {
+			lis, err = net.Listen("tcp", addr)
+		}
 	case "grpc":
 		lis, err = grpc.Listen(addr, tlsConf)
 	default:

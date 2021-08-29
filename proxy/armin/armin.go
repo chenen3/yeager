@@ -30,13 +30,18 @@ func init() {
 			return nil, err
 		}
 
-		conf.TLS.certPEMBlock, err = os.ReadFile(conf.TLS.CertFile)
-		if err != nil {
-			return nil, errors.New("read tls certificate file err: " + err.Error())
-		}
-		conf.TLS.keyPEMBlock, err = os.ReadFile(conf.TLS.KeyFile)
-		if err != nil {
-			return nil, errors.New("read tls key file err: " + err.Error())
+		if conf.Security == "tls" {
+			bs, err := os.ReadFile(conf.TLS.CertificateFile)
+			if err != nil {
+				return nil, errors.New("read tls certificate file err: " + err.Error())
+			}
+			conf.TLS.certPEMBlock = bs
+
+			keyBS, keyErr := os.ReadFile(conf.TLS.KeyFile)
+			if keyErr != nil {
+				return nil, errors.New("read tls key file err: " + keyErr.Error())
+			}
+			conf.TLS.keyPEMBlock = keyBS
 		}
 
 		return NewServer(&conf)
