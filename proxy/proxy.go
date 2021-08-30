@@ -2,8 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net"
 	"strconv"
 	"time"
@@ -24,38 +22,6 @@ type Inbound interface {
 
 type Outbound interface {
 	DialContext(ctx context.Context, addr *Address) (net.Conn, error)
-}
-
-type inboundBuilder func(setting json.RawMessage) (Inbound, error)
-
-var inboundBuilders = make(map[string]inboundBuilder)
-
-func RegisterInboundBuilder(name string, b inboundBuilder) {
-	inboundBuilders[name] = b
-}
-
-func BuildInbound(proto string, conf json.RawMessage) (Inbound, error) {
-	build, ok := inboundBuilders[proto]
-	if !ok {
-		return nil, errors.New("unknown protocol: " + proto)
-	}
-	return build(conf)
-}
-
-type outboundBuilder func(setting json.RawMessage) (Outbound, error)
-
-var outboundBuilders = make(map[string]outboundBuilder)
-
-func RegisterOutboundBuilder(name string, b outboundBuilder) {
-	outboundBuilders[name] = b
-}
-
-func BuildOutbound(proto string, conf json.RawMessage) (Outbound, error) {
-	build, ok := outboundBuilders[proto]
-	if !ok {
-		return nil, errors.New("unknown protocol: " + proto)
-	}
-	return build(conf)
 }
 
 type AddrType int

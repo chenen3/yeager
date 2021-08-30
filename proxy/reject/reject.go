@@ -2,18 +2,11 @@ package reject
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net"
 
 	"yeager/proxy"
 )
-
-func init() {
-	proxy.RegisterOutboundBuilder(Tag, func(json.RawMessage) (proxy.Outbound, error) {
-		return new(Client), nil
-	})
-}
 
 const Tag = "reject"
 

@@ -8,9 +8,9 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strconv"
 
 	"github.com/google/uuid"
+	"yeager/config"
 	"yeager/proxy"
 	"yeager/transport"
 	"yeager/transport/grpc"
@@ -18,24 +18,28 @@ import (
 )
 
 type Client struct {
-	conf   *ClientConfig
+	conf   *config.ArminClientConfig
 	dialer transport.Dialer
 }
 
-func NewClient(config *ClientConfig) (*Client, error) {
+func NewClient(config *config.ArminClientConfig) (*Client, error) {
 	var c Client
 	c.conf = config
-
 	tlsConf := &gtls.Config{
-		ServerName:         config.TLS.ServerName,
-		InsecureSkipVerify: config.TLS.Insecure,
+		ServerName:         config.ServerName,
+		InsecureSkipVerify: config.Insecure,
 		ClientSessionCache: gtls.NewLRUClientSessionCache(64),
 	}
+
 	switch config.Transport {
 	case "tls":
 		c.dialer = tls.NewDialer(tlsConf)
 	case "grpc":
-		c.dialer = grpc.NewDialer(tlsConf)
+		if config.Plaintext {
+			c.dialer = grpc.NewDialer(nil)
+		} else {
+			c.dialer = grpc.NewDialer(tlsConf)
+		}
 	default:
 		return nil, errors.New("unsupported transport: " + config.Transport)
 	}
@@ -49,8 +53,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 // 如果为了实现认证而再次握手，正是雪上加霜。
 // 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
 func (c *Client) DialContext(ctx context.Context, dst *proxy.Address) (net.Conn, error) {
-	addr := net.JoinHostPort(c.conf.Host, strconv.Itoa(c.conf.Port))
-	conn, err := c.dialer.DialContext(ctx, addr)
+	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
 	if err != nil {
 		return nil, err
 	}

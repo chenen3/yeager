@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"testing"
 	"time"
+	"yeager/config"
 	"yeager/proxy"
 
 	"yeager/log"
@@ -22,9 +23,8 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := NewServer(&Config{
-		Host: "127.0.0.1",
-		Port: port,
+	server := NewServer(&config.HTTPServerConfig{
+		Address: fmt.Sprintf("127.0.0.1:%d", port),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -53,7 +53,7 @@ func TestServer(t *testing.T) {
 	})
 
 	<-server.ready
-	proxyUrl, _ := url.Parse(fmt.Sprintf("http://%s:%d", server.conf.Host, server.conf.Port))
+	proxyUrl, _ := url.Parse("http://" + server.conf.Address)
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(proxyUrl),

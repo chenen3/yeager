@@ -1,3 +1,4 @@
+// Package socks provides a SOCKS version 5 server implementation.
 package socks
 
 import (
@@ -8,21 +9,21 @@ import (
 	"io"
 	glog "log"
 	"net"
-	"strconv"
 	"time"
 
+	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
 )
 
 // Server implements protocol.Inbound interface
 type Server struct {
-	conf        *Config
+	conf        *config.SOCKSServerConfig
 	ready       chan struct{}
 	handlerFunc func(context.Context, net.Conn, *proxy.Address)
 }
 
-func NewServer(config *Config) *Server {
+func NewServer(config *config.SOCKSServerConfig) *Server {
 	return &Server{
 		conf:  config,
 		ready: make(chan struct{}),
@@ -30,13 +31,12 @@ func NewServer(config *Config) *Server {
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
-	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", s.conf.Address)
 	if err != nil {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
 	defer ln.Close()
-	glog.Println("socks5 proxy listening on", addr)
+	glog.Println("socks5 proxy listening on", s.conf.Address)
 
 	close(s.ready)
 	for {
