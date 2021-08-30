@@ -5,18 +5,17 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"math/big"
 	"net"
-	"net/http"
 	"os"
 	"testing"
 	"time"
 
+	"yeager/config"
 	"yeager/proxy"
 	"yeager/util"
 )
@@ -45,16 +44,14 @@ func serveTLS() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewServer(&ServerConfig{
-		Host:      "127.0.0.1",
-		Port:      port,
-		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "tls",
-		TLS: tlsServerConfig{
-			certPEMBlock: certPEM,
-			keyPEMBlock:  keyPEM,
-		},
+	srv := NewServer(&config.ArminServerConfig{
+		Address:      fmt.Sprintf("127.0.0.1:%d", port),
+		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
+		Transport:    "tls",
+		CertPEMBlock: certPEM,
+		KeyPEMBlock:  keyPEM,
 	})
+	return srv, nil
 }
 
 func TestArmin_tls(t *testing.T) {
@@ -77,15 +74,12 @@ func TestArmin_tls(t *testing.T) {
 	})
 
 	<-server.ready
-	client, err := NewClient(&ClientConfig{
-		Host:      server.conf.Host,
-		Port:      server.conf.Port,
-		UUID:      server.conf.UUID,
-		Transport: "tls",
-		TLS: tlsClientConfig{
-			ServerName: server.conf.Host,
-			Insecure:   true,
-		},
+	client, err := NewClient(&config.ArminClientConfig{
+		Address:    server.conf.Address,
+		UUID:       server.conf.UUID,
+		Transport:  "tls",
+		ServerName: "127.0.0.1",
+		Insecure:   true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -117,16 +111,14 @@ func serveGRPC() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewServer(&ServerConfig{
-		Host:      "127.0.0.1",
-		Port:      port,
-		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "grpc",
-		TLS: tlsServerConfig{
-			certPEMBlock: certPEM,
-			keyPEMBlock:  keyPEM,
-		},
+	srv := NewServer(&config.ArminServerConfig{
+		Address:      fmt.Sprintf("127.0.0.1:%d", port),
+		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
+		Transport:    "grpc",
+		CertPEMBlock: certPEM,
+		KeyPEMBlock:  keyPEM,
 	})
+	return srv, nil
 }
 
 func TestArmin_grpc(t *testing.T) {
@@ -149,15 +141,11 @@ func TestArmin_grpc(t *testing.T) {
 	})
 
 	<-server.ready
-	client, err := NewClient(&ClientConfig{
-		Host:      server.conf.Host,
-		Port:      server.conf.Port,
+	client, err := NewClient(&config.ArminClientConfig{
+		Address:   server.conf.Address,
 		UUID:      server.conf.UUID,
 		Transport: "grpc",
-		TLS: tlsClientConfig{
-			ServerName: server.conf.Host,
-			Insecure:   true,
-		},
+		Insecure:  true,
 	})
 	if err != nil {
 		t.Fatal("NewClient err: " + err.Error())
@@ -180,66 +168,4 @@ func TestArmin_grpc(t *testing.T) {
 	if !bytes.Equal(want, got) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
-}
-
-var (
-	fbHost = "127.0.0.1"
-	fbPort = 5678
-)
-
-func serverWithFallback() (*Server, error) {
-	port, err := util.ChoosePort()
-	if err != nil {
-		return nil, err
-	}
-	return NewServer(&ServerConfig{
-		Host:      "127.0.0.1",
-		Port:      port,
-		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "tls",
-		TLS: tlsServerConfig{
-			certPEMBlock: certPEM,
-			keyPEMBlock:  keyPEM,
-		},
-		Fallback: fallback{
-			Host: fbHost,
-			Port: fbPort,
-		},
-	})
-}
-
-func TestFallback(t *testing.T) {
-	server, err := serverWithFallback()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		t.Log(server.ListenAndServe(ctx))
-	}()
-	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
-		defer conn.Close()
-		want := fmt.Sprintf("%s:%d", fbHost, fbPort)
-		if addr.String() != want {
-			t.Errorf("received unexpected dst addr: %s", addr.String())
-			return
-		}
-		io.Copy(conn, conn)
-	})
-
-	<-server.ready
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-	resp, err := client.Get(fmt.Sprintf("https://%s:%d", server.conf.Host, server.conf.Port))
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
 }

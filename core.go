@@ -12,11 +12,11 @@ import (
 	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
-	_ "yeager/proxy/armin"
+	"yeager/proxy/armin"
 	"yeager/proxy/direct"
-	_ "yeager/proxy/http"
+	"yeager/proxy/http"
 	"yeager/proxy/reject"
-	_ "yeager/proxy/socks"
+	"yeager/proxy/socks"
 	"yeager/router"
 )
 
@@ -36,43 +36,41 @@ type Proxy struct {
 	router    *router.Router
 }
 
-func NewProxy(c config.Config) (*Proxy, error) {
+func NewProxy(conf *config.Config) (*Proxy, error) {
 	p := &Proxy{
-		outbounds: make(map[string]proxy.Outbound, 2+len(c.Outbounds)),
-	}
-	for _, conf := range c.Inbounds {
-		inbound, err := proxy.BuildInbound(conf.Protocol, conf.Setting)
-		if err != nil {
-			return nil, err
-		}
-		p.inbounds = append(p.inbounds, inbound)
+		outbounds: make(map[string]proxy.Outbound, 2+len(conf.Outbounds)),
 	}
 
-	for _, conf := range c.Outbounds {
-		outbound, err := proxy.BuildOutbound(conf.Protocol, conf.Setting)
+	if conf.Inbounds.SOCKS != nil {
+		srv := socks.NewServer(conf.Inbounds.SOCKS)
+		p.inbounds = append(p.inbounds, srv)
+	}
+	if conf.Inbounds.HTTP != nil {
+		srv := http.NewServer(conf.Inbounds.HTTP)
+		p.inbounds = append(p.inbounds, srv)
+	}
+	if conf.Inbounds.Armin != nil {
+		srv := armin.NewServer(conf.Inbounds.Armin)
+		p.inbounds = append(p.inbounds, srv)
+	}
+
+	// built-in outbound
+	p.outbounds[direct.Tag] = new(direct.Client)
+	p.outbounds[reject.Tag] = new(reject.Client)
+
+	for _, oc := range conf.Outbounds {
+		outbound, err := armin.NewClient(oc)
 		if err != nil {
 			return nil, err
 		}
-		tag := strings.ToLower(conf.Tag)
+		tag := strings.ToLower(oc.Tag)
 		if _, ok := p.outbounds[tag]; ok {
-			return nil, errors.New("duplicated outbound tag: " + conf.Tag)
+			return nil, errors.New("duplicated outbound tag: " + oc.Tag)
 		}
 		p.outbounds[tag] = outbound
 	}
 
-	// built-in outbound
-	directOutbound, err := proxy.BuildOutbound(direct.Tag, nil)
-	if err != nil {
-		return nil, err
-	}
-	p.outbounds[direct.Tag] = directOutbound
-	rejectOutbound, err := proxy.BuildOutbound(reject.Tag, nil)
-	if err != nil {
-		return nil, err
-	}
-	p.outbounds[reject.Tag] = rejectOutbound
-
-	rt, err := router.NewRouter(c.Rules)
+	rt, err := router.NewRouter(conf.Rules)
 	if err != nil {
 		return nil, err
 	}

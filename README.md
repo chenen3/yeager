@@ -37,20 +37,15 @@ Edit file `/usr/local/etc/yeager/config.json`
 
 ```json
 {
-    "inbounds": [
-        {
-            "protocol": "armin",
-            "setting": {
-                "port": 443,
-                "uuid": "", // fill in UUID (command uuidgen to create one)
-                "transport": "grpc", // grpc or tls
-                "tls": {
-                    "certFile": "/usr/local/etc/yeager/fullchain.pem", // install the TLS certificate to this path
-                    "keyFile": "/usr/local/etc/yeager/key.pem" // install the TLS key to this path
-                }
-            }
+    "inbounds": {
+        "armin": {
+            "address": ":443",
+            "uuid": "example-uuid", // fill in UUID
+            "transport": "grpc", // grpc or tls
+            "certFile": "/usr/local/etc/yeager/fullchain.pem", // install TLS certificate to this path
+            "keyFile": "/usr/local/etc/yeager/key.pem" // install TLS key to this path
         }
-    ]
+    }
 }
 ```
 
@@ -97,32 +92,20 @@ Edit config file`/usr/local/etc/yeager/config.json`
 
 ```json
 {
-    "inbounds": [
-        {
-            "protocol": "socks",
-            "setting": {
-                "host": "127.0.0.1",
-                "port": 10800
-            }
+    "inbounds": {
+        "socks": {
+            "address": "127.0.0.1:10800"
         },
-        {
-            "protocol": "http",
-            "setting": {
-                "host": "127.0.0.1",
-                "port": 10801
-            }
+        "http": {
+            "address": "127.0.0.1:10801"
         }
-    ],
+    },
     "outbounds": [
         {
             "tag": "PROXY",
-            "protocol": "armin",
-            "setting": {
-                "host": "example.com", // replace with domain name
-                "port": 443,
-                "uuid": "", // fill in UUID
-                "transport": "grpc" // grpc or tls
-            }
+            "address": "example.com:443", // replace with domain name
+            "uuid": "example-uuid", // fill in UUID
+            "transport": "grpc" // grpc or tls
         }
     ],
     "rules": [

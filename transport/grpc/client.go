@@ -24,13 +24,13 @@ import (
 )
 
 type dialer struct {
-	config *tls.Config
-	conn   *grpc.ClientConn
-	connMu sync.RWMutex
+	tlsConfig *tls.Config
+	conn      *grpc.ClientConn
+	connMu    sync.RWMutex
 }
 
 func NewDialer(config *tls.Config) *dialer {
-	return &dialer{config: config}
+	return &dialer{tlsConfig: config}
 }
 
 func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
@@ -81,12 +81,17 @@ func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, e
 	}
 
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(d.config)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:    60 * time.Second,
 			Timeout: 30 * time.Second,
 		}),
 	}
+	if d.tlsConfig == nil {
+		opts = append(opts, grpc.WithInsecure())
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConfig)))
+	}
+
 	conn, err := grpc.DialContext(ctx, addr, opts...)
 	if err != nil {
 		return nil, err

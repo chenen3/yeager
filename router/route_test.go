@@ -7,7 +7,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	RegisterAssetDir("../config/dev")
+	RegisterAssetDir("./testdata")
 	os.Exit(m.Run())
 }
 

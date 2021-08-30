@@ -2,19 +2,64 @@ package yeager
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path"
 	"testing"
 	"time"
+
 	"yeager/config"
 	"yeager/util"
 )
+
+var certFilename, keyFilename string
+
+func TestMain(m *testing.M) {
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		panic(err)
+	}
+	template := x509.Certificate{SerialNumber: big.NewInt(1)}
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		panic(err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+
+	keyFile, err := os.CreateTemp("", "pem")
+	if err != nil {
+		panic(err)
+	}
+	defer keyFile.Close()
+	_, err = keyFile.Write(keyPEM)
+	if err != nil {
+		panic(err)
+	}
+	keyFilename = keyFile.Name()
+
+	certFile, err := os.CreateTemp("", "pem")
+	if err != nil {
+		panic(err)
+	}
+	defer certFile.Close()
+	_, err = certFile.Write(certPEM)
+	if err != nil {
+		panic(err)
+	}
+	certFilename = certFile.Name()
+
+	code := m.Run()
+	os.Exit(code)
+}
 
 func TestCore(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -89,66 +134,40 @@ func setupHttp2YeagerProxy(ctx context.Context) (proxyUrl string, err error) {
 	return fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort), nil
 }
 
-func makeClientProxyConf(inboundPort, outboundPort int) (config.Config, error) {
-	var clientConf config.Config
+func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) {
 	s := fmt.Sprintf(`{
-    "inbounds": [
-        {
-            "protocol": "http",
-            "setting": {
-				"host": "127.0.0.1",
-                "port": %d
-            }
+    "inbounds": {
+		"http": {
+            "address": "127.0.0.1:%d"
         }
-    ],
+	},
     "outbounds": [
         {
             "tag": "PROXY",
-            "protocol": "armin",
-            "setting": {
-				"host": "127.0.0.1",
-                "port": %d,
-                "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-				"transport": "tls",
-				"tls": {
-					"insecure": true
-				}
-            }
+            "address": "127.0.0.1:%d",
+            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
+            "transport": "tls",
+			"insecure": true
         }
     ],
     "rules": [
         "FINAL,PROXY"
     ]
 }`, inboundPort, outboundPort)
-	err := json.Unmarshal([]byte(s), &clientConf)
-	return clientConf, err
+	return config.LoadBytes([]byte(s))
 }
 
-func makeServerProxyConf(inboundPort int) (config.Config, error) {
-	var conf config.Config
-	dir, err := os.Getwd()
-	if err != nil {
-		return config.Config{}, err
-	}
-	certFile := path.Join(dir, "config", "dev", "cert.pem")
-	keyFile := path.Join(dir, "config", "dev", "key.pem")
+func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 	s := fmt.Sprintf(`{
-    "inbounds": [
-        {
-            "protocol": "armin",
-            "setting": {
-				"host": "127.0.0.1",
-                "port": %d,
-                "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-				"transport": "tls",
-				"tls": {
-					"certFile": "%s",
-					"keyFile": "%s"
-				}
-            }
+    "inbounds": {
+        "armin": {
+            "address": "127.0.0.1:%d",
+            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
+            "transport": "tls",
+			"certFile": "%s",
+			"keyFile": "%s"
         }
-    ]
-}`, inboundPort, certFile, keyFile)
-	err = json.Unmarshal([]byte(s), &conf)
-	return conf, err
+    }
+}`, inboundPort, certFilename, keyFilename)
+	return config.LoadBytes([]byte(s))
 }

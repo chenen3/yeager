@@ -13,17 +13,18 @@ import (
 	"strconv"
 	"time"
 
+	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
 )
 
 type Server struct {
-	conf        *Config
+	conf        *config.HTTPServerConfig
 	ready       chan struct{}
 	handlerFunc func(context.Context, net.Conn, *proxy.Address)
 }
 
-func NewServer(conf *Config) *Server {
+func NewServer(conf *config.HTTPServerConfig) *Server {
 	return &Server{
 		conf:  conf,
 		ready: make(chan struct{}),
@@ -35,13 +36,12 @@ func (s *Server) RegisterHandler(handlerFunc func(context.Context, net.Conn, *pr
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
-	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", s.conf.Address)
 	if err != nil {
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
 	}
 	defer ln.Close()
-	glog.Println("http proxy listening on", addr)
+	glog.Println("http proxy listening on", s.conf.Address)
 
 	close(s.ready)
 	for {

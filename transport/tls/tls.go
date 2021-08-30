@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
-	return tls.Listen("tcp", addr, tlsConf)
-}
-
 type dialer struct {
 	config *tls.Config
 	pool   *ConnPool

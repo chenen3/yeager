@@ -3,10 +3,11 @@ package socks
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"testing"
+	"yeager/config"
 
 	gproxy "golang.org/x/net/proxy"
 	"yeager/proxy"
@@ -19,9 +20,8 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := NewServer(&Config{
-		Host: "127.0.0.1",
-		Port: port,
+	server := NewServer(&config.SOCKSServerConfig{
+		Address: fmt.Sprintf("127.0.0.1:%d", port),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -38,8 +38,7 @@ func TestServer(t *testing.T) {
 	})
 
 	<-server.ready
-	addr := net.JoinHostPort(server.conf.Host, strconv.Itoa(server.conf.Port))
-	client, err := gproxy.SOCKS5("tcp", addr, nil, nil)
+	client, err := gproxy.SOCKS5("tcp", server.conf.Address, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 		return

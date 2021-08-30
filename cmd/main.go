@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
@@ -28,10 +29,18 @@ func main() {
 		"config/dev", // developer only
 	)
 
-	conf, err := config.Load(*confFile)
-	if err != nil {
-		log.Fatalln(err)
+	// try to load config from environment variables, if failed, then load from file
+	conf := config.LoadEnv()
+	if conf == nil {
+		var err error
+		conf, err = config.LoadFile(*confFile)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
+	bs, _ := json.MarshalIndent(conf, "", "  ")
+	log.Printf("current configuration: \n%s\n", bs)
+
 	p, err := yeager.NewProxy(conf)
 	if err != nil {
 		log.Fatalln(err)

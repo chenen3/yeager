@@ -10,48 +10,64 @@ import (
 	glog "log"
 	"net"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
 	"yeager/transport/grpc"
-	tls2 "yeager/transport/tls"
 )
 
 type Server struct {
-	conf *ServerConfig
+	conf *config.ArminServerConfig
 	// imply that server is ready to accept connection, development testing only
 	ready       chan struct{}
 	handlerFunc func(context.Context, net.Conn, *proxy.Address)
 }
 
-func NewServer(config *ServerConfig) (*Server, error) {
-	s := &Server{
+func NewServer(config *config.ArminServerConfig) *Server {
+	return &Server{
 		conf:  config,
 		ready: make(chan struct{}),
 	}
-	return s, nil
 }
 
-func (s *Server) listen() (net.Listener, error) {
-	addr := net.JoinHostPort(s.conf.Host, strconv.Itoa(s.conf.Port))
-	cert, err := tls.X509KeyPair(s.conf.TLS.certPEMBlock, s.conf.TLS.keyPEMBlock)
+func makeTLSConfig(ac *config.ArminServerConfig) (*tls.Config, error) {
+	cert, err := tls.X509KeyPair(ac.CertPEMBlock, ac.KeyPEMBlock)
 	if err != nil {
 		return nil, err
 	}
 
-	var lis net.Listener
 	tlsConf := &tls.Config{
-		Certificates:             []tls.Certificate{cert},
-		MinVersion:               tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
 	}
+	return tlsConf, nil
+}
+
+func (s *Server) listen() (net.Listener, error) {
+	var lis net.Listener
+	var err error
 	switch s.conf.Transport {
+	case "tcp":
+		lis, err = net.Listen("tcp", s.conf.Address)
 	case "tls":
-		lis, err = tls2.Listen(addr, tlsConf)
+		tlsConf, err := makeTLSConfig(s.conf)
+		if err != nil {
+			return nil, err
+		}
+		lis, err = tls.Listen("tcp", s.conf.Address, tlsConf)
 	case "grpc":
-		lis, err = grpc.Listen(addr, tlsConf)
+		if s.conf.Plaintext {
+			lis, err = grpc.Listen(s.conf.Address, nil)
+		} else {
+			tlsConf, err := makeTLSConfig(s.conf)
+			if err != nil {
+				return nil, err
+			}
+			lis, err = grpc.Listen(s.conf.Address, tlsConf)
+		}
 	default:
 		err = errors.New("unsupported transport: " + s.conf.Transport)
 	}
@@ -96,17 +112,21 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 			conn.Close()
 			return
 		}
+		// TODO fallback while transport via grpc
+		conn.Close()
+		return
+
 		// For the anti-detection purpose:
 		// All connection without correct structure and password will be redirected to a preset endpoint,
 		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
 		// Learning from trojan, https://trojan-gfw.github.io/trojan/protocol
-		if s.conf.Fallback.Host == "" {
-			log.Warn("bad credential: " + err.Error())
-			conn.Close()
-			return
-		}
-		dstAddr = proxy.NewAddress(s.conf.Fallback.Host, s.conf.Fallback.Port)
-		log.Warnf("bad credential: %s, redirect to %s", err, dstAddr)
+		// if s.conf.Fallback.Host == "" {
+		// 	log.Warn("bad credential: " + err.Error())
+		// 	conn.Close()
+		// 	return
+		// }
+		// dstAddr = proxy.NewAddress(s.conf.Fallback.Host, s.conf.Fallback.Port)
+		// log.Warnf("bad credential: %s, redirect to %s", err, dstAddr)
 	}
 
 	newConn := &Conn{
