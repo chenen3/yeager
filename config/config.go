@@ -80,20 +80,21 @@ func LoadBytes(bs []byte) (*Config, error) {
 
 // LoadEnv generate configuration from environment variables, only support server-side plaintext traffic
 func LoadEnv() *Config {
-	address := os.Getenv("ARMIN_ADDRESS")
-	uuid := os.Getenv("ARMIN_UUID")
-	transport := os.Getenv("ARMIN_TRANSPORT")
+	address := os.Getenv("YEAGER_ADDRESS")
+	uuid := os.Getenv("YEAGER_UUID")
+	transport := os.Getenv("YEAGER_TRANSPORT")
 	if address == "" || uuid == "" || transport == "" {
 		return nil
 	}
 
-	domain := os.Getenv("ARMIN_DOMAIN")
+	domain := os.Getenv("YEAGER_DOMAIN")
+	email := os.Getenv("YEAGER_EMAIL")
 	var stagingCA bool
-	if strings.EqualFold(os.Getenv("ARMIN_STAGINGCA"), "true") {
+	if strings.EqualFold(os.Getenv("YEAGER_STAGINGCA"), "true") {
 		stagingCA = true
 	}
 	var plaintext bool
-	if strings.EqualFold(os.Getenv("ARMIN_PLAINTEXT"), "true") {
+	if strings.EqualFold(os.Getenv("YEAGER_PLAINTEXT"), "true") {
 		plaintext = true
 	}
 
@@ -104,6 +105,7 @@ func LoadEnv() *Config {
 		Plaintext: plaintext,
 		ACME: ACME{
 			Domain:    domain,
+			Email:     email,
 			StagingCA: stagingCA,
 		},
 	}

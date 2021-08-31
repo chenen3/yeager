@@ -29,13 +29,14 @@ run yeager service via docker cli
 docker run -d \
 	--name yeager \
 	--restart always \
-	-e ARMIN_ADDRESS=127.0.0.1:9000
-	-e ARMIN_UUID=$(uuidgen)
-	-e ARMIN_TRANSPORT=grpc
-	-e ARMIN_DOMAIN=example.com `#replace with your domain name`
-	-e $XDG_DATA_HOME=/usr/local/etc/yeager
-	-p 443:443
-	-p 9000:9000
+	-e YEAGER_ADDRESS=127.0.0.1:9000 \
+	-e YEAGER_UUID=$(uuidgen) \
+	-e YEAGER_TRANSPORT=grpc \
+	-e YEAGER_DOMAIN=example.com `#replace with your domain name` \
+	-e YEAGER_EMAIL=mail.example.com `#replace with your email` \
+	-e XDG_DATA_HOME=/usr/local/etc/yeager \
+	-p 443:443 `#ACME protocol HTTPS challenge` \
+	-p 9000:9000 `#use this port in client config` \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
 	ghcr.io/chenen3/yeager:latest
 ```
@@ -76,7 +77,7 @@ create config file: `/usr/local/etc/yeager/config.json`
     "outbounds": [
         {
             "tag": "PROXY",
-            "address": "example.com:443", // replace with domain name
+            "address": "example.com:9000", // replace with domain name
             "uuid": "example-uuid", // replace with UUID
             "transport": "grpc"
         }
@@ -110,7 +111,7 @@ docker run -d \
 	--restart=always \
 	--network host \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	en180706/yeager
+	ghcr.io/chenen3/yeager:latest
 ```
 
 ## Upgrade
@@ -134,7 +135,7 @@ docker run -d \
 	--restart=always \
 	--network host \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	en180706/yeager
+	ghcr.io/chenen3/yeager:latest
 ```
 
 ## Uninstall
@@ -151,7 +152,7 @@ via docker:
 ```bash
 docker container stop yeager
 docker container rm yeager
-docker image rm en180706/yeager
+docker image rm ghcr.io/chenen3/yeager
 ```
 
 ##Advance usage
@@ -162,10 +163,10 @@ docker image rm en180706/yeager
 {
     "inbounds": {
         "socks": {
-            "address": ":10810" // SOCKS5 proxy listening address
+            "address": "127.0.0.1:10810" // SOCKS5 proxy listening address
         },
         "http": {
-            "address": ":10811" // HTTP proxy listening address
+            "address": "127.0.0.1:10811" // HTTP proxy listening address
         },
         "armin": {
             "address": ":10812", // yeager proxy listening address
