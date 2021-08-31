@@ -7,7 +7,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	RegisterAssetDir("./testdata")
+	err := os.Setenv(envAssetDir, "./testdata")
+	if err != nil {
+		panic(err)
+	}
 	os.Exit(m.Run())
 }
 

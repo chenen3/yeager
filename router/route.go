@@ -17,11 +17,12 @@ const (
 	ruleIPCIDR        = "ip-cidr"        // 无类别域间路由
 	ruleFinal         = "final"          // 最终规则
 
-	// TODO: disable geoip rule type in future release
-	// The geoip.dat was only 4MB size, but now it is 46MB.
-	// While yeager startup with it, the memory usage raise up to 300MB.
-	// Considering GEOIP rule is not the essential feature, disable it,
-	// so that the startup memory would beneath 15MB
+	// geoip.dat was only 4MB size, but now downloading from upstream
+	// it is 46MB. While yeager startup with it, the memory usage raise
+	// up to 300MB. Considering GEOIP rule is not the essential feature,
+	// now disable it, so that the startup memory would beneath 15MB.
+
+	// deprecated
 	ruleGeoIP = "geoip" // 预定义IP集合
 )
 
@@ -54,7 +55,7 @@ func (r *rule) Match(addr *proxy.Address) bool {
 		if addr.Type != proxy.AddrDomainName {
 			return false
 		}
-	case ruleIPCIDR, ruleGeoIP:
+	case ruleIPCIDR:
 		if addr.Type != proxy.AddrIPv4 {
 			// ipv6 not supported yet
 			return false
@@ -89,7 +90,7 @@ func NewRouter(rules []string) (*Router, error) {
 
 	// parsing geoip file obviously increase memory usage,
 	// set nil to release objects, memory shall release in future GC
-	globalGeoIPList = nil
+	// globalGeoIPList = nil
 	globalGeoSiteList = nil
 	return &r, nil
 }

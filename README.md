@@ -4,91 +4,64 @@
 
 yeager aims to bypass network restriction, supports features:
 
-- socks5, http inbound proxy
+- SOCKS5 proxy for inbound usage
+- HTTP proxy for inbound usage
 - lightweight outbound proxy, secure transport via:
   - TLS
   - gRPC
 - rule routing
 
-## Prerequisite
-1. virtual private server (VPS) abroad; VPS's firewall allow inbound traffic from 80 and 443 port.
+## Requirements
 
-2. domain name; add an "A record" to the domain name, pointing to the VPS public IP
+1. server reachable from public Internet (e.g. Amazon Lightsail VPS)
+   - expose port 443 for automate certificate management
+   - expose the port that yeager proxy server listen on
 
-3. issue TLS certificate; CertBot or acme.sh can help.
+2. domain name that pointed (A records) at the server
 
-## Server side
+## Quick start
 
-### Install
+### Server side
 
-#### Docker
+run yeager service via docker cli
 
-```
-docker pull en180706/yeager
-```
-
-#### Manual
-
-checkout the latest [release](https://github.com/chenen3/yeager/releases).
-
-### Configure
-
-Edit file `/usr/local/etc/yeager/config.json`
-
-```json
-{
-    "inbounds": {
-        "armin": {
-            "address": ":443",
-            "uuid": "example-uuid", // fill in UUID
-            "transport": "grpc", // grpc or tls
-            "certFile": "/usr/local/etc/yeager/fullchain.pem", // install TLS certificate to this path
-            "keyFile": "/usr/local/etc/yeager/key.pem" // install TLS key to this path
-        }
-    }
-}
-```
-
-### Run
-
-#### Docker
-
-```
-docker run \
+```bash
+docker run -d \
 	--name yeager \
-	-d \
-	--restart=always \
+	--restart always \
+	-e ARMIN_ADDRESS=127.0.0.1:9000
+	-e ARMIN_UUID=$(uuidgen)
+	-e ARMIN_TRANSPORT=grpc
+	-e ARMIN_DOMAIN=example.com `#replace with your domain name`
+	-e $XDG_DATA_HOME=/usr/local/etc/yeager
+	-p 443:443
+	-p 9000:9000
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	--network host \
-	en180706/yeager
+	ghcr.io/chenen3/yeager:latest
 ```
 
-#### Manual
+log the auto-generated UUID, it will be used as client config, run command:
 
-`yeager -config /usr/local/etc/yeager/config.json`
+`docker logs yeager 2>&1 | grep uuid | tail -n 1`
 
-## Client side
+###Client side
 
-### Install
+####Install
 
-#### MacOS using Homebrew
+- Via homebrew on MacOS 
 
 ```
 brew tap chenen3/yeager
 brew install yeager
 ```
 
-#### Linux distro using Docker
+- Via docker on Linux distro
 
 `docker pull en180706/yeager`
 
-#### Manual
+##### Configure
 
-checkout the latest [release](https://github.com/chenen3/yeager/releases).
-
-### Configure
-
-Edit config file`/usr/local/etc/yeager/config.json`
+create config file: `/usr/local/etc/yeager/config.json`
 
 ```json
 {
@@ -104,8 +77,8 @@ Edit config file`/usr/local/etc/yeager/config.json`
         {
             "tag": "PROXY",
             "address": "example.com:443", // replace with domain name
-            "uuid": "example-uuid", // fill in UUID
-            "transport": "grpc" // grpc or tls
+            "uuid": "example-uuid", // replace with UUID
+            "transport": "grpc"
         }
     ],
     "rules": [
@@ -121,7 +94,117 @@ Edit config file`/usr/local/etc/yeager/config.json`
 }
 ```
 
-The priority of rules is the order in config, the form could be `ruleType,value,outboundTag` and `FINAL,outboundTag`, for example:
+#### Run
+
+> After running client side yeager, do not forget to config the local device's SOCKS5 or HTTP proxy. Good luck
+
+- Via homebrew on MacOS
+
+`brew services start yeager`
+
+- Via docker on Linux distro
+
+```bash
+docker run -d \
+	--name yeager \
+	--restart=always \
+	--network host \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	en180706/yeager
+```
+
+## Upgrade
+
+Via homebrew on macOS
+
+```bash
+brew update
+brew upgrade yeager
+brew services restart yeager
+```
+
+Via docker on Linux distro (or podman)
+
+```bash
+docker pull en180706/yeager
+docker stop yeager
+docker rm yeager
+docker run -d \
+	--name yeager \
+	--restart=always \
+	--network host \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	en180706/yeager
+```
+
+## Uninstall
+
+via homebrew:
+
+```bash
+brew uninstall yeager
+brew untap chenen3/yeager
+```
+
+via docker:
+
+```bash
+docker container stop yeager
+docker container rm yeager
+docker image rm en180706/yeager
+```
+
+##Advance usage
+
+### Configuration explain
+
+```json
+{
+    "inbounds": {
+        "socks": {
+            "address": ":10810" // SOCKS5 proxy listening address
+        },
+        "http": {
+            "address": ":10811" // HTTP proxy listening address
+        },
+        "armin": {
+            "address": ":10812", // yeager proxy listening address
+            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
+            "transport": "grpc", // tcp, tls, grpc
+            "plaintext": false // whether accept gRPC request in plaintext
+        }
+    },
+    "outbounds": [
+        {
+            "tag": "PROXY", // tag value must be unique in all outbounds
+            "address": "127.0.0.1:10812", // correspond to inbound armin address
+            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound armin UUID
+            "transport": "grpc", // correspond to inbound armin transport
+            "plaintext": false, // whether send gRPC request in plaintext
+            "acme":{
+                "domain": "example.com", // domain name
+                "email": "mail.example.com", // optional email address
+                "stagingCA": false // use staging CA in testing, in case lock out
+            },
+            "certFile": "/path/to/certificate", // used when ACME config left blank
+            "keyFile": "/path/to/key" // used when ACME config left blank
+        }
+    ],
+    "rules": [
+		"IP-CIDR,127.0.0.1/8,DIRECT",
+		"IP-CIDR,192.168.0.0/16,DIRECT",
+		"GEOSITE,private,DIRECT",
+		"GEOSITE,google,PROXY",
+		"GEOSITE,twitter,PROXY",
+		"GEOSITE,cn,DIRECT",
+		"GEOSITE,apple@cn,DIRECT",
+		"FINAL,PROXY"
+    ]
+}
+
+```
+
+Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`, for example:
 
 - `IP-CIDR,127.0.0.1/8,DIRECT ` matches if the traffic IP is in specified CIDR
 - `DOMAIN,www.apple.com,DIRECT` matches if the traffic domain is the given one
@@ -130,74 +213,25 @@ The priority of rules is the order in config, the form could be `ruleType,value,
 - `GEOSITE,cn,DIRECT` matches if the traffic domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
 - `FINAL,PROXY` determine the behavior where would the traffic be send to while all above rule not match, it must be the last rule in config. The default final rule is `FINAL,DIRECT`
 
-Beside user specified outbound tag, there are two builtin: `DIRECT`, `REJECT`, for example:
+In addition to the outbound tag specified by the user, yeager also comes with two built-in tags:
 
-- `GEOSITE,private,DIRECT` 
-- `GEOSITE,category-ads,REJECT` 
+- `DIRECT` means sending traffic directly, do not pass by proxy
+- `REJECT` means rejecting traffic and close the connection
 
-### Run
+### Manaully run yeager
 
-> After running client side yeager, do not forget to config the local device's SOCKS5 or HTTP proxy. Good luck
+1. download the latest [release](https://github.com/chenen3/yeager/releases)
+2. create config file as explained
+3. run command: `YEAGER_ASSET_DIR=. yeager -config config.json`
 
-#### Homebrew
+### Transport via TLS
 
-`brew services start yeager`
+If the network between local device and remote server is not good enough, please use the TLS transport feature, simply set `transport` field  to `tls` in both server and client config
 
-#### Docker
+### Transport in plaintext
 
-```
-docker run \
-	--name yeager \
-	-d \
-	--restart=always \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	--network host \
-	en180706/yeager
-```
+**Please do not use plaintext unless you know what you are doing.**
 
-#### Manual
-
-`yeager -config /usr/local/etc/yeager/config.json`
-
-## Upgrade
-
-Homebrew:
-
-```
-brew update
-brew upgrade yeager
-brew services restart yeager
-```
-
-Docker:
-
-```
-docker pull en180706/yeager
-docker stop yeager
-docker rm yeager
-docker run \
-	--name yeager \
-	-d \
-	--restart=always \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	--network host \
-	en180706/yeager
-```
-
-## Uninstall
-
-Homebrew:
-
-```
-brew uninstall yeager
-brew untap chenen3/yeager
-```
-
-Docker:
-
-```
-docker stop yeager
-docker rm yeager
-docker rmi en180706/yeager
-```
-
+In some situations we want reverse proxy or load balancing yeager server, yeager works with API gateway (e.g. nginx) which terminates TLS. Update yeager server config:
+- while transport via tcp, set `transport` field to `tcp`
+- while transport via gRPC, set `plaintex` fields to `true`

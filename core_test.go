@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -20,7 +21,7 @@ import (
 	"yeager/util"
 )
 
-var certFilename, keyFilename string
+var certPEM, keyPEM []byte
 
 func TestMain(m *testing.M) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
@@ -32,31 +33,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-
-	keyFile, err := os.CreateTemp("", "pem")
-	if err != nil {
-		panic(err)
-	}
-	defer keyFile.Close()
-	_, err = keyFile.Write(keyPEM)
-	if err != nil {
-		panic(err)
-	}
-	keyFilename = keyFile.Name()
-
-	certFile, err := os.CreateTemp("", "pem")
-	if err != nil {
-		panic(err)
-	}
-	defer certFile.Close()
-	_, err = certFile.Write(certPEM)
-	if err != nil {
-		panic(err)
-	}
-	certFilename = certFile.Name()
-
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	code := m.Run()
 	os.Exit(code)
 }
@@ -163,11 +141,16 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
         "armin": {
             "address": "127.0.0.1:%d",
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "tls",
-			"certFile": "%s",
-			"keyFile": "%s"
+            "transport": "tls"
         }
     }
-}`, inboundPort, certFilename, keyFilename)
-	return config.LoadBytes([]byte(s))
+}`, inboundPort)
+
+	conf := new(config.Config)
+	if err := json.Unmarshal([]byte(s), conf); err != nil {
+		return nil, err
+	}
+	conf.Inbounds.Armin.CertPEMBlock = certPEM
+	conf.Inbounds.Armin.KeyPEMBlock = keyPEM
+	return conf, nil
 }

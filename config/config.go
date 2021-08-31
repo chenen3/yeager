@@ -2,9 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
-	"net"
 	"os"
 	"strings"
 )
@@ -33,15 +30,26 @@ type ArminServerConfig struct {
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
 	Transport string `json:"transport"` // tcp, tls, grpc
-	// if plaintext is true and transport is grpc,
-	// the server would accept grpc request in plaintext,
-	// certFile and keyFile will be ignored.
-	Plaintext bool   `json:"plaintext,omitempty"`
-	CertFile  string `json:"certFile,omitempty"`
-	KeyFile   string `json:"keyFile,omitempty"`
+	// if transport field is grpc and plaintext field is true,
+	// the server would accept grpc request in plaintext, and
+	// ignores certificate config. please do not use plaintext
+	// unless you know what you are doing
+	Plaintext bool `json:"plaintext,omitempty"`
 
+	// automated manage certificate
+	ACME ACME `json:"acme,omitempty"`
+
+	// manually manage certificate
+	CertFile     string `json:"certFile,omitempty"`
+	KeyFile      string `json:"keyFile,omitempty"`
 	CertPEMBlock []byte `json:"-"`
 	KeyPEMBlock  []byte `json:"-"`
+}
+
+type ACME struct {
+	Domain    string `json:"domain,omitempty"`
+	Email     string `json:"email,omitempty"`
+	StagingCA bool   `json:"stagingCA,omitempty"` // use staging CA in testing, in case lock out
 }
 
 type ArminClientConfig struct {
@@ -49,11 +57,11 @@ type ArminClientConfig struct {
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
 	Transport string `json:"transport"` // tls, grpc
-	// if plaintext is true and transport is grpc,
-	// the client would send grpc request in plaintext
-	Plaintext  bool   `json:"plaintext,omitempty"`
-	ServerName string `json:"serverName,omitempty"`
-	Insecure   bool   `json:"insecure,omitempty"` // allow insecure TLS
+	// if transport field is grpc and plaintext field is true,
+	// the client would send grpc request in plaintext, please
+	// do not use plaintext unless you know what you are doing
+	Plaintext bool `json:"plaintext,omitempty"`
+	Insecure  bool `json:"insecure,omitempty"` // allow insecure TLS
 }
 
 func LoadFile(filename string) (*Config, error) {
@@ -66,38 +74,11 @@ func LoadFile(filename string) (*Config, error) {
 
 func LoadBytes(bs []byte) (*Config, error) {
 	conf := new(Config)
-	if err := json.Unmarshal(bs, conf); err != nil {
-		return nil, err
-	}
-
-	if ac := conf.Inbounds.Armin; ac != nil && !ac.Plaintext {
-		bs, err := os.ReadFile(ac.CertFile)
-		if err != nil {
-			return nil, errors.New("read tls certificate file err: " + err.Error())
-		}
-		ac.CertPEMBlock = bs
-
-		keyBS, keyErr := os.ReadFile(ac.KeyFile)
-		if keyErr != nil {
-			return nil, errors.New("read tls key file err: " + keyErr.Error())
-		}
-		ac.KeyPEMBlock = keyBS
-	}
-
-	for _, ac := range conf.Outbounds {
-		if ac.ServerName == "" {
-			host, _, err := net.SplitHostPort(ac.Address)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse address: %s, err: %s", ac.Address, err)
-			}
-			ac.ServerName = host
-		}
-	}
-
-	return conf, nil
+	err := json.Unmarshal(bs, conf)
+	return conf, err
 }
 
-// LoadEnv generate configuration from environment variables, only support plaintext traffic
+// LoadEnv generate configuration from environment variables, only support server-side plaintext traffic
 func LoadEnv() *Config {
 	address := os.Getenv("ARMIN_ADDRESS")
 	uuid := os.Getenv("ARMIN_UUID")
@@ -106,15 +87,25 @@ func LoadEnv() *Config {
 		return nil
 	}
 
+	domain := os.Getenv("ARMIN_DOMAIN")
+	var stagingCA bool
+	if strings.EqualFold(os.Getenv("ARMIN_STAGINGCA"), "true") {
+		stagingCA = true
+	}
+	var plaintext bool
+	if strings.EqualFold(os.Getenv("ARMIN_PLAINTEXT"), "true") {
+		plaintext = true
+	}
+
 	ac := &ArminServerConfig{
 		Address:   address,
 		UUID:      uuid,
 		Transport: transport,
+		Plaintext: plaintext,
+		ACME: ACME{
+			Domain:    domain,
+			StagingCA: stagingCA,
+		},
 	}
-	plaintext := os.Getenv("ARMIN_PLAINTEXT")
-	if strings.EqualFold(plaintext, "true") {
-		ac.Plaintext = true
-	}
-
 	return &Config{Inbounds: Inbounds{Armin: ac}}
 }

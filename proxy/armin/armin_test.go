@@ -78,7 +78,6 @@ func TestArmin_tls(t *testing.T) {
 		Address:    server.conf.Address,
 		UUID:       server.conf.UUID,
 		Transport:  "tls",
-		ServerName: "127.0.0.1",
 		Insecure:   true,
 	})
 	if err != nil {
