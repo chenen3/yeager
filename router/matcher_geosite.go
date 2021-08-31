@@ -35,8 +35,8 @@ func loadGeoSiteFile() (*router.GeoSiteList, error) {
 		}
 	}
 	if err != nil {
-		log.Warnf("By default, yeager loads geosite.dat from %s (and honors $%s if set)",
-			defaultAssetDir, envAssetDir)
+		log.Warnf("By default, yeager loads geosite.dat from %v (and honors $%s if set)",
+			assetDirs, envAssetDir)
 		return nil, err
 	}
 
