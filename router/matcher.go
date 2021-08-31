@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"yeager/log"
 	"yeager/proxy"
 )
 
@@ -26,10 +25,10 @@ func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 		m, err = newGeoSiteMatcher(value)
 	case ruleIPCIDR:
 		m, err = newCIDRMatcher(value)
-	case ruleGeoIP:
-		log.Warn("deprecated GEOIP rule, it would be removed in future release")
-		// m, err = newGeoIPMatcher(value)
-		m = new(nullMatcher)
+	// case ruleGeoIP:
+	// 	log.Warn("deprecated GEOIP rule, it would be removed in future release")
+	// 	// m, err = newGeoIPMatcher(value)
+	// 	m = new(nullMatcher)
 	case ruleFinal:
 		m = newFinalMatcher()
 	default:

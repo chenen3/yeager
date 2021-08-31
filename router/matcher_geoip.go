@@ -1,24 +1,6 @@
 package router
 
-import (
-	"encoding/binary"
-	"errors"
-	"os"
-	"path"
-	"sort"
-	"strings"
-
-	"github.com/v2fly/v2ray-core/v4/app/router"
-	"google.golang.org/protobuf/proto"
-	"yeager/proxy"
-)
-
-var assetDirs []string
-
-func RegisterAssetDir(dir ...string) {
-	assetDirs = append(assetDirs, dir...)
-}
-
+/*
 var globalGeoIPList *router.GeoIPList
 
 func extractCountryIP(country string) ([]*router.CIDR, error) {
@@ -124,3 +106,4 @@ func mask(ip uint32, prefix uint32) uint32 {
 	ip = ip << (32 - prefix)
 	return ip
 }
+*/

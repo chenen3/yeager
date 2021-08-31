@@ -23,14 +23,17 @@ type Client struct {
 }
 
 func NewClient(config *config.ArminClientConfig) (*Client, error) {
-	var c Client
-	c.conf = config
+	c := Client{conf: config}
+	host, _, err := net.SplitHostPort(config.Address)
+	if err != nil {
+		return nil, err
+	}
+
 	tlsConf := &gtls.Config{
-		ServerName:         config.ServerName,
+		ServerName:         host,
 		InsecureSkipVerify: config.Insecure,
 		ClientSessionCache: gtls.NewLRUClientSessionCache(64),
 	}
-
 	switch config.Transport {
 	case "tls":
 		c.dialer = tls.NewDialer(tlsConf)

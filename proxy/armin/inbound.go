@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/caddyserver/certmagic"
 	"io"
 	glog "log"
 	"net"
@@ -34,15 +35,39 @@ func NewServer(config *config.ArminServerConfig) *Server {
 }
 
 func makeTLSConfig(ac *config.ArminServerConfig) (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(ac.CertPEMBlock, ac.KeyPEMBlock)
-	if err != nil {
-		return nil, err
+	var err error
+	var tlsConf *tls.Config
+	if ac.ACME.Domain != "" {
+		// manage certificate automatically
+		certmagic.DefaultACME.Agreed = true
+		certmagic.DefaultACME.Email = ac.ACME.Email
+		if ac.ACME.StagingCA {
+			certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
+		} else {
+			certmagic.DefaultACME.CA = certmagic.LetsEncryptProductionCA
+		}
+
+		tlsConf, err = certmagic.TLS([]string{ac.ACME.Domain})
+		if err != nil {
+			return nil, err
+		}
+
+	} else {
+		// manage certificate manually
+		var cert tls.Certificate
+		if ac.CertFile != "" && ac.KeyFile != "" {
+			cert, err = tls.LoadX509KeyPair(ac.CertFile, ac.KeyFile)
+		} else {
+			cert, err = tls.X509KeyPair(ac.CertPEMBlock, ac.KeyPEMBlock)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
 	}
 
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS13,
-	}
+	tlsConf.MinVersion = tls.VersionTLS13
 	return tlsConf, nil
 }
 
@@ -80,6 +105,7 @@ func (s *Server) listen() (net.Listener, error) {
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
+	// serverHTTPChallenge
 	lis, err := s.listen()
 	if err != nil {
 		return err

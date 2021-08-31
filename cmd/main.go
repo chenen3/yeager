@@ -16,18 +16,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"yeager"
 	"yeager/config"
-	"yeager/router"
 )
 
 var confFile = flag.String("config", "/usr/local/etc/yeager/config.json", "config file")
 
 func main() {
 	flag.Parse()
-
-	router.RegisterAssetDir(
-		"/usr/local/share/yeager",
-		"config/dev", // developer only
-	)
 
 	// try to load config from environment variables, if failed, then load from file
 	conf := config.LoadEnv()
