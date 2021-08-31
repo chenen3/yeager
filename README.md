@@ -15,7 +15,7 @@ yeager aims to bypass network restriction, supports features:
 
 1. server reachable from public Internet (e.g. Amazon Lightsail VPS)
    - expose port 443 for automate certificate management
-   - expose the port that yeager proxy server listen on
+   - expose the port that yeager proxy server listen on (if you follow the quick-start bellow, expose port 9000)
 
 2. domain name that pointed (A records) at the server
 
@@ -26,24 +26,21 @@ yeager aims to bypass network restriction, supports features:
 run yeager service via docker cli
 
 ```bash
+mkdir -p /usr/local/etc/yeager
 docker run -d \
 	--name yeager \
 	--restart always \
-	-e YEAGER_ADDRESS=127.0.0.1:9000 \
-	-e YEAGER_UUID=$(uuidgen) \
+	-e YEAGER_ADDRESS=0.0.0.0:9000 \
 	-e YEAGER_TRANSPORT=grpc \
-	-e YEAGER_DOMAIN=example.com `#replace with your domain name` \
-	-e YEAGER_EMAIL=mail.example.com `#replace with your email` \
+	-e YEAGER_UUID=example-UUID `#replace with UUID` \
+	-e YEAGER_DOMAIN=example.com `#replace with domain name` \
+	-e YEAGER_EMAIL=xxx@example.com `#replace with email address` \
 	-e XDG_DATA_HOME=/usr/local/etc/yeager \
-	-p 443:443 `#ACME protocol HTTPS challenge` \
-	-p 9000:9000 `#use this port in client config` \
+	-p 443:443 \
+	-p 9000:9000 \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
 	ghcr.io/chenen3/yeager:latest
 ```
-
-log the auto-generated UUID, it will be used as client config, run command:
-
-`docker logs yeager 2>&1 | grep uuid | tail -n 1`
 
 ###Client side
 
@@ -184,7 +181,7 @@ docker image rm ghcr.io/chenen3/yeager
             "plaintext": false, // whether send gRPC request in plaintext
             "acme":{
                 "domain": "example.com", // domain name
-                "email": "mail.example.com", // optional email address
+                "email": "xxx@example.com", // optional email address
                 "stagingCA": false // use staging CA in testing, in case lock out
             },
             "certFile": "/path/to/certificate", // used when ACME config left blank
