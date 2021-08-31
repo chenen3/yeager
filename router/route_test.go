@@ -2,15 +2,17 @@ package router
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"yeager/proxy"
 )
 
 func TestMain(m *testing.M) {
-	err := os.Setenv(envAssetDir, "./testdata")
+	dir, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
+	assetDirs = append(assetDirs, filepath.Join(dir, "testdata"))
 	os.Exit(m.Run())
 }
 
