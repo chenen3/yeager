@@ -13,9 +13,9 @@ yeager aims to bypass network restriction, supports features:
 
 ## Requirements
 
-1. server reachable from public Internet (e.g. Amazon Lightsail VPS)
-   - expose port 443 for automate certificate management
-   - expose the port that yeager proxy server listen on (if you follow the quick-start bellow, expose port 9000)
+1. server reachable from public Internet (e.g. Amazon Lightsail), update firewall:
+   - expose port 443 which ACME protocol requires for HTTPS challenge
+   - expose port 9000 which yeager proxy server listen on
 
 2. domain name that pointed (A records) at the server
 
@@ -23,28 +23,26 @@ yeager aims to bypass network restriction, supports features:
 
 ### Server side
 
-run yeager service via docker cli
+run yeager service via podman
 
 ```bash
 mkdir -p /usr/local/etc/yeager
-docker run -d \
+podman run -d \
 	--name yeager \
 	--restart always \
-	-e YEAGER_ADDRESS=0.0.0.0:9000 \
 	-e YEAGER_TRANSPORT=grpc \
 	-e YEAGER_UUID=example-UUID `#replace with UUID` \
 	-e YEAGER_DOMAIN=example.com `#replace with domain name` \
 	-e YEAGER_EMAIL=xxx@example.com `#replace with email address` \
-	-e XDG_DATA_HOME=/usr/local/etc/yeager \
 	-p 443:443 \
 	-p 9000:9000 \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
 	ghcr.io/chenen3/yeager:latest
 ```
 
-###Client side
+### Client side
 
-####Install
+#### Install
 
 - Via homebrew on MacOS 
 
@@ -53,9 +51,9 @@ brew tap chenen3/yeager
 brew install yeager
 ```
 
-- Via docker on Linux distro
+- Via podman on Linux distribution
 
-`docker pull en180706/yeager`
+`podman pull ghcr.io/chenen3/yeager:latest`
 
 ##### Configure
 
@@ -65,10 +63,10 @@ create config file: `/usr/local/etc/yeager/config.json`
 {
     "inbounds": {
         "socks": {
-            "address": "127.0.0.1:10800"
+            "address": "127.0.0.1:1080"
         },
         "http": {
-            "address": "127.0.0.1:10801"
+            "address": "127.0.0.1:8080"
         }
     },
     "outbounds": [
@@ -94,22 +92,22 @@ create config file: `/usr/local/etc/yeager/config.json`
 
 #### Run
 
-> After running client side yeager, do not forget to config the local device's SOCKS5 or HTTP proxy. Good luck
-
 - Via homebrew on MacOS
 
 `brew services start yeager`
 
-- Via docker on Linux distro
+- Via podman on Linux distribution
 
 ```bash
-docker run -d \
+podman run -d \
 	--name yeager \
 	--restart=always \
 	--network host \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
 	ghcr.io/chenen3/yeager:latest
 ```
+
+After running client side yeager, do not forget to **setup local device's SOCKS5 or HTTP proxy**. Good luck
 
 ## Upgrade
 
@@ -121,13 +119,13 @@ brew upgrade yeager
 brew services restart yeager
 ```
 
-Via docker on Linux distro (or podman)
+Via podman on Linux distribution
 
 ```bash
-docker pull en180706/yeager
-docker stop yeager
-docker rm yeager
-docker run -d \
+podman pull en180706/yeager
+podman stop yeager
+podman rm yeager
+podman run -d \
 	--name yeager \
 	--restart=always \
 	--network host \
@@ -144,15 +142,15 @@ brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-via docker:
+via podman:
 
 ```bash
-docker container stop yeager
-docker container rm yeager
-docker image rm ghcr.io/chenen3/yeager
+podman container stop yeager
+podman container rm yeager
+podman image rm ghcr.io/chenen3/yeager
 ```
 
-##Advance usage
+## Advance usage
 
 ### Configuration explain
 
@@ -160,13 +158,13 @@ docker image rm ghcr.io/chenen3/yeager
 {
     "inbounds": {
         "socks": {
-            "address": "127.0.0.1:10810" // SOCKS5 proxy listening address
+            "address": "127.0.0.1:1080" // SOCKS5 proxy listening address
         },
         "http": {
-            "address": "127.0.0.1:10811" // HTTP proxy listening address
+            "address": "127.0.0.1:8080" // HTTP proxy listening address
         },
         "armin": {
-            "address": ":10812", // yeager proxy listening address
+            "address": "0.0.0.0:9000", // yeager proxy listening address
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "grpc", // tcp, tls, grpc
             "plaintext": false // whether accept gRPC request in plaintext
@@ -175,7 +173,7 @@ docker image rm ghcr.io/chenen3/yeager
     "outbounds": [
         {
             "tag": "PROXY", // tag value must be unique in all outbounds
-            "address": "127.0.0.1:10812", // correspond to inbound armin address
+            "address": "0.0.0.0:9000", // correspond to inbound armin address
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound armin UUID
             "transport": "grpc", // correspond to inbound armin transport
             "plaintext": false, // whether send gRPC request in plaintext
@@ -216,7 +214,7 @@ In addition to the outbound tag specified by the user, yeager also comes with tw
 - `DIRECT` means sending traffic directly, do not pass by proxy
 - `REJECT` means rejecting traffic and close the connection
 
-### Manaully run yeager
+### Manually run yeager
 
 1. download the latest [release](https://github.com/chenen3/yeager/releases)
 2. create config file as explained
@@ -232,4 +230,4 @@ If the network between local device and remote server is not good enough, please
 
 In some situations we want reverse proxy or load balancing yeager server, yeager works with API gateway (e.g. nginx) which terminates TLS. Update yeager server config:
 - while transport via tcp, set `transport` field to `tcp`
-- while transport via gRPC, set `plaintex` fields to `true`
+- while transport via gRPC, set `plaintext` fields to `true`
