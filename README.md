@@ -158,7 +158,7 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "grpc", // tcp, tls, grpc
             "plaintext": false, // whether accept gRPC request in plaintext
-	    "acme":{
+            "acme":{
                 "domain": "example.com",
                 "email": "xxx@example.com",
                 "stagingCA": false // use staging CA in testing, in case lock out
@@ -170,7 +170,7 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
     "outbounds": [
         {
             "tag": "PROXY", // tag value must be unique in all outbounds
-            "address": "0.0.0.0:9000", // correspond to inbound armin address
+            "address": "example.com:9000", // correspond to inbound armin domain name
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound armin UUID
             "transport": "grpc", // correspond to inbound armin transport
             "plaintext": false // whether send gRPC request in plaintext
