@@ -23,7 +23,7 @@ yeager aims to bypass network restriction, supports features:
 
 ### Server side
 
-run yeager service via podman
+- start with environment variables
 
 ```bash
 mkdir -p /usr/local/etc/yeager
@@ -37,6 +37,36 @@ podman run -d \
 	-p 443:443 \
 	-p 9000:9000 \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	ghcr.io/chenen3/yeager:latest
+```
+
+- start with configuration file
+
+create config file `/usr/local/etc/yeager/config.json`
+```json
+{
+    "inbounds": {
+        "armin": {
+            "address": "0.0.0.0:9000",
+            "uuid": "example-UUID", // replace with UUID
+            "transport": "grpc",
+	    "acme":{
+                "domain": "example.com", // replace with domain name
+                "email": "xxx@example.com" // replace with email address
+            }
+        }
+    }
+}
+```
+
+then execute command:
+```bash
+podman run -d \
+	--name yeager \
+	--restart=always \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	-p 443:443 \
+	-p 9000:9000 \
 	ghcr.io/chenen3/yeager:latest
 ```
 
@@ -57,7 +87,7 @@ brew install yeager
 
 #### Configure
 
-create config file: `/usr/local/etc/yeager/config.json`
+create config file `/usr/local/etc/yeager/config.json`
 
 ```json
 {
@@ -127,7 +157,14 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
             "address": "0.0.0.0:9000", // yeager proxy listening address
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "grpc", // tcp, tls, grpc
-            "plaintext": false // whether accept gRPC request in plaintext
+            "plaintext": false, // whether accept gRPC request in plaintext
+	    "acme":{
+                "domain": "example.com",
+                "email": "xxx@example.com",
+                "stagingCA": false // use staging CA in testing, in case lock out
+            },
+            "certFile": "/path/to/certificate", // used when ACME config left blank
+            "keyFile": "/path/to/key" // used when ACME config left blank
         }
     },
     "outbounds": [
@@ -136,14 +173,7 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
             "address": "0.0.0.0:9000", // correspond to inbound armin address
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound armin UUID
             "transport": "grpc", // correspond to inbound armin transport
-            "plaintext": false, // whether send gRPC request in plaintext
-            "acme":{
-                "domain": "example.com", // domain name
-                "email": "xxx@example.com", // optional email address
-                "stagingCA": false // use staging CA in testing, in case lock out
-            },
-            "certFile": "/path/to/certificate", // used when ACME config left blank
-            "keyFile": "/path/to/key" // used when ACME config left blank
+            "plaintext": false // whether send gRPC request in plaintext
         }
     ],
     "rules": [
@@ -205,15 +235,10 @@ brew services restart yeager
 Via podman on Linux distribution
 
 ```bash
-podman pull en180706/yeager
+podman pull ghcr.io/chenen3/yeager:latest
 podman stop yeager
 podman rm yeager
-podman run -d \
-	--name yeager \
-	--restart=always \
-	--network host \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	ghcr.io/chenen3/yeager:latest
+# then run the container again
 ```
 
 ### Uninstall
