@@ -55,7 +55,7 @@ brew install yeager
 
 `podman pull ghcr.io/chenen3/yeager:latest`
 
-##### Configure
+#### Configure
 
 create config file: `/usr/local/etc/yeager/config.json`
 
@@ -109,46 +109,6 @@ podman run -d \
 
 After running client side yeager, do not forget to **setup local device's SOCKS5 or HTTP proxy**. Good luck
 
-## Upgrade
-
-Via homebrew on macOS
-
-```bash
-brew update
-brew upgrade yeager
-brew services restart yeager
-```
-
-Via podman on Linux distribution
-
-```bash
-podman pull en180706/yeager
-podman stop yeager
-podman rm yeager
-podman run -d \
-	--name yeager \
-	--restart=always \
-	--network host \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	ghcr.io/chenen3/yeager:latest
-```
-
-## Uninstall
-
-via homebrew:
-
-```bash
-brew uninstall yeager
-brew untap chenen3/yeager
-```
-
-via podman:
-
-```bash
-podman container stop yeager
-podman container rm yeager
-podman image rm ghcr.io/chenen3/yeager
-```
 
 ## Advance usage
 
@@ -231,3 +191,44 @@ If the network between local device and remote server is not good enough, please
 In some situations we want reverse proxy or load balancing yeager server, yeager works with API gateway (e.g. nginx) which terminates TLS. Update yeager server config:
 - while transport via tcp, set `transport` field to `tcp`
 - while transport via gRPC, set `plaintext` fields to `true`
+
+### Upgrade
+
+Via homebrew on macOS
+
+```bash
+brew update
+brew upgrade yeager
+brew services restart yeager
+```
+
+Via podman on Linux distribution
+
+```bash
+podman pull en180706/yeager
+podman stop yeager
+podman rm yeager
+podman run -d \
+	--name yeager \
+	--restart=always \
+	--network host \
+	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
+	ghcr.io/chenen3/yeager:latest
+```
+
+### Uninstall
+
+via homebrew:
+
+```bash
+brew uninstall yeager
+brew untap chenen3/yeager
+```
+
+via podman:
+
+```bash
+podman container stop yeager
+podman container rm yeager
+podman image rm ghcr.io/chenen3/yeager
+```
