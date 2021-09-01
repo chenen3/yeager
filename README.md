@@ -190,19 +190,19 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
 
 ```
 
-Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`, for example:
-
-- `IP-CIDR,127.0.0.1/8,DIRECT ` matches if the traffic IP is in specified CIDR
-- `DOMAIN,www.apple.com,DIRECT` matches if the traffic domain is the given one
-- `DOMAIN-SUFFIX,apple.com,DIRECT` matches if the traffic domain has the suffix, AKA subdomain name
-- `DOMAIN-KEYWORD,apple,DIRECT ` matches if the traffic domain has the keyword
-- `GEOSITE,cn,DIRECT` matches if the traffic domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
-- `FINAL,PROXY` determine the behavior where would the traffic be send to while all above rule not match, it must be the last rule in config. The default final rule is `FINAL,DIRECT`
-
-In addition to the outbound tag specified by the user, yeager also comes with two built-in tags:
-
+Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`.
+Outbound tag specified by the user, and yeager also comes with two built-in outbound tags:
 - `DIRECT` means sending traffic directly, do not pass by proxy
 - `REJECT` means rejecting traffic and close the connection
+
+rule example:
+- `IP-CIDR,127.0.0.1/8,DIRECT ` matches if destination IP is in specified CIDR
+- `DOMAIN,www.apple.com,DIRECT` matches if destination domain is the given one
+- `DOMAIN-SUFFIX,apple.com,DIRECT` matches if destination domain has the suffix, AKA subdomain name
+- `DOMAIN-KEYWORD,apple,DIRECT ` matches if destination domain has the keyword
+- `GEOSITE,cn,DIRECT` matches if destination domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
+- `FINAL,PROXY` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `FINAL,DIRECT`
+
 
 ### Manually run yeager
 
