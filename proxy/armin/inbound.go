@@ -110,12 +110,12 @@ func (s *Server) listen() (net.Listener, error) {
 	return lis, err
 }
 
-func (s *Server) ListenAndServe( handle proxy.Handler) error {
+func (s *Server) ListenAndServe(handle proxy.Handler) error {
 	lis, err := s.listen()
 	if err != nil {
 		return err
 	}
-	s.lis=lis
+	s.lis = lis
 
 	close(s.ready)
 	for {
