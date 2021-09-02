@@ -6,31 +6,37 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/caddyserver/certmagic"
 	"io"
-	glog "log"
 	"net"
-	"os"
+	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
 	"yeager/transport/grpc"
+
+	"github.com/caddyserver/certmagic"
+	"github.com/google/uuid"
 )
 
 type Server struct {
-	conf *config.ArminServerConfig
-	// imply that server is ready to accept connection, development testing only
-	ready       chan struct{}
-	handlerFunc func(context.Context, net.Conn, *proxy.Address)
+	ctx    context.Context
+	cancel context.CancelFunc
+	conf   *config.ArminServerConfig
+	lis    net.Listener
+	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
+
+	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
 func NewServer(config *config.ArminServerConfig) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		conf:  config,
-		ready: make(chan struct{}),
+		conf:   config,
+		ready:  make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -100,66 +106,54 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, err
 	}
 
-	glog.Printf("armin proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
+	log.Infof("armin proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
 	return lis, err
 }
 
-func (s *Server) ListenAndServe(ctx context.Context) error {
-	// serverHTTPChallenge
+func (s *Server) ListenAndServe( handle proxy.Handler) error {
 	lis, err := s.listen()
 	if err != nil {
 		return err
 	}
-	defer lis.Close()
+	s.lis=lis
 
 	close(s.ready)
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-s.ctx.Done():
+			return nil
 		default:
 		}
 
 		conn, err := lis.Accept()
 		if err != nil {
-			log.Error(err)
+			log.Warn(err)
 			continue
 		}
-		go s.handleConnection(ctx, conn)
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			dstAddr, err := s.parseCredential(conn)
+			if err != nil {
+				log.Warn("failed to parse credential: " + err.Error())
+				conn.Close()
+				return
+			}
+
+			newConn := &Conn{
+				Conn:        conn,
+				idleTimeout: proxy.IdleConnTimeout,
+			}
+			handle(s.ctx, newConn, dstAddr)
+		}()
 	}
 }
 
-func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
-	dstAddr, err := s.parseCredential(conn)
-	if err != nil {
-		// 客户端主动关闭连接或者握手超时
-		if err == io.EOF || errors.Is(err, os.ErrDeadlineExceeded) {
-			log.Warn("handshake: " + err.Error())
-			conn.Close()
-			return
-		}
-		// TODO fallback while transport via grpc
-		conn.Close()
-		return
-
-		// For the anti-detection purpose:
-		// All connection without correct structure and password will be redirected to a preset endpoint,
-		// so the server behaves exactly the same as that endpoint if a suspicious probe connects.
-		// Learning from trojan, https://trojan-gfw.github.io/trojan/protocol
-		// if s.conf.Fallback.Host == "" {
-		// 	log.Warn("bad credential: " + err.Error())
-		// 	conn.Close()
-		// 	return
-		// }
-		// dstAddr = proxy.NewAddress(s.conf.Fallback.Host, s.conf.Fallback.Port)
-		// log.Warnf("bad credential: %s, redirect to %s", err, dstAddr)
-	}
-
-	newConn := &Conn{
-		Conn:        conn,
-		idleTimeout: proxy.IdleConnTimeout,
-	}
-	s.handlerFunc(ctx, newConn, dstAddr)
+func (s *Server) Close() error {
+	defer s.wg.Wait()
+	s.cancel()
+	return s.lis.Close()
 }
 
 // parseCredential 解析凭证，若凭证有效则返回其目的地址
@@ -243,8 +237,4 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 
 	dstAddr = proxy.NewAddress(host, int(port))
 	return dstAddr, nil
-}
-
-func (s *Server) RegisterHandler(handlerFunc func(context.Context, net.Conn, *proxy.Address)) {
-	s.handlerFunc = handlerFunc
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -11,11 +10,11 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"yeager"
 	"yeager/config"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var confFile = flag.String("config", "/usr/local/etc/yeager/config.json", "config file")
@@ -48,18 +47,13 @@ func main() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	stopTime := 3 * time.Second
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill)
-	ctx, cancel := context.WithCancel(context.Background())
+	terminate := make(chan os.Signal, 1)
+	signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
+	log.Println("starting ...")
+	p.Start()
 
-	go func() {
-		sig := <-c
-		log.Printf("received signal \"%v\", canceling the start context and closing in %v", sig, stopTime)
-		cancel()
-		time.Sleep(stopTime)
-		os.Exit(0)
-	}()
-	log.Printf("starting ...")
-	p.Start(ctx)
+	// clean up
+	<-terminate
+	log.Println("closing...")
+	p.Close()
 }

@@ -23,19 +23,16 @@ func TestServer(t *testing.T) {
 	server := NewServer(&config.SOCKSServerConfig{
 		Address: fmt.Sprintf("127.0.0.1:%d", port),
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	go func() {
-		t.Log(server.ListenAndServe(ctx))
+		t.Log(server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+			defer conn.Close()
+			if addr.String() != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr.String())
+				return
+			}
+			io.Copy(conn, conn)
+		}))
 	}()
-	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
-		defer conn.Close()
-		if addr.String() != "fake.domain.com:1234" {
-			t.Errorf("received unexpected dst addr: %s", addr.String())
-			return
-		}
-		io.Copy(conn, conn)
-	})
 
 	<-server.ready
 	client, err := gproxy.SOCKS5("tcp", server.conf.Address, nil, nil)

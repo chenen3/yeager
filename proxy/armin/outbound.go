@@ -6,15 +6,15 @@ import (
 	gtls "crypto/tls"
 	"encoding/binary"
 	"errors"
-	"io"
 	"net"
 
-	"github.com/google/uuid"
 	"yeager/config"
 	"yeager/proxy"
 	"yeager/transport"
 	"yeager/transport/grpc"
 	"yeager/transport/tls"
+
+	"github.com/google/uuid"
 )
 
 type Client struct {
@@ -116,8 +116,5 @@ func (c *Client) buildCredential(dstAddr *proxy.Address) (buf bytes.Buffer, err 
 }
 
 func (c *Client) Close() error {
-	if closer, ok := c.dialer.(io.Closer); ok {
-		return closer.Close()
-	}
-	return nil
+	return c.dialer.Close()
 }
