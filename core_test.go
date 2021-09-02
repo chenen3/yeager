@@ -1,7 +1,6 @@
 package yeager
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -22,8 +21,10 @@ import (
 )
 
 var certPEM, keyPEM []byte
+var httpProxyURL string
 
 func TestMain(m *testing.M) {
+	// setup certificate
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		panic(err)
@@ -35,17 +36,45 @@ func TestMain(m *testing.M) {
 	}
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+
+	// setup proxy server
+	httpProxyPort, err := util.ChoosePort()
+	if err != nil {
+		return
+	}
+	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
+
+	yeagerProxyPort, err := util.ChoosePort()
+	if err != nil {
+		return
+	}
+	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort)
+	if err != nil {
+		return
+	}
+	clientProxy, err := NewProxy(cliConf)
+	if err != nil {
+		return
+	}
+	clientProxy.Start()
+	defer clientProxy.Close()
+
+	srvConf, err := makeServerProxyConf(yeagerProxyPort)
+	if err != nil {
+		return
+	}
+	serverProxy, err := NewProxy(srvConf)
+	if err != nil {
+		return
+	}
+	serverProxy.Start()
+	defer serverProxy.Close()
+
 	code := m.Run()
 	os.Exit(code)
 }
 
 func TestCore(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	proxyUrl, err := setupHttp2YeagerProxy(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// wait for the proxy server to start in the background
 	time.Sleep(time.Millisecond)
 
@@ -54,7 +83,7 @@ func TestCore(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse(proxyUrl)
+	pu, err := url.Parse(httpProxyURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,39 +106,6 @@ func TestCore(t *testing.T) {
 	if string(bs) != "1" {
 		t.Fatalf("want 1, got %s", bs)
 	}
-}
-
-func setupHttp2YeagerProxy(ctx context.Context) (proxyUrl string, err error) {
-	httpProxyPort, err := util.ChoosePort()
-	if err != nil {
-		return
-	}
-	yeagerProxyPort, err := util.ChoosePort()
-	if err != nil {
-		return
-	}
-
-	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort)
-	if err != nil {
-		return
-	}
-	clientProxy, err := NewProxy(cliConf)
-	if err != nil {
-		return
-	}
-	go clientProxy.Start()
-
-	srvConf, err := makeServerProxyConf(yeagerProxyPort)
-	if err != nil {
-		return
-	}
-	serverProxy, err := NewProxy(srvConf)
-	if err != nil {
-		return
-	}
-	go serverProxy.Start()
-
-	return fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort), nil
 }
 
 func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) {
