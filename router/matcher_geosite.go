@@ -12,8 +12,9 @@ import (
 	"yeager/proxy"
 )
 
-var (
-	assetDirs       []string
+var assetDirs []string
+
+const (
 	defaultAssetDir = "/usr/local/share/yeager"
 	envAssetDir     = "YEAGER_ASSET_DIR"
 )

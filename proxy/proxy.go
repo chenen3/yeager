@@ -13,11 +13,12 @@ const (
 	IdleConnTimeout  = 5 * time.Minute
 )
 
+type Handler func(context.Context, net.Conn, *Address)
+
 type Inbound interface {
-	// ListenAndServe start the proxy server and block until context closed or encounter error
-	ListenAndServe(context.Context) error
-	// RegisterHandler register handler for income connection
-	RegisterHandler(func(context.Context, net.Conn, *Address))
+	// ListenAndServe start the proxy server and block until closed or encounter error
+	ListenAndServe(Handler) error
+	Close() error
 }
 
 type Outbound interface {

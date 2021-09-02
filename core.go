@@ -8,7 +8,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
@@ -18,6 +17,8 @@ import (
 	"yeager/proxy/reject"
 	"yeager/proxy/socks"
 	"yeager/router"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var activeConn prometheus.Gauge
@@ -53,6 +54,9 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 		srv := armin.NewServer(conf.Inbounds.Armin)
 		p.inbounds = append(p.inbounds, srv)
 	}
+	if len(p.inbounds) == 0 {
+		return nil, errors.New("no inbound specified in config")
+	}
 
 	// built-in outbound
 	p.outbounds[direct.Tag] = new(direct.Client)
@@ -78,24 +82,27 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	return p, nil
 }
 
-func (p *Proxy) Start(ctx context.Context) {
+func (p *Proxy) Start() {
 	for _, inbound := range p.inbounds {
-		inbound.RegisterHandler(p.handle)
-		go func(inbound proxy.Inbound) {
-			log.Error(inbound.ListenAndServe(ctx))
+		go func(ib proxy.Inbound) {
+			err := ib.ListenAndServe(p.handle)
+			if err != nil {
+				log.Error(err)
+			}
 		}(inbound)
 	}
+}
 
-	// cleanup if context ends
-	defer func() {
-		for _, outbound := range p.outbounds {
-			if c, ok := outbound.(io.Closer); ok {
-				c.Close()
-			}
+func (p *Proxy) Close() {
+	for _, ib := range p.inbounds {
+		ib.Close()
+	}
+
+	for _, outbound := range p.outbounds {
+		if c, ok := outbound.(io.Closer); ok {
+			c.Close()
 		}
-	}()
-
-	<-ctx.Done()
+	}
 }
 
 func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr *proxy.Address) {

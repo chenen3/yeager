@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	glog "log"
 	"net"
+	"sync"
 	"time"
 
 	"yeager/config"
@@ -18,56 +18,66 @@ import (
 
 // Server implements protocol.Inbound interface
 type Server struct {
-	conf        *config.SOCKSServerConfig
-	ready       chan struct{}
-	handlerFunc func(context.Context, net.Conn, *proxy.Address)
+	ctx    context.Context
+	cancel context.CancelFunc
+	conf   *config.SOCKSServerConfig
+	lis    net.Listener
+	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
+
+	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
 func NewServer(config *config.SOCKSServerConfig) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		conf:  config,
-		ready: make(chan struct{}),
+		conf:   config,
+		ready:  make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
-func (s *Server) ListenAndServe(ctx context.Context) error {
-	ln, err := net.Listen("tcp", s.conf.Address)
+func (s *Server) ListenAndServe(handle proxy.Handler) error {
+	lis, err := net.Listen("tcp", s.conf.Address)
 	if err != nil {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
-	defer ln.Close()
-	glog.Println("socks5 proxy listening on", s.conf.Address)
+	s.lis = lis
+	log.Infof("socks5 proxy listening on %s", s.conf.Address)
 
 	close(s.ready)
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-s.ctx.Done():
+			return nil
 		default:
 		}
 
-		conn, err := ln.Accept()
+		conn, err := lis.Accept()
 		if err != nil {
-			log.Error(err)
+			log.Warn(err)
 			continue
 		}
-		go s.handleConnection(ctx, conn)
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			dstAddr, err := s.handshake(conn)
+			if err != nil {
+				log.Error("handshake: " + err.Error())
+				conn.Close()
+				return
+			}
+
+			handle(s.ctx, conn, dstAddr)
+		}()
 	}
 }
 
-func (s *Server) RegisterHandler(handlerFunc func(context.Context, net.Conn, *proxy.Address)) {
-	s.handlerFunc = handlerFunc
-}
-
-func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
-	dstAddr, err := s.handshake(conn)
-	if err != nil {
-		log.Error("handshake: " + err.Error())
-		conn.Close()
-		return
-	}
-
-	s.handlerFunc(ctx, conn, dstAddr)
+func (s *Server) Close() error {
+	defer s.wg.Wait()
+	s.cancel()
+	return s.lis.Close()
 }
 
 func (s *Server) handshake(conn net.Conn) (dst *proxy.Address, err error) {

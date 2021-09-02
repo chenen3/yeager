@@ -59,26 +59,27 @@ func TestArmin_tls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer server.Close()
 	go func() {
-		t.Log(server.ListenAndServe(ctx))
-	}()
-	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
-		defer conn.Close()
-		if addr.String() != "fake.domain.com:1234" {
-			t.Errorf("received unexpected dst addr: %s", addr.String())
-			return
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+			defer conn.Close()
+			if addr.String() != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr.String())
+				return
+			}
+			io.Copy(conn, conn)
+		})
+		if err != nil {
+			t.Error(err)
 		}
-		io.Copy(conn, conn)
-	})
+	}()
 
 	<-server.ready
 	client, err := NewClient(&config.ArminClientConfig{
-		Address:    server.conf.Address,
-		UUID:       server.conf.UUID,
-		Transport:  "tls",
-		Insecure:   true,
+		Address:   server.conf.Address,
+		UUID:      server.conf.UUID,
+		Transport: "tls",
+		Insecure:  true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -125,19 +126,21 @@ func TestArmin_grpc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer server.Close()
+
 	go func() {
-		t.Log(server.ListenAndServe(ctx))
-	}()
-	server.RegisterHandler(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
-		defer conn.Close()
-		if addr.String() != "fake.domain.com:1234" {
-			t.Errorf("received unexpected dst addr: %s", addr.String())
-			return
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+			defer conn.Close()
+			if addr.String() != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr.String())
+				return
+			}
+			io.Copy(conn, conn)
+		})
+		if err != nil {
+			t.Error(err)
 		}
-		io.Copy(conn, conn)
-	})
+	}()
 
 	<-server.ready
 	client, err := NewClient(&config.ArminClientConfig{
@@ -151,6 +154,8 @@ func TestArmin_grpc(t *testing.T) {
 	}
 	defer client.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
 	conn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
 	if err != nil {
 		t.Fatal("dial err: " + err.Error())

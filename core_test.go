@@ -97,7 +97,7 @@ func setupHttp2YeagerProxy(ctx context.Context) (proxyUrl string, err error) {
 	if err != nil {
 		return
 	}
-	go clientProxy.Start(ctx)
+	go clientProxy.Start()
 
 	srvConf, err := makeServerProxyConf(yeagerProxyPort)
 	if err != nil {
@@ -107,7 +107,7 @@ func setupHttp2YeagerProxy(ctx context.Context) (proxyUrl string, err error) {
 	if err != nil {
 		return
 	}
-	go serverProxy.Start(ctx)
+	go serverProxy.Start()
 
 	return fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort), nil
 }
