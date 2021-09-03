@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"yeager/proxy"
 )
 
 func TestMain(m *testing.M) {
@@ -21,7 +20,7 @@ func TestRouter_Dispatch(t *testing.T) {
 		rules []string
 	}
 	type args struct {
-		addr *proxy.Address
+		addr string
 	}
 	tests := []struct {
 		name    string
@@ -35,7 +34,7 @@ func TestRouter_Dispatch(t *testing.T) {
 			fields: fields{rules: []string{
 				"domain,,direct",
 			}},
-			args:    args{addr: proxy.NewAddress("www.apple.com", 80)},
+			args:    args{"www.apple.com:80"},
 			wantErr: true,
 		},
 		{
@@ -44,7 +43,7 @@ func TestRouter_Dispatch(t *testing.T) {
 				"domain,apple.com,direct",
 				"final,faketag",
 			}},
-			args: args{addr: proxy.NewAddress("www.apple.com", 80)},
+			args: args{"www.apple.com:80"},
 			want: "faketag",
 		},
 		{
@@ -53,31 +52,31 @@ func TestRouter_Dispatch(t *testing.T) {
 				"domain-suffix,le.com,direct",
 				"final,faketag",
 			}},
-			args: args{addr: proxy.NewAddress("www.google.com", 443)},
+			args: args{"www.google.com:443"},
 			want: "faketag",
 		},
 		{
 			name:   "domain-keyword",
 			fields: fields{rules: []string{"domain-keyword,apple,faketag"}},
-			args:   args{addr: proxy.NewAddress("www.apple.com", 80)},
+			args:   args{"www.apple.com:80"},
 			want:   "faketag",
 		},
 		{
 			name:   "geosite",
 			fields: fields{rules: []string{"geosite,private,faketag"}},
-			args:   args{addr: proxy.NewAddress("localhost", 80)},
+			args:   args{"localhost:80"},
 			want:   "faketag",
 		},
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},
-			args:   args{addr: proxy.NewAddress("127.0.0.1", 80)},
+			args:   args{"127.0.0.1:80"},
 			want:   "faketag",
 		},
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,192.168.0.0/16,faketag"}},
-			args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
+			args:   args{"192.168.1.1:80"},
 			want:   "faketag",
 		},
 		// {
@@ -96,7 +95,11 @@ func TestRouter_Dispatch(t *testing.T) {
 				}
 				return
 			}
-			if got := r.Dispatch(tt.args.addr); got != tt.want {
+			got, err := r.Dispatch(tt.args.addr)
+			if err != nil {
+				t.Error(err)
+			}
+			if got != tt.want {
 				t.Errorf("Dispatch() = %v, want %v", got, tt.want)
 			}
 		})

@@ -55,13 +55,13 @@ func NewClient(config *config.ArminClientConfig) (*Client, error) {
 // (例如本地机器ping远端VPS是50ms，建立tls连接延时约150ms)，
 // 如果为了实现认证而再次握手，正是雪上加霜。
 // 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
-func (c *Client) DialContext(ctx context.Context, dst *proxy.Address) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	cred, err := c.buildCredential(dst)
+	cred, err := c.buildCredential(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,11 @@ const (
 )
 
 // buildCredential 构造凭证，包含UUID和目的地址
-func (c *Client) buildCredential(dstAddr *proxy.Address) (buf bytes.Buffer, err error) {
+func (c *Client) buildCredential(addr string) (buf bytes.Buffer, err error) {
+	dstAddr, err := proxy.ParseAddress(addr)
+	if err != nil {
+		return buf, err
+	}
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		VER UUID ATYP DST.ADDR DST.PORT

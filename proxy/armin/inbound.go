@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -157,7 +158,7 @@ func (s *Server) Close() error {
 }
 
 // parseCredential 解析凭证，若凭证有效则返回其目的地址
-func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err error) {
+func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
 	timeout := proxy.HandshakeTimeout
 	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
 	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
@@ -183,7 +184,7 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 	var buf [1 + 36 + 1]byte
 	_, err = io.ReadFull(conn, buf[:])
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
@@ -191,14 +192,14 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 	_ = version
 	gotUUID, err := uuid.ParseBytes(uuidBytes)
 	if err != nil {
-		return nil, fmt.Errorf("%s, UUID: %q", err, uuidBytes)
+		return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
 	}
 	wantUUID, err := uuid.Parse(s.conf.UUID)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if gotUUID != wantUUID {
-		return nil, errors.New("mismatch UUID: " + gotUUID.String())
+		return "", errors.New("mismatch UUID: " + gotUUID.String())
 	}
 
 	var host string
@@ -207,34 +208,34 @@ func (s *Server) parseCredential(conn net.Conn) (dstAddr *proxy.Address, err err
 		var buf [4]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case addressDomain:
 		var buf [1]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		length := buf[0]
 
 		bs := make([]byte, length)
 		_, err := io.ReadFull(conn, bs)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		host = string(bs)
 	default:
-		return nil, fmt.Errorf("unsupported address type: %x", atyp)
+		return "", fmt.Errorf("unsupported address type: %x", atyp)
 	}
 
 	var bs [2]byte
 	_, err = io.ReadFull(conn, bs[:])
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	port := binary.BigEndian.Uint16(bs[:])
 
-	dstAddr = proxy.NewAddress(host, int(port))
-	return dstAddr, nil
+	port := binary.BigEndian.Uint16(bs[:])
+	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
+	return addr, nil
 }

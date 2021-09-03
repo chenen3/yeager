@@ -10,7 +10,6 @@ import (
 	"yeager/config"
 
 	gproxy "golang.org/x/net/proxy"
-	"yeager/proxy"
 	"yeager/util"
 )
 
@@ -25,10 +24,10 @@ func TestServer(t *testing.T) {
 	})
 	defer server.Close()
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
 			defer conn.Close()
-			if addr.String() != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", addr.String())
+			if addr != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr)
 				return
 			}
 			io.Copy(conn, conn)

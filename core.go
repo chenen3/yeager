@@ -16,7 +16,7 @@ import (
 	"yeager/proxy/http"
 	"yeager/proxy/reject"
 	"yeager/proxy/socks"
-	"yeager/router"
+	"yeager/route"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -105,12 +105,16 @@ func (p *Proxy) Close() {
 	}
 }
 
-func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr *proxy.Address) {
+func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	activeConn.Inc()
 	defer activeConn.Dec()
-
 	defer inConn.Close()
-	tag := p.router.Dispatch(addr)
+
+	tag, err := p.router.Dispatch(addr)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 	outbound, ok := p.outbounds[tag]
 	if !ok {
 		log.Errorf("unknown outbound tag: %s", tag)
