@@ -18,11 +18,11 @@ import (
 )
 
 type Client struct {
-	conf   *config.ArminClientConfig
+	conf   *config.ArminClient
 	dialer transport.Dialer
 }
 
-func NewClient(config *config.ArminClientConfig) (*Client, error) {
+func NewClient(config *config.ArminClient) (*Client, error) {
 	c := Client{conf: config}
 	host, _, err := net.SplitHostPort(config.Address)
 	if err != nil {

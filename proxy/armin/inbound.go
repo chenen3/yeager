@@ -24,14 +24,14 @@ import (
 type Server struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	conf   *config.ArminServerConfig
+	conf   *config.ArminServer
 	lis    net.Listener
 	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
 
 	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(config *config.ArminServerConfig) *Server {
+func NewServer(config *config.ArminServer) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		conf:   config,
@@ -41,10 +41,10 @@ func NewServer(config *config.ArminServerConfig) *Server {
 	}
 }
 
-func makeTLSConfig(ac *config.ArminServerConfig) (*tls.Config, error) {
+func makeTLSConfig(ac *config.ArminServer) (*tls.Config, error) {
 	var err error
 	var tlsConf *tls.Config
-	if ac.ACME.Domain != "" {
+	if ac.ACME != nil && ac.ACME.Domain != "" {
 		// manage certificate automatically
 		certmagic.DefaultACME.Agreed = true
 		certmagic.DefaultACME.Email = ac.ACME.Email
@@ -62,10 +62,10 @@ func makeTLSConfig(ac *config.ArminServerConfig) (*tls.Config, error) {
 	} else {
 		// manage certificate manually
 		var cert tls.Certificate
-		if ac.CertFile != "" && ac.KeyFile != "" {
-			cert, err = tls.LoadX509KeyPair(ac.CertFile, ac.KeyFile)
-		} else {
+		if len(ac.CertPEMBlock) != 0 && len(ac.KeyPEMBlock) != 0 {
 			cert, err = tls.X509KeyPair(ac.CertPEMBlock, ac.KeyPEMBlock)
+		} else {
+			cert, err = tls.LoadX509KeyPair(ac.CertFile, ac.KeyFile)
 		}
 		if err != nil {
 			return nil, err

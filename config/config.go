@@ -7,26 +7,26 @@ import (
 )
 
 type Config struct {
-	Inbounds  Inbounds             `json:"inbounds,omitempty"`  // 入站代理
-	Outbounds []*ArminClientConfig `json:"outbounds,omitempty"` // 出站代理
-	Rules     []string             `json:"rules,omitempty"`     // 路由规则
+	Inbounds  Inbounds       `json:"inbounds,omitempty"`  // 入站代理
+	Outbounds []*ArminClient `json:"outbounds,omitempty"` // 出站代理
+	Rules     []string       `json:"rules,omitempty"`     // 路由规则
 }
 
 type Inbounds struct {
-	SOCKS *SOCKSServerConfig `json:"socks,omitempty"`
-	HTTP  *HTTPServerConfig  `json:"http,omitempty"`
-	Armin *ArminServerConfig `json:"armin,omitempty"`
+	SOCKS *SOCKSProxy  `json:"socks,omitempty"`
+	HTTP  *HTTPProxy   `json:"http,omitempty"`
+	Armin *ArminServer `json:"armin,omitempty"`
 }
 
-type SOCKSServerConfig struct {
+type SOCKSProxy struct {
 	Address string `json:"address"`
 }
 
-type HTTPServerConfig struct {
+type HTTPProxy struct {
 	Address string `json:"address"`
 }
 
-type ArminServerConfig struct {
+type ArminServer struct {
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
 	Transport string `json:"transport"` // tcp, tls, grpc
@@ -37,7 +37,7 @@ type ArminServerConfig struct {
 	Plaintext bool `json:"plaintext,omitempty"`
 
 	// automated manage certificate
-	ACME ACME `json:"acme,omitempty"`
+	ACME *ACME `json:"acme,omitempty"`
 
 	// manually manage certificate
 	CertFile     string `json:"certFile,omitempty"`
@@ -52,7 +52,7 @@ type ACME struct {
 	StagingCA bool   `json:"stagingCA,omitempty"` // use staging CA in testing, in case lock out
 }
 
-type ArminClientConfig struct {
+type ArminClient struct {
 	Tag       string `json:"tag"` // 出站标记，用于路由规则指定出站代理
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
@@ -98,12 +98,12 @@ func LoadEnv() *Config {
 		plaintext = true
 	}
 
-	ac := &ArminServerConfig{
+	ac := &ArminServer{
 		Address:   address,
 		UUID:      uuid,
 		Transport: transport,
 		Plaintext: plaintext,
-		ACME: ACME{
+		ACME: &ACME{
 			Domain:    domain,
 			Email:     email,
 			StagingCA: stagingCA,

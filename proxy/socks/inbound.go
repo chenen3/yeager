@@ -21,14 +21,14 @@ import (
 type Server struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	conf   *config.SOCKSServerConfig
+	conf   *config.SOCKSProxy
 	lis    net.Listener
 	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
 
 	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(config *config.SOCKSServerConfig) *Server {
+func NewServer(config *config.SOCKSProxy) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		conf:   config,
