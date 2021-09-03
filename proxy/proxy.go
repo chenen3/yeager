@@ -13,7 +13,7 @@ const (
 	IdleConnTimeout  = 5 * time.Minute
 )
 
-type Handler func(context.Context, net.Conn, *Address)
+type Handler func(ctx context.Context, conn net.Conn, addr string)
 
 type Inbound interface {
 	// ListenAndServe start the proxy server and block until closed or encounter error
@@ -22,7 +22,7 @@ type Inbound interface {
 }
 
 type Outbound interface {
-	DialContext(ctx context.Context, addr *Address) (net.Conn, error)
+	DialContext(ctx context.Context, addr string) (net.Conn, error)
 }
 
 type AddrType int
@@ -40,25 +40,36 @@ type Address struct {
 	IP   net.IP
 }
 
-func NewAddress(host string, port int) *Address {
-	var at AddrType
+// ParseAddress parse a network address to domain, ip
+func ParseAddress(addr string) (*Address, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	pornNum, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, err
+	}
+
+	var typ AddrType
 	ip := net.ParseIP(host)
 	if ip == nil {
-		at = AddrDomainName
+		typ = AddrDomainName
 	} else if ipv4 := ip.To4(); ipv4 != nil {
-		at = AddrIPv4
+		typ = AddrIPv4
 		ip = ipv4
 	} else {
-		at = AddrIPv6
+		typ = AddrIPv6
 		ip = ip.To16()
 	}
 
-	return &Address{
-		Type: at,
+	a := &Address{
+		Type: typ,
 		Host: host,
-		Port: port,
+		Port: pornNum,
 		IP:   ip,
 	}
+	return a, nil
 }
 
 func (a *Address) Network() string {

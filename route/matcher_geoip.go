@@ -75,7 +75,7 @@ func newGeoIPMatcher(country string) (*geoIPMatcher, error) {
 	return m, nil
 }
 
-func (g *geoIPMatcher) Match(addr *proxy.Address) bool {
+func (g *geoIPMatcher) Match(addr *proxy.Listen) bool {
 	if len(g.masks) == 0 {
 		return false
 	}

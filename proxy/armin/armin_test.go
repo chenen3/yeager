@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"yeager/config"
-	"yeager/proxy"
 	"yeager/util"
 )
 
@@ -61,10 +60,10 @@ func TestArmin_tls(t *testing.T) {
 	}
 	defer server.Close()
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
 			defer conn.Close()
-			if addr.String() != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", addr.String())
+			if addr != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr)
 				return
 			}
 			io.Copy(conn, conn)
@@ -88,7 +87,7 @@ func TestArmin_tls(t *testing.T) {
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel2()
-	conn, err := client.DialContext(ctx2, proxy.NewAddress("fake.domain.com", 1234))
+	conn, err := client.DialContext(ctx2, "fake.domain.com:1234")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,10 +128,10 @@ func TestArmin_grpc(t *testing.T) {
 	defer server.Close()
 
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
 			defer conn.Close()
-			if addr.String() != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", addr.String())
+			if addr != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr)
 				return
 			}
 			io.Copy(conn, conn)
@@ -156,7 +155,7 @@ func TestArmin_grpc(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
-	conn, err := client.DialContext(ctx, proxy.NewAddress("fake.domain.com", 1234))
+	conn, err := client.DialContext(ctx, "fake.domain.com:1234")
 	if err != nil {
 		t.Fatal("dial err: " + err.Error())
 	}

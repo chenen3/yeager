@@ -10,9 +10,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
-	"yeager/config"
-	"yeager/proxy"
 
+	"yeager/config"
 	"yeager/log"
 	"yeager/util"
 )
@@ -28,10 +27,10 @@ func TestServer(t *testing.T) {
 	})
 	defer server.Close()
 	go func() {
-		t.Log(server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr *proxy.Address) {
+		t.Log(server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
 			defer conn.Close()
-			if addr.String() != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", addr.String())
+			if addr != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr)
 				return
 			}
 

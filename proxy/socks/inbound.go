@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -62,14 +63,14 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			dstAddr, err := s.handshake(conn)
+			addr, err := s.handshake(conn)
 			if err != nil {
 				log.Error("handshake: " + err.Error())
 				conn.Close()
 				return
 			}
 
-			handle(s.ctx, conn, dstAddr)
+			handle(s.ctx, conn, addr)
 		}()
 	}
 }
@@ -80,7 +81,7 @@ func (s *Server) Close() error {
 	return s.lis.Close()
 }
 
-func (s *Server) handshake(conn net.Conn) (dst *proxy.Address, err error) {
+func (s *Server) handshake(conn net.Conn) (addr string, err error) {
 	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
 	if err != nil {
 		return
@@ -94,7 +95,7 @@ func (s *Server) handshake(conn net.Conn) (dst *proxy.Address, err error) {
 
 	err = s.socksAuth(conn)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	return s.socksConnect(conn)
 }
@@ -140,7 +141,7 @@ func (s *Server) socksAuth(conn net.Conn) error {
 	return nil
 }
 
-func (s *Server) socksConnect(conn net.Conn) (dstAddr *proxy.Address, err error) {
+func (s *Server) socksConnect(conn net.Conn) (addr string, err error) {
 	var buf [4]byte
 	/*
 		客户端第二次请求格式(以字节为单位):
@@ -149,16 +150,16 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr *proxy.Address, err error)
 	*/
 	_, err = io.ReadFull(conn, buf[:])
 	if err != nil {
-		return nil, errors.New("reading request: " + err.Error())
+		return "", errors.New("reading request: " + err.Error())
 	}
 
 	ver, cmd, atyp := buf[0], buf[1], buf[3]
 	if ver != ver5 {
-		return nil, fmt.Errorf("unsupported VER: %d", buf[0])
+		return "", fmt.Errorf("unsupported VER: %d", buf[0])
 	}
 	if cmd != cmdConnect {
 		// 若后续有需要，再支持余下的BIND与UDP
-		return nil, fmt.Errorf("unsupported CMD: %d", buf[1])
+		return "", fmt.Errorf("unsupported CMD: %d", buf[1])
 	}
 
 	var host string
@@ -167,33 +168,33 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr *proxy.Address, err error)
 		var buf [4]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case atypDomain:
 		var buf [1]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		length := buf[0]
 
 		bs := make([]byte, length)
 		_, err := io.ReadFull(conn, bs)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		host = string(bs)
 	case atypIPv6:
-		return nil, errors.New("IPv6 not supported yet")
+		return "", errors.New("IPv6 not supported yet")
 	default:
-		return nil, fmt.Errorf("unknown atyp: %x", buf[3])
+		return "", fmt.Errorf("unknown atyp: %x", buf[3])
 	}
 
 	var portBuf [2]byte
 	_, err = io.ReadFull(conn, portBuf[:])
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	port := binary.BigEndian.Uint16(portBuf[:])
 
@@ -204,9 +205,9 @@ func (s *Server) socksConnect(conn net.Conn) (dstAddr *proxy.Address, err error)
 	*/
 	_, err = conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	dstAddr = proxy.NewAddress(host, int(port))
-	return dstAddr, nil
+	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
+	return addr, nil
 }
