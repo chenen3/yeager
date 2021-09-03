@@ -22,7 +22,7 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := NewServer(&config.HTTPServerConfig{
+	server := NewServer(&config.HTTPProxy{
 		Address: fmt.Sprintf("127.0.0.1:%d", port),
 	})
 	defer server.Close()

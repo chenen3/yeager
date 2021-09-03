@@ -19,7 +19,7 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := NewServer(&config.SOCKSServerConfig{
+	server := NewServer(&config.SOCKSProxy{
 		Address: fmt.Sprintf("127.0.0.1:%d", port),
 	})
 	defer server.Close()
