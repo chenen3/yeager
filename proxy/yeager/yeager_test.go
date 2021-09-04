@@ -1,4 +1,4 @@
-package armin
+package yeager
 
 import (
 	"bytes"
@@ -43,7 +43,7 @@ func serveTLS() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := NewServer(&config.ArminServer{
+	srv := NewServer(&config.YeagerServer{
 		Address:      fmt.Sprintf("127.0.0.1:%d", port),
 		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		Transport:    "tls",
@@ -74,7 +74,7 @@ func TestArmin_tls(t *testing.T) {
 	}()
 
 	<-server.ready
-	client, err := NewClient(&config.ArminClient{
+	client, err := NewClient(&config.YeagerClient{
 		Address:   server.conf.Address,
 		UUID:      server.conf.UUID,
 		Transport: "tls",
@@ -110,7 +110,7 @@ func serveGRPC() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := NewServer(&config.ArminServer{
+	srv := NewServer(&config.YeagerServer{
 		Address:      fmt.Sprintf("127.0.0.1:%d", port),
 		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		Transport:    "grpc",
@@ -142,7 +142,7 @@ func TestArmin_grpc(t *testing.T) {
 	}()
 
 	<-server.ready
-	client, err := NewClient(&config.ArminClient{
+	client, err := NewClient(&config.YeagerClient{
 		Address:   server.conf.Address,
 		UUID:      server.conf.UUID,
 		Transport: "grpc",

@@ -7,15 +7,15 @@ import (
 )
 
 type Config struct {
-	Inbounds  Inbounds       `json:"inbounds,omitempty"`  // 入站代理
-	Outbounds []*ArminClient `json:"outbounds,omitempty"` // 出站代理
-	Rules     []string       `json:"rules,omitempty"`     // 路由规则
+	Inbounds  Inbounds        `json:"inbounds,omitempty"`  // 入站代理
+	Outbounds []*YeagerClient `json:"outbounds,omitempty"` // 出站代理
+	Rules     []string        `json:"rules,omitempty"`     // 路由规则
 }
 
 type Inbounds struct {
-	SOCKS *SOCKSProxy  `json:"socks,omitempty"`
-	HTTP  *HTTPProxy   `json:"http,omitempty"`
-	Armin *ArminServer `json:"armin,omitempty"`
+	SOCKS  *SOCKSProxy   `json:"socks,omitempty"`
+	HTTP   *HTTPProxy    `json:"http,omitempty"`
+	Yeager *YeagerServer `json:"yeager,omitempty"`
 }
 
 type SOCKSProxy struct {
@@ -26,7 +26,7 @@ type HTTPProxy struct {
 	Address string `json:"address"`
 }
 
-type ArminServer struct {
+type YeagerServer struct {
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
 	Transport string `json:"transport"` // tcp, tls, grpc
@@ -52,7 +52,7 @@ type ACME struct {
 	StagingCA bool   `json:"stagingCA,omitempty"` // use staging CA in testing, in case lock out
 }
 
-type ArminClient struct {
+type YeagerClient struct {
 	Tag       string `json:"tag"` // 出站标记，用于路由规则指定出站代理
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
@@ -98,7 +98,7 @@ func LoadEnv() *Config {
 		plaintext = true
 	}
 
-	ac := &ArminServer{
+	ac := &YeagerServer{
 		Address:   address,
 		UUID:      uuid,
 		Transport: transport,
@@ -109,5 +109,5 @@ func LoadEnv() *Config {
 			StagingCA: stagingCA,
 		},
 	}
-	return &Config{Inbounds: Inbounds{Armin: ac}}
+	return &Config{Inbounds: Inbounds{Yeager: ac}}
 }

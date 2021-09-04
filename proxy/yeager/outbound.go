@@ -1,4 +1,4 @@
-package armin
+package yeager
 
 import (
 	"bytes"
@@ -18,11 +18,11 @@ import (
 )
 
 type Client struct {
-	conf   *config.ArminClient
+	conf   *config.YeagerClient
 	dialer transport.Dialer
 }
 
-func NewClient(config *config.ArminClient) (*Client, error) {
+func NewClient(config *config.YeagerClient) (*Client, error) {
 	c := Client{conf: config}
 	host, _, err := net.SplitHostPort(config.Address)
 	if err != nil {

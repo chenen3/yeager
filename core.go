@@ -10,11 +10,11 @@ import (
 	"yeager/config"
 	"yeager/log"
 	"yeager/proxy"
-	"yeager/proxy/armin"
 	"yeager/proxy/direct"
 	"yeager/proxy/http"
 	"yeager/proxy/reject"
 	"yeager/proxy/socks"
+	"yeager/proxy/yeager"
 	"yeager/route"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,8 +49,8 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 		srv := http.NewServer(conf.Inbounds.HTTP)
 		p.inbounds = append(p.inbounds, srv)
 	}
-	if conf.Inbounds.Armin != nil {
-		srv := armin.NewServer(conf.Inbounds.Armin)
+	if conf.Inbounds.Yeager != nil {
+		srv := yeager.NewServer(conf.Inbounds.Yeager)
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if len(p.inbounds) == 0 {
@@ -62,7 +62,7 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	p.outbounds[reject.Tag] = new(reject.Client)
 
 	for _, oc := range conf.Outbounds {
-		outbound, err := armin.NewClient(oc)
+		outbound, err := yeager.NewClient(oc)
 		if err != nil {
 			return nil, err
 		}

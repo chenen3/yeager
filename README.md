@@ -46,11 +46,11 @@ create config file `/usr/local/etc/yeager/config.json`
 ```json
 {
     "inbounds": {
-        "armin": {
+        "yeager": {
             "address": "0.0.0.0:9000",
             "uuid": "example-UUID", // replace with UUID
             "transport": "grpc",
-	    "acme":{
+            "acme": {
                 "domain": "example.com", // replace with domain name
                 "email": "xxx@example.com" // replace with email address
             }
@@ -153,7 +153,7 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
         "http": {
             "address": "127.0.0.1:8080" // HTTP proxy listening address
         },
-        "armin": {
+        "yeager": {
             "address": "0.0.0.0:9000", // yeager proxy listening address
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "grpc", // tcp, tls, grpc
@@ -170,24 +170,23 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
     "outbounds": [
         {
             "tag": "PROXY", // tag value must be unique in all outbounds
-            "address": "example.com:9000", // correspond to inbound armin domain name
-            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound armin UUID
-            "transport": "grpc", // correspond to inbound armin transport
+            "address": "example.com:9000", // correspond to inbound yeager domain name
+            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound yeager UUID
+            "transport": "grpc", // correspond to inbound yeager transport
             "plaintext": false // whether send gRPC request in plaintext
         }
     ],
     "rules": [
-		"IP-CIDR,127.0.0.1/8,DIRECT",
-		"IP-CIDR,192.168.0.0/16,DIRECT",
-		"GEOSITE,private,DIRECT",
-		"GEOSITE,google,PROXY",
-		"GEOSITE,twitter,PROXY",
-		"GEOSITE,cn,DIRECT",
-		"GEOSITE,apple@cn,DIRECT",
-		"FINAL,PROXY"
+        "IP-CIDR,127.0.0.1/8,DIRECT",
+        "IP-CIDR,192.168.0.0/16,DIRECT",
+        "GEOSITE,private,DIRECT",
+        "GEOSITE,google,PROXY",
+        "GEOSITE,twitter,PROXY",
+        "GEOSITE,cn,DIRECT",
+        "GEOSITE,apple@cn,DIRECT",
+        "FINAL,PROXY"
     ]
 }
-
 ```
 
 Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`.
