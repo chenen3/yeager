@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -13,6 +12,7 @@ import (
 
 	"yeager"
 	"yeager/config"
+	"yeager/log"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -28,15 +28,17 @@ func main() {
 		var err error
 		conf, err = config.LoadFile(*confFile)
 		if err != nil {
-			log.Fatalln(err)
+			log.Error(err)
+			return
 		}
 	}
 	bs, _ := json.MarshalIndent(conf, "", "  ")
-	log.Printf("current configuration: \n%s\n", bs)
+	log.Infof("current configuration: \n%s\n", bs)
 
 	p, err := yeager.NewProxy(conf)
 	if err != nil {
-		log.Fatalln(err)
+		log.Error(err)
+		return
 	}
 	// trigger GC to release memory usage. (especially routing rule parsing)
 	runtime.GC()
@@ -44,16 +46,16 @@ func main() {
 	// http server for profiling
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		log.Error(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
-	log.Println("starting ...")
+	log.Infof("starting ...")
 	p.Start()
 
 	// clean up
 	<-terminate
-	log.Println("closing...")
+	log.Infof("closing...")
 	p.Close()
 }

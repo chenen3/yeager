@@ -1,10 +1,10 @@
 {
     "inbounds": {
         "socks": {
-            "address": ":10810"
+            "address": ":1081"
         },
         "http": {
-            "address": ":10811"
+            "address": ":8081"
         }
     },
     "outbounds": [

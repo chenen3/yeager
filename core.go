@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	glog "log"
 	"net"
 	"strings"
 
@@ -120,7 +119,7 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	glog.Printf("dispatch %s from %s to [%s]\n", addr, inConn.RemoteAddr(), tag)
+	log.Infof("dispatch %s from %s to [%s]\n", addr, inConn.RemoteAddr(), tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, proxy.DialTimeout)
 	defer cancel()
