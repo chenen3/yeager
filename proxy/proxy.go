@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"time"
@@ -42,13 +43,16 @@ type Address struct {
 
 // ParseAddress parse a network address to domain, ip
 func ParseAddress(addr string) (*Address, error) {
-	host, port, err := net.SplitHostPort(addr)
+	host, rawport, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
-	pornNum, err := strconv.Atoi(port)
+	port, err := strconv.Atoi(rawport)
 	if err != nil {
 		return nil, err
+	}
+	if 0 > port || port > 65535 {
+		return nil, errors.New("invalid port")
 	}
 
 	var typ AddrType
@@ -66,7 +70,7 @@ func ParseAddress(addr string) (*Address, error) {
 	a := &Address{
 		Type: typ,
 		Host: host,
-		Port: pornNum,
+		Port: port,
 		IP:   ip,
 	}
 	return a, nil
