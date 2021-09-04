@@ -1,6 +1,6 @@
 {
     "inbounds": {
-        "armin": {
+        "yeager": {
             "address": ":10812",
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "grpc",

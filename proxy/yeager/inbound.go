@@ -1,4 +1,4 @@
-package armin
+package yeager
 
 import (
 	"context"
@@ -24,14 +24,14 @@ import (
 type Server struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	conf   *config.ArminServer
+	conf   *config.YeagerServer
 	lis    net.Listener
 	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
 
 	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(config *config.ArminServer) *Server {
+func NewServer(config *config.YeagerServer) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		conf:   config,
@@ -41,7 +41,7 @@ func NewServer(config *config.ArminServer) *Server {
 	}
 }
 
-func makeTLSConfig(ac *config.ArminServer) (*tls.Config, error) {
+func makeTLSConfig(ac *config.YeagerServer) (*tls.Config, error) {
 	var err error
 	var tlsConf *tls.Config
 	if ac.ACME != nil && ac.ACME.Domain != "" {
@@ -107,7 +107,7 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, err
 	}
 
-	log.Infof("armin proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
+	log.Infof("yeager proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
 	return lis, err
 }
 

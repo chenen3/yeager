@@ -134,7 +134,7 @@ func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) 
 func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
-        "armin": {
+        "yeager": {
             "address": "127.0.0.1:%d",
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "tls"
@@ -146,7 +146,7 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 	if err := json.Unmarshal([]byte(s), conf); err != nil {
 		return nil, err
 	}
-	conf.Inbounds.Armin.CertPEMBlock = certPEM
-	conf.Inbounds.Armin.KeyPEMBlock = keyPEM
+	conf.Inbounds.Yeager.CertPEMBlock = certPEM
+	conf.Inbounds.Yeager.KeyPEMBlock = keyPEM
 	return conf, nil
 }
