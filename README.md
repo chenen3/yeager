@@ -19,9 +19,9 @@ yeager aims to bypass network restriction, supports features:
 
 2. domain name that pointed (A records) at the server
 
-## Quick start
+## Usage
 
-### Server side
+### As server
 
 - start with environment variables
 
@@ -70,7 +70,7 @@ podman run -d \
 	ghcr.io/chenen3/yeager:latest
 ```
 
-### Client side
+### As client
 
 #### Install
 
