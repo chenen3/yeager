@@ -1,4 +1,4 @@
-package router
+package route
 
 /*
 var globalGeoIPList *router.GeoIPList
