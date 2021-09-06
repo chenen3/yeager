@@ -27,7 +27,7 @@ func newListener() *listener {
 	}
 }
 
-func (s listener) Tunnel(stream pb.Transport_TunnelServer) error {
+func (l *listener) Tunnel(stream pb.Transport_TunnelServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
 		log.Warn(err)
@@ -35,29 +35,27 @@ func (s listener) Tunnel(stream pb.Transport_TunnelServer) error {
 	}
 
 	ctx, cancel := context.WithCancel(stream.Context())
-	s.connCh <- streamToConn(stream, cancel)
+	l.connCh <- streamToConn(stream, cancel)
 	<-ctx.Done()
 	return nil
 }
 
-func (s listener) Accept() (net.Conn, error) {
-	conn, ok := <-s.connCh
+func (l *listener) Accept() (net.Conn, error) {
+	conn, ok := <-l.connCh
 	if !ok {
 		return nil, errors.New("grpc service stopped")
 	}
 	return conn, nil
 }
 
-func (s listener) Close() error {
-	if s.onClose != nil {
-		s.onClose()
-	}
-	close(s.connCh)
+func (l *listener) Close() error {
+	l.onClose()
+	close(l.connCh)
 	return nil
 }
 
-func (s listener) Addr() net.Addr {
-	return s.addr
+func (l *listener) Addr() net.Addr {
+	return l.addr
 }
 
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
@@ -82,6 +80,5 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 
 	grpcListener.addr = tcpListener.Addr()
 	grpcListener.onClose = grpcServer.Stop
-
 	return grpcListener, nil
 }
