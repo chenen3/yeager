@@ -210,3 +210,7 @@ func (s *Server) socksConnect(conn net.Conn) (addr string, err error) {
 	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
 	return addr, nil
 }
+
+// TODO: SOCKS5 代理 UDP 数据
+// 使用go语言实现udp服务器 https://ops.tips/blog/udp-client-and-server-in-go/
+// socks5 udp代理 https://www.jianshu.com/p/cf88c619ee5c
