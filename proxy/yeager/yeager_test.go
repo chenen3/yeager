@@ -172,3 +172,71 @@ func TestArmin_grpc(t *testing.T) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 }
+
+func serveQUIC() (*Server, error) {
+	port, err := util.ChoosePort()
+	if err != nil {
+		return nil, err
+	}
+	srv := NewServer(&config.YeagerServer{
+		Address:      fmt.Sprintf("127.0.0.1:%d", port),
+		UUID:         "ce9f7ded-027c-e7b3-9369-308b7208d498",
+		Transport:    "quic",
+		CertPEMBlock: certPEM,
+		KeyPEMBlock:  keyPEM,
+	})
+	return srv, nil
+}
+
+func TestArmin_quic(t *testing.T) {
+	server, err := serveQUIC()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+
+	go func() {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
+			defer conn.Close()
+			if addr != "fake.domain.com:1234" {
+				t.Errorf("received unexpected dst addr: %s", addr)
+				return
+			}
+			io.Copy(conn, conn)
+		})
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+
+	<-server.ready
+	client, err := NewClient(&config.YeagerClient{
+		Address:   server.conf.Address,
+		UUID:      server.conf.UUID,
+		Transport: "quic",
+		Insecure:  true,
+	})
+	if err != nil {
+		t.Fatal("NewClient err: " + err.Error())
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	conn, err := client.DialContext(ctx, "fake.domain.com:1234")
+	if err != nil {
+		t.Fatal("dial err: " + err.Error())
+	}
+	defer conn.Close()
+
+	want := []byte("1")
+	_, err = conn.Write(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, 1)
+	io.ReadFull(conn, got)
+	if !bytes.Equal(want, got) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}

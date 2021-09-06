@@ -29,7 +29,7 @@ type HTTPProxy struct {
 type YeagerServer struct {
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
-	Transport string `json:"transport"` // tcp, tls, grpc
+	Transport string `json:"transport"` // tcp, tls, grpc, quic
 	// if transport field is grpc and plaintext field is true,
 	// the server would accept grpc request in plaintext, and
 	// ignores certificate config. please do not use plaintext
@@ -56,7 +56,7 @@ type YeagerClient struct {
 	Tag       string `json:"tag"` // 出站标记，用于路由规则指定出站代理
 	Address   string `json:"address"`
 	UUID      string `json:"uuid"`
-	Transport string `json:"transport"` // tls, grpc
+	Transport string `json:"transport"` // tls, grpc, quic
 	// if transport field is grpc and plaintext field is true,
 	// the client would send grpc request in plaintext, please
 	// do not use plaintext unless you know what you are doing

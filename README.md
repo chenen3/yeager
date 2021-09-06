@@ -9,6 +9,7 @@ yeager aims to bypass network restriction, supports features:
 - lightweight outbound proxy, secure transport via:
   - TLS
   - gRPC
+  - QUIC
 - rule routing
 
 ## Requirements
@@ -156,7 +157,7 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
         "yeager": {
             "address": "0.0.0.0:9000", // yeager proxy listening address
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "grpc", // tcp, tls, grpc
+            "transport": "grpc", // tcp, tls, grpc, quic
             "plaintext": false, // whether accept gRPC request in plaintext
             "acme":{
                 "domain": "example.com",
@@ -213,11 +214,19 @@ rule example:
 
 If the network between local device and remote server is not good enough, please use the TLS transport feature, simply set `transport` field  to `tls` in both server and client config
 
+### Transport via QUIC
+
+Refer to [UDP Receive Buffer Size](https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size), on Linux distribution:
+```
+sysctl -w net.core.rmem_max=2500000
+```
+Ensure yeager configuration `transport` field filled in `quic`
+
 ### Transport in plaintext
 
 **Please do not use plaintext unless you know what you are doing.**
 
-In some situations we want reverse proxy or load balancing yeager server, yeager works with API gateway (e.g. nginx) which terminates TLS. Update yeager server config:
+In some situations we want reverse proxy or load balancing yeager server, yeager works with API gateway (e.g. nginx) which terminates TLS. Update yeager server configuration:
 - while transport via tcp, set `transport` field to `tcp`
 - while transport via gRPC, set `plaintext` fields to `true`
 
