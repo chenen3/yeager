@@ -43,17 +43,15 @@ type Address struct {
 
 // ParseAddress parse a network address to domain, ip
 func ParseAddress(addr string) (*Address, error) {
-	host, rawport, err := net.SplitHostPort(addr)
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
-	port, err := strconv.Atoi(rawport)
+	uintPort, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to parse port: " + err.Error())
 	}
-	if 0 > port || port > 65535 {
-		return nil, errors.New("invalid port")
-	}
+	portnum := int(uintPort)
 
 	var typ AddrType
 	ip := net.ParseIP(host)
@@ -70,7 +68,7 @@ func ParseAddress(addr string) (*Address, error) {
 	a := &Address{
 		Type: typ,
 		Host: host,
-		Port: port,
+		Port: portnum,
 		IP:   ip,
 	}
 	return a, nil

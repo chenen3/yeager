@@ -3,13 +3,8 @@ package yeager
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"os"
 	"testing"
@@ -22,18 +17,11 @@ import (
 var keyPEM, certPEM []byte
 
 func TestMain(m *testing.M) {
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	var err error
+	certPEM, keyPEM, err = util.SelfSignedCertificate()
 	if err != nil {
 		panic(err)
 	}
-	template := x509.Certificate{SerialNumber: big.NewInt(1)}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		panic(err)
-	}
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-
 	code := m.Run()
 	os.Exit(code)
 }

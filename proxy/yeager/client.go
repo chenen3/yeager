@@ -3,7 +3,7 @@ package yeager
 import (
 	"bytes"
 	"context"
-	gtls "crypto/tls"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"net"
@@ -12,7 +12,7 @@ import (
 	"yeager/proxy"
 	"yeager/transport"
 	"yeager/transport/grpc"
-	"yeager/transport/tls"
+	ytls "yeager/transport/tls"
 
 	"github.com/google/uuid"
 )
@@ -29,14 +29,14 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 		return nil, err
 	}
 
-	tlsConf := &gtls.Config{
+	tlsConf := &tls.Config{
 		ServerName:         host,
 		InsecureSkipVerify: config.Insecure,
-		ClientSessionCache: gtls.NewLRUClientSessionCache(64),
+		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 	}
 	switch config.Transport {
 	case "tls":
-		c.dialer = tls.NewDialer(tlsConf)
+		c.dialer = ytls.NewDialer(tlsConf)
 	case "grpc":
 		if config.Plaintext {
 			c.dialer = grpc.NewDialer(nil)
