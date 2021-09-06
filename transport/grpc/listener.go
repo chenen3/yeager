@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"time"
 
 	"yeager/log"
 	"yeager/transport/grpc/pb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 // listener implement net.Listener and pb.TransportServer
@@ -64,7 +66,20 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 		return nil, errors.New("failed to listen: " + err.Error())
 	}
 
-	var opt []grpc.ServerOption
+	opt := []grpc.ServerOption{
+		// 修复grpc出现间歇性不可用的问题；
+		// 问题复现：笔记本电脑睡眠半小时后重新工作，发现yeager代理网络中断，约20秒之后恢复。
+		// 客户端报错 "code = Unavailable desc = transport is closing"，
+		// 推测是底层TCP连接关闭（可能是被中间的负载均衡服务器或代理服务器关闭的），
+		// 但是客户端与服务端都不知道，导致没有及时重新连接。
+		// 因此修改grpc服务端配置，主动关闭空闲超时的连接。
+		// 参考:
+		// https://github.com/grpc/grpc-go#the-rpc-failed-with-error-code--unavailable-desc--transport-is-closing
+		// https://www.codenong.com/52993259/
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute,
+		}),
+	}
 	if tlsConf != nil {
 		opt = append(opt, grpc.Creds(credentials.NewTLS(tlsConf)))
 	}
