@@ -1,14 +1,9 @@
 package yeager
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,23 +15,9 @@ import (
 	"yeager/util"
 )
 
-var certPEM, keyPEM []byte
 var httpProxyURL string
 
 func TestMain(m *testing.M) {
-	// setup certificate
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		panic(err)
-	}
-	template := x509.Certificate{SerialNumber: big.NewInt(1)}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		panic(err)
-	}
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-
 	// setup proxy server
 	httpProxyPort, err := util.ChoosePort()
 	if err != nil {
@@ -144,6 +125,11 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 
 	conf := new(config.Config)
 	if err := json.Unmarshal([]byte(s), conf); err != nil {
+		return nil, err
+	}
+
+	certPEM, keyPEM, err := util.SelfSignedCertificate()
+	if err != nil {
 		return nil, err
 	}
 	conf.Inbounds.Yeager.CertPEMBlock = certPEM

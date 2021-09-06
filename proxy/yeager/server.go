@@ -68,7 +68,7 @@ func makeTLSConfig(ac *config.YeagerServer) (*tls.Config, error) {
 			cert, err = tls.LoadX509KeyPair(ac.CertFile, ac.KeyFile)
 		}
 		if err != nil {
-			return nil, err
+			return nil, errors.New("failed to make TLS config: " + err.Error())
 		}
 
 		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}

@@ -6,27 +6,28 @@ import (
 	"errors"
 	"net"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"yeager/log"
 	"yeager/transport/grpc/pb"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
-// server implement pb.TransportServer, but actually used as net.Listener
-type server struct {
+// listener implement net.Listener and pb.TransportServer
+type listener struct {
 	pb.UnimplementedTransportServer
 	addr    net.Addr
 	connCh  chan net.Conn
 	onClose func() // release resource
 }
 
-func newServer() *server {
-	return &server{
+func newListener() *listener {
+	return &listener{
 		connCh: make(chan net.Conn, 32),
 	}
 }
 
-func (s server) Tunnel(stream pb.Transport_TunnelServer) error {
+func (s listener) Tunnel(stream pb.Transport_TunnelServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
 		log.Warn(err)
@@ -39,7 +40,7 @@ func (s server) Tunnel(stream pb.Transport_TunnelServer) error {
 	return nil
 }
 
-func (s server) Accept() (net.Conn, error) {
+func (s listener) Accept() (net.Conn, error) {
 	conn, ok := <-s.connCh
 	if !ok {
 		return nil, errors.New("grpc service stopped")
@@ -47,7 +48,7 @@ func (s server) Accept() (net.Conn, error) {
 	return conn, nil
 }
 
-func (s server) Close() error {
+func (s listener) Close() error {
 	if s.onClose != nil {
 		s.onClose()
 	}
@@ -55,12 +56,12 @@ func (s server) Close() error {
 	return nil
 }
 
-func (s server) Addr() net.Addr {
+func (s listener) Addr() net.Addr {
 	return s.addr
 }
 
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
-	lis, err := net.Listen("tcp", addr)
+	tcpListener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, errors.New("failed to listen: " + err.Error())
 	}
@@ -70,18 +71,17 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 		opt = append(opt, grpc.Creds(credentials.NewTLS(tlsConf)))
 	}
 	grpcServer := grpc.NewServer(opt...)
-	srv := newServer()
-	pb.RegisterTransportServer(grpcServer, srv)
+	grpcListener := newListener()
+	pb.RegisterTransportServer(grpcServer, grpcListener)
 	go func() {
-		err := grpcServer.Serve(lis)
+		err := grpcServer.Serve(tcpListener)
 		if err != nil {
 			log.Error(err)
 		}
 	}()
 
-	srv.addr = lis.Addr()
-	srv.onClose = func() {
-		grpcServer.Stop()
-	}
-	return srv, nil
+	grpcListener.addr = tcpListener.Addr()
+	grpcListener.onClose = grpcServer.Stop
+
+	return grpcListener, nil
 }

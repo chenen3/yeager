@@ -33,7 +33,7 @@ func init() {
 type Proxy struct {
 	inbounds  []proxy.Inbound
 	outbounds map[string]proxy.Outbound
-	router    *router.Router
+	router    *route.Router
 }
 
 func NewProxy(conf *config.Config) (*Proxy, error) {
@@ -73,7 +73,7 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 		p.outbounds[tag] = outbound
 	}
 
-	rt, err := router.NewRouter(conf.Rules)
+	rt, err := route.NewRouter(conf.Rules)
 	if err != nil {
 		return nil, err
 	}
