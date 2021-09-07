@@ -67,9 +67,9 @@ func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	}
 
 	newConn := &Conn{
-		Conn:        conn,
-		earlyWrite:  cred,
-		idleTimeout: proxy.IdleConnTimeout,
+		Conn:       conn,
+		earlyWrite: cred,
+		maxIdle:    proxy.MaxConnectionIdle,
 	}
 	return newConn, nil
 }

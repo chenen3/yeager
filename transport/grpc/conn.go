@@ -1,9 +1,7 @@
 package grpc
 
 import (
-	"io"
 	"net"
-	"os"
 	"time"
 
 	"yeager/transport/grpc/pb"
@@ -14,40 +12,23 @@ type streamer interface {
 	Recv() (*pb.Data, error)
 }
 
-// streamConn implement net.Conn interface
-type streamConn struct {
-	stream     streamer
-	buf        []byte
-	off        int
-	done       chan struct{}
-	readTimer  *time.Timer
-	writeTimer *time.Timer
-	onClose    func()
+// conn wraps grpc stream, implement net.Conn interface
+type conn struct {
+	stream  streamer
+	buf     []byte
+	off     int
+	onClose func()
 }
 
-// streamToConn convert grpc stream to virtual network connection
-func streamToConn(stream streamer, onClose func()) net.Conn {
-	return &streamConn{
+// newConn wrap grpc stream as network connection
+func newConn(stream streamer, onClose func()) net.Conn {
+	return &conn{
 		stream:  stream,
-		done:    make(chan struct{}),
 		onClose: onClose,
 	}
 }
 
-func (c *streamConn) Read(b []byte) (n int, err error) {
-	select {
-	case <-c.done:
-		return 0, io.ErrClosedPipe
-	default:
-		if c.readTimer != nil {
-			select {
-			case <-c.readTimer.C:
-				return 0, os.ErrDeadlineExceeded
-			default:
-			}
-		}
-	}
-
+func (c *conn) Read(b []byte) (n int, err error) {
 	if c.off >= len(c.buf) {
 		data, err := c.stream.Recv()
 		if err != nil {
@@ -64,109 +45,51 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *streamConn) Write(b []byte) (n int, err error) {
-	select {
-	case <-c.done:
-		return 0, io.ErrClosedPipe
-	default:
-		if c.writeTimer != nil {
-			select {
-			case <-c.writeTimer.C:
-				return 0, os.ErrDeadlineExceeded
-			default:
-			}
-		}
-	}
-
+func (c *conn) Write(b []byte) (n int, err error) {
 	err = c.stream.Send(&pb.Data{Data: b})
 	return len(b), err
 }
 
-func (c *streamConn) Close() error {
+func (c *conn) LocalAddr() net.Addr {
+	// virtual connection does not have real IP
+	addr := &net.TCPAddr{
+		IP:   []byte{0, 0, 0, 0},
+		Port: 0,
+	}
+	return addr
+}
+
+func (c *conn) RemoteAddr() net.Addr {
+	// virtual connection does not have real IP
+	addr := &net.TCPAddr{
+		IP:   []byte{0, 0, 0, 0},
+		Port: 0,
+	}
+	return addr
+}
+
+// SetDeadline the gRPC server already provides a connection
+// idle timeout mechanism, nothing will be done here.
+func (c *conn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *conn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *conn) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *conn) Close() error {
 	if c.onClose != nil {
 		defer c.onClose()
 	}
 
-	close(c.done)
-	if c.writeTimer != nil {
-		c.writeTimer.Stop()
-	}
-	if c.readTimer != nil {
-		c.readTimer.Stop()
-	}
 	if cs, ok := c.stream.(interface{ CloseSend() error }); ok {
 		// for the client-side stream
 		return cs.CloseSend()
 	}
-	return nil
-}
-
-func (c *streamConn) LocalAddr() net.Addr {
-	// virtual connection does not need real IP
-	addr := &net.TCPAddr{
-		IP:   []byte{0, 0, 0, 0},
-		Port: 0,
-	}
-	return addr
-}
-
-func (c *streamConn) RemoteAddr() net.Addr {
-	// virtual connection does not need real IP
-	addr := &net.TCPAddr{
-		IP:   []byte{0, 0, 0, 0},
-		Port: 0,
-	}
-	return addr
-}
-
-func (c *streamConn) SetDeadline(t time.Time) error {
-	err := c.SetReadDeadline(t)
-	if err != nil {
-		return err
-	}
-	return c.SetWriteDeadline(t)
-}
-
-func (c *streamConn) SetReadDeadline(t time.Time) error {
-	// given zero value of t means never timeout
-	if t.Equal(time.Time{}) {
-		if c.readTimer != nil {
-			c.readTimer.Stop()
-			c.readTimer = nil
-		}
-		return nil
-	}
-
-	if c.readTimer == nil {
-		c.readTimer = time.NewTimer(time.Until(t))
-		return nil
-	}
-
-	if !c.readTimer.Stop() {
-		<-c.readTimer.C
-	}
-	c.readTimer.Reset(time.Until(t))
-	return nil
-}
-
-func (c *streamConn) SetWriteDeadline(t time.Time) error {
-	// given zero value of t means never timeout
-	if t.Equal(time.Time{}) {
-		if c.writeTimer != nil {
-			c.writeTimer.Stop()
-			c.writeTimer = nil
-		}
-		return nil
-	}
-
-	if c.writeTimer == nil {
-		c.writeTimer = time.NewTimer(time.Until(t))
-		return nil
-	}
-
-	if !c.writeTimer.Stop() {
-		<-c.writeTimer.C
-	}
-	c.writeTimer.Reset(time.Until(t))
 	return nil
 }

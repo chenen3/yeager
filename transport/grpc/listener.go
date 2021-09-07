@@ -37,7 +37,7 @@ func (l *listener) Tunnel(stream pb.Transport_TunnelServer) error {
 	}
 
 	ctx, cancel := context.WithCancel(stream.Context())
-	l.connCh <- streamToConn(stream, cancel)
+	l.connCh <- newConn(stream, cancel)
 	<-ctx.Done()
 	return nil
 }
@@ -67,8 +67,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	}
 
 	opt := []grpc.ServerOption{
-		// 修复grpc出现间歇性不可用的问题；
-		// 问题复现：笔记本电脑睡眠半小时后重新工作，发现yeager代理网络中断，约20秒之后恢复。
+		// grpc客户端出现间歇性不可用的问题，
 		// 客户端报错 "code = Unavailable desc = transport is closing"，
 		// 推测是底层TCP连接关闭（可能是被中间的负载均衡服务器或代理服务器关闭的），
 		// 但是客户端与服务端都不知道，导致没有及时重新连接。

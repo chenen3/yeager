@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	DialTimeout      = 4 * time.Second
-	HandshakeTimeout = 5 * time.Second
-	IdleConnTimeout  = 5 * time.Minute
+	DialTimeout       = 4 * time.Second
+	HandshakeTimeout  = 5 * time.Second
+	MaxConnectionIdle = 5 * time.Minute
 )
 
 type Handler func(ctx context.Context, conn net.Conn, addr string)

@@ -142,8 +142,8 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 			}
 
 			newConn := &Conn{
-				Conn:        conn,
-				idleTimeout: proxy.IdleConnTimeout,
+				Conn:    conn,
+				maxIdle: proxy.MaxConnectionIdle,
 			}
 			handle(s.ctx, newConn, dstAddr)
 		}()
@@ -162,7 +162,7 @@ func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
 	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
 	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
 	if s.conf.Transport == "tls" {
-		timeout = proxy.IdleConnTimeout
+		timeout = proxy.MaxConnectionIdle
 	}
 	err = conn.SetDeadline(time.Now().Add(timeout))
 	if err != nil {
