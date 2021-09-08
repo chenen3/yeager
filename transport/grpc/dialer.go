@@ -62,7 +62,7 @@ func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, e
 	d.connMu.Lock()
 	defer d.connMu.Unlock()
 	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
-		// meanwhile other goroutinue already dial new ClientConn
+		// meanwhile other goroutine already dial new ClientConn
 		return d.conn, nil
 	}
 
