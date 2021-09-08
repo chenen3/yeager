@@ -67,14 +67,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	}
 
 	opt := []grpc.ServerOption{
-		// grpc客户端出现间歇性不可用的问题，
-		// 客户端报错 "code = Unavailable desc = transport is closing"，
-		// 推测是底层TCP连接关闭（可能是被中间的负载均衡服务器或代理服务器关闭的），
-		// 但是客户端与服务端都不知道，导致没有及时重新连接。
-		// 因此修改grpc服务端配置，主动关闭空闲超时的连接。
-		// 参考:
-		// https://github.com/grpc/grpc-go#the-rpc-failed-with-error-code--unavailable-desc--transport-is-closing
-		// https://www.codenong.com/52993259/
+		// fix grpc client side error: "code = Unavailable desc = transport is closing"
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: 5 * time.Minute,
 		}),
@@ -82,6 +75,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	if tlsConf != nil {
 		opt = append(opt, grpc.Creds(credentials.NewTLS(tlsConf)))
 	}
+
 	grpcServer := grpc.NewServer(opt...)
 	grpcListener := newListener()
 	pb.RegisterTransportServer(grpcServer, grpcListener)
