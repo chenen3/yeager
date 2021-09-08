@@ -78,7 +78,7 @@ func (l *Listener) Addr() net.Addr {
 }
 
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
-	lis, err := quic.ListenAddr(addr, tlsConf, nil)
+	lis, err := quic.ListenAddr(addr, tlsConf, &quic.Config{KeepAlive: true})
 	if err != nil {
 		return nil, err
 	}

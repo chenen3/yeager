@@ -36,30 +36,28 @@ func isValidSession(session quic.Session) bool {
 }
 
 // dial a new session if no session yet or session closed
-func (d *dialer) ensureValidSession(addr string) (quic.Session, error) {
+func (d *dialer) quicDial(addr string) (quic.Session, error) {
 	if isValidSession(d.session) {
 		return d.session, nil
-	}
-
-	newSession, err := quic.DialAddrContext(d.ctx, addr, d.tlsConf, &quic.Config{KeepAlive: true})
-	if err != nil {
-		return nil, err
 	}
 
 	d.sessionMu.Lock()
 	defer d.sessionMu.Unlock()
 	// other goroutine has set the session
 	if isValidSession(d.session) {
-		err = newSession.CloseWithError(0, "close unused session")
-		return d.session, err
+		return d.session, nil
 	}
 
+	newSession, err := quic.DialAddrContext(d.ctx, addr, d.tlsConf, nil)
+	if err != nil {
+		return nil, err
+	}
 	d.session = newSession
 	return newSession, nil
 }
 
 func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	session, err := d.ensureValidSession(addr)
+	session, err := d.quicDial(addr)
 	if err != nil {
 		return nil, err
 	}
