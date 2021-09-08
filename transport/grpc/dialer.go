@@ -62,11 +62,16 @@ func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, e
 	d.connMu.Lock()
 	defer d.connMu.Unlock()
 	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
-		// meanwhile other goroutine already dial new ClientConn
+		// meanwhile other goroutinue already dial new ClientConn
 		return d.conn, nil
 	}
 
-	var opts []grpc.DialOption
+	opts := []grpc.DialOption{
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    60 * time.Second,
+			Timeout: 30 * time.Second,
+		}),
+	}
 	if d.tlsConf == nil {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
