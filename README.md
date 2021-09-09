@@ -33,7 +33,6 @@ podman run -d \
 	-e YEAGER_TRANSPORT=grpc \
 	-e YEAGER_UUID=example-UUID `#replace with UUID` \
 	-e YEAGER_DOMAIN=example.com `#replace with domain name` \
-	-e YEAGER_EMAIL=xxx@example.com `#replace with email address` \
 	-p 443:443 \
 	-p 9000:9000 \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \

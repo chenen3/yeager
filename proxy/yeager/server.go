@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -17,9 +18,11 @@ import (
 	"yeager/proxy"
 	"yeager/transport/grpc"
 
-	"github.com/caddyserver/certmagic"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/acme/autocert"
 )
+
+const certDir = "/usr/local/etc/yeager/golang-autocert"
 
 type Server struct {
 	ctx    context.Context
@@ -42,23 +45,23 @@ func NewServer(config *config.YeagerServer) *Server {
 }
 
 func makeTLSConfig(ac *config.YeagerServer) (*tls.Config, error) {
-	var err error
-	var tlsConf *tls.Config
-	if ac.ACME != nil && ac.ACME.Domain != "" {
+	var (
+		err     error
+		tlsConf *tls.Config
+	)
+	if ac.Domain != "" {
 		// manage certificate automatically
-		certmagic.DefaultACME.Agreed = true
-		certmagic.DefaultACME.Email = ac.ACME.Email
-		if ac.ACME.StagingCA {
-			certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
-		} else {
-			certmagic.DefaultACME.CA = certmagic.LetsEncryptProductionCA
+		m := &autocert.Manager{
+			Cache:      autocert.DirCache(certDir),
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(ac.Domain),
 		}
-
-		tlsConf, err = certmagic.TLS([]string{ac.ACME.Domain})
-		if err != nil {
-			return nil, err
+		s := &http.Server{
+			Addr:      ":https",
+			TLSConfig: m.TLSConfig(),
 		}
-
+		go s.ListenAndServeTLS("", "")
+		tlsConf = m.TLSConfig()
 	} else {
 		// manage certificate manually
 		var cert tls.Certificate
@@ -70,7 +73,6 @@ func makeTLSConfig(ac *config.YeagerServer) (*tls.Config, error) {
 		if err != nil {
 			return nil, errors.New("failed to make TLS config: " + err.Error())
 		}
-
 		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
 	}
 
