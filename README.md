@@ -6,9 +6,9 @@ yeager aims to bypass network restriction, supports features:
 
 - SOCKS5 proxy for inbound usage
 - HTTP proxy for inbound usage
-- lightweight outbound proxy, secure transport via:
-  - TLS
-  - gRPC
+- lightweight outbound proxy
+    - secure transport via TLS or gRPC
+    - issue and renew certificate automatically
 - rule routing
 
 ## Requirements
@@ -27,7 +27,7 @@ yeager aims to bypass network restriction, supports features:
 
 ```bash
 mkdir -p /usr/local/etc/yeager
-podman run -d \
+docker run -d \
 	--name yeager \
 	--restart always \
 	-e YEAGER_TRANSPORT=grpc \
@@ -49,10 +49,7 @@ create config file `/usr/local/etc/yeager/config.json`
             "address": "0.0.0.0:9000",
             "uuid": "example-UUID", // replace with UUID
             "transport": "grpc",
-            "acme": {
-                "domain": "example.com", // replace with domain name
-                "email": "xxx@example.com" // replace with email address
-            }
+            "domain": "example.com" // replace with domain name
         }
     }
 }
@@ -60,7 +57,7 @@ create config file `/usr/local/etc/yeager/config.json`
 
 then execute command:
 ```bash
-podman run -d \
+docker run -d \
 	--name yeager \
 	--restart=always \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
@@ -80,9 +77,9 @@ brew tap chenen3/yeager
 brew install yeager
 ```
 
-- Via podman on Linux distribution
+- Via docker on Linux distribution
 
-`podman pull ghcr.io/chenen3/yeager:latest`
+`docker pull ghcr.io/chenen3/yeager:latest`
 
 #### Configure
 
@@ -107,14 +104,14 @@ create config file `/usr/local/etc/yeager/config.json`
         }
     ],
     "rules": [
-		"IP-CIDR,127.0.0.1/8,DIRECT",
-		"IP-CIDR,192.168.0.0/16,DIRECT",
-		"GEOSITE,private,DIRECT",
-		"GEOSITE,google,PROXY",
-		"GEOSITE,twitter,PROXY",
-		"GEOSITE,cn,DIRECT",
-		"GEOSITE,apple@cn,DIRECT",
-		"FINAL,PROXY"
+        "IP-CIDR,127.0.0.1/8,DIRECT",
+        "IP-CIDR,192.168.0.0/16,DIRECT",
+        "GEOSITE,private,DIRECT",
+        "GEOSITE,google,PROXY",
+        "GEOSITE,twitter,PROXY",
+        "GEOSITE,cn,DIRECT",
+        "GEOSITE,apple@cn,DIRECT",
+        "FINAL,PROXY"
     ]
 }
 ```
@@ -125,10 +122,10 @@ create config file `/usr/local/etc/yeager/config.json`
 
 `brew services start yeager`
 
-- Via podman on Linux distribution
+- Via docker on Linux distribution
 
 ```bash
-podman run -d \
+docker run -d \
 	--name yeager \
 	--restart=always \
 	--network host \
@@ -157,13 +154,9 @@ After running client side yeager, do not forget to **setup local device's SOCKS5
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "grpc", // tcp, tls, grpc
             "plaintext": false, // whether accept gRPC request in plaintext
-            "acme":{
-                "domain": "example.com",
-                "email": "xxx@example.com",
-                "stagingCA": false // use staging CA in testing, in case lock out
-            },
-            "certFile": "/path/to/certificate", // used when ACME config left blank
-            "keyFile": "/path/to/key" // used when ACME config left blank
+            "domain": "example.com", // if specified, manage certificate automatically
+            "certFile": "/path/to/certificate", // manage certificate manually
+            "keyFile": "/path/to/key" // manage certificate manually
         }
     },
     "outbounds": [
@@ -230,12 +223,12 @@ brew upgrade yeager
 brew services restart yeager
 ```
 
-Via podman on Linux distribution
+Via docker on Linux distribution
 
 ```bash
-podman pull ghcr.io/chenen3/yeager:latest
-podman stop yeager
-podman rm yeager
+docker pull ghcr.io/chenen3/yeager:latest
+docker stop yeager
+docker rm yeager
 # then run the container again
 ```
 
@@ -248,10 +241,10 @@ brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-via podman:
+via docker:
 
 ```bash
-podman container stop yeager
-podman container rm yeager
-podman image rm ghcr.io/chenen3/yeager
+docker stop yeager
+docker rm yeager
+docker image rm ghcr.io/chenen3/yeager
 ```
