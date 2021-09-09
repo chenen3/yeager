@@ -36,11 +36,11 @@ type YeagerServer struct {
 	// unless you know what you are doing
 	Plaintext bool `json:"plaintext,omitempty"`
 
-	// if specified, program will issue or renew certificate automatically,
+	// if domain specified, then issue or renew certificate automatically
 	Domain string `json:"domain,omitempty"`
 
-	// manually manage certificate
-	// if domain field specified, these certificate related field will be ignored
+	// manage certificate manually,
+	// if domain specified, these certificate related field will be ignored
 	CertFile     string `json:"certFile,omitempty"`
 	KeyFile      string `json:"keyFile,omitempty"`
 	CertPEMBlock []byte `json:"-"`
