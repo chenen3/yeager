@@ -11,8 +11,6 @@ COPY --from=builder /yeager/release/yeager /usr/local/bin/
 COPY --from=builder /yeager/release/*.dat /usr/local/share/yeager/
 VOLUME /usr/local/etc/yeager
 
-# store TLS certificate
-ENV XDG_DATA_HOME=/usr/local/etc/yeager
 ENV YEAGER_ADDRESS=0.0.0.0:9000
 
 CMD ["/usr/local/bin/yeager", "-config", "/usr/local/etc/yeager/config.json"]

@@ -36,20 +36,15 @@ type YeagerServer struct {
 	// unless you know what you are doing
 	Plaintext bool `json:"plaintext,omitempty"`
 
-	// automated manage certificate
-	ACME *ACME `json:"acme,omitempty"`
+	// if specified, program will issue or renew certificate automatically,
+	Domain string `json:"domain,omitempty"`
 
 	// manually manage certificate
+	// if domain field specified, these certificate related field will be ignored
 	CertFile     string `json:"certFile,omitempty"`
 	KeyFile      string `json:"keyFile,omitempty"`
 	CertPEMBlock []byte `json:"-"`
 	KeyPEMBlock  []byte `json:"-"`
-}
-
-type ACME struct {
-	Domain    string `json:"domain,omitempty"`
-	Email     string `json:"email,omitempty"`
-	StagingCA bool   `json:"stagingCA,omitempty"` // use staging CA in testing, in case lock out
 }
 
 type YeagerClient struct {
@@ -88,11 +83,6 @@ func LoadEnv() *Config {
 	}
 
 	domain := os.Getenv("YEAGER_DOMAIN")
-	email := os.Getenv("YEAGER_EMAIL")
-	var stagingCA bool
-	if strings.EqualFold(os.Getenv("YEAGER_STAGINGCA"), "true") {
-		stagingCA = true
-	}
 	var plaintext bool
 	if strings.EqualFold(os.Getenv("YEAGER_PLAINTEXT"), "true") {
 		plaintext = true
@@ -103,11 +93,7 @@ func LoadEnv() *Config {
 		UUID:      uuid,
 		Transport: transport,
 		Plaintext: plaintext,
-		ACME: &ACME{
-			Domain:    domain,
-			Email:     email,
-			StagingCA: stagingCA,
-		},
+		Domain:    domain,
 	}
 	return &Config{Inbounds: Inbounds{Yeager: ac}}
 }
