@@ -146,8 +146,8 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr *proxy.Ad
 	if port == "" {
 		port = "80"
 	}
-	var portnum int64
-	portnum, err = strconv.ParseInt(port, 10, 64)
+	var portnum uint64
+	portnum, err = strconv.ParseUint(port, 10, 16)
 	if err != nil {
 		return
 	}
