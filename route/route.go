@@ -121,18 +121,13 @@ func parseRule(rule string) (*rule, error) {
 	}
 }
 
-func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
-	var dst *proxy.Address
-	dst, err = proxy.ParseAddress(addr)
-	if err != nil {
-		return "", err
-	}
+func (r *Router) Dispatch(addr *proxy.Address) (outboundTag string, err error) {
 	if len(r.rules) == 0 {
 		return defaultFinalRule.outboundTag, nil
 	}
 
 	for _, ru := range r.rules {
-		if ru.Match(dst) {
+		if ru.Match(addr) {
 			return ru.outboundTag, nil
 		}
 	}

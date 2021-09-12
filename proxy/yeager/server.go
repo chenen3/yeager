@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"yeager/log"
 	"yeager/proxy"
 	"yeager/transport/grpc"
+	"yeager/transport/quic"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
@@ -25,11 +25,12 @@ import (
 const certDir = "/usr/local/etc/yeager/golang-autocert"
 
 type Server struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	conf   *config.YeagerServer
-	lis    net.Listener
-	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
+	ctx     context.Context
+	cancel  context.CancelFunc
+	conf    *config.YeagerServer
+	lis     net.Listener
+	wg      sync.WaitGroup // counts active Serve goroutines for graceful close
+	network string
 
 	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
@@ -85,14 +86,17 @@ func (s *Server) listen() (net.Listener, error) {
 	var err error
 	switch s.conf.Transport {
 	case "tcp":
+		s.network = "tcp"
 		lis, err = net.Listen("tcp", s.conf.Address)
 	case "tls":
+		s.network = "tcp"
 		tlsConf, err := makeTLSConfig(s.conf)
 		if err != nil {
 			return nil, err
 		}
 		lis, err = tls.Listen("tcp", s.conf.Address, tlsConf)
 	case "grpc":
+		s.network = "tcp"
 		if s.conf.Plaintext {
 			lis, err = grpc.Listen(s.conf.Address, nil)
 		} else {
@@ -102,6 +106,13 @@ func (s *Server) listen() (net.Listener, error) {
 			}
 			lis, err = grpc.Listen(s.conf.Address, tlsConf)
 		}
+	case "quic":
+		s.network = "udp"
+		tlsConf, err := makeTLSConfig(s.conf)
+		if err != nil {
+			return nil, err
+		}
+		lis, err = quic.Listen(s.conf.Address, tlsConf)
 	default:
 		err = errors.New("unsupported transport: " + s.conf.Transport)
 	}
@@ -159,7 +170,7 @@ func (s *Server) Close() error {
 }
 
 // parseCredential 解析凭证，若凭证有效则返回其目的地址
-func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
+func (s *Server) parseCredential(conn net.Conn) (addr *proxy.Address, err error) {
 	timeout := proxy.HandshakeTimeout
 	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
 	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
@@ -185,7 +196,7 @@ func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
 	var buf [1 + 36 + 1]byte
 	_, err = io.ReadFull(conn, buf[:])
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
@@ -193,14 +204,14 @@ func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
 	_ = version
 	gotUUID, err := uuid.ParseBytes(uuidBytes)
 	if err != nil {
-		return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
+		return nil, fmt.Errorf("%s, UUID: %q", err, uuidBytes)
 	}
 	wantUUID, err := uuid.Parse(s.conf.UUID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if gotUUID != wantUUID {
-		return "", errors.New("mismatch UUID: " + gotUUID.String())
+		return nil, errors.New("mismatch UUID: " + gotUUID.String())
 	}
 
 	var host string
@@ -209,34 +220,33 @@ func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
 		var buf [4]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case addressDomain:
 		var buf [1]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		length := buf[0]
 
 		bs := make([]byte, length)
 		_, err := io.ReadFull(conn, bs)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		host = string(bs)
 	default:
-		return "", fmt.Errorf("unsupported address type: %x", atyp)
+		return nil, fmt.Errorf("unsupported address type: %x", atyp)
 	}
 
 	var bs [2]byte
 	_, err = io.ReadFull(conn, bs[:])
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	port := binary.BigEndian.Uint16(bs[:])
-	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
-	return addr, nil
+	return proxy.ParseHostPort(s.network, host, int(port))
 }

@@ -42,8 +42,10 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	}
 
 	if conf.Inbounds.SOCKS != nil {
-		srv := socks.NewServer(conf.Inbounds.SOCKS)
-		p.inbounds = append(p.inbounds, srv)
+		p.inbounds = append(p.inbounds, socks.NewServer(conf.Inbounds.SOCKS))
+		if conf.Inbounds.SOCKS.UDP {
+			p.inbounds = append(p.inbounds, socks.NewUDPServer(conf.Inbounds.SOCKS))
+		}
 	}
 	if conf.Inbounds.HTTP != nil {
 		srv := http.NewServer(conf.Inbounds.HTTP)
@@ -58,8 +60,8 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	}
 
 	// built-in outbound
-	p.outbounds[direct.Tag] = new(direct.Client)
-	p.outbounds[reject.Tag] = new(reject.Client)
+	p.outbounds[direct.Tag] = direct.Direct
+	p.outbounds[reject.Tag] = reject.Reject
 
 	for _, oc := range conf.Outbounds {
 		outbound, err := yeager.NewClient(oc)
@@ -104,7 +106,7 @@ func (p *Proxy) Close() {
 	}
 }
 
-func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
+func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr *proxy.Address) {
 	activeConn.Inc()
 	defer activeConn.Dec()
 	defer inConn.Close()
@@ -119,11 +121,11 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	log.Infof("dispatch %s from %s to [%s]\n", addr, inConn.RemoteAddr(), tag)
+	log.Infof("dispatch %s %s from %s to [%s]\n",addr.Network(), addr, inConn.RemoteAddr(), tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, proxy.DialTimeout)
 	defer cancel()
-	outConn, err := outbound.DialContext(dialCtx, addr)
+	outConn, err := outbound.DialContext(dialCtx, addr.Network(), addr.String())
 	if err != nil {
 		log.Error(err)
 		return

@@ -7,9 +7,12 @@ import (
 
 const Tag = "direct"
 
-type Client struct{}
+// Direct implements proxy.Outbound by making network connections directly using net.DialContext
+var Direct = direct{}
 
-func (f *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+type direct struct{}
+
+func (direct) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	var d net.Dialer
-	return d.DialContext(ctx, "tcp", addr)
+	return d.DialContext(ctx, network, addr)
 }
