@@ -20,6 +20,7 @@ type Inbounds struct {
 
 type SOCKSProxy struct {
 	Address string `json:"address"`
+	UDP     bool   `json:"udp"` // whether enable UDP proxy
 }
 
 type HTTPProxy struct {

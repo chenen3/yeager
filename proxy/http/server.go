@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -82,7 +83,7 @@ func (s *Server) Close() error {
 // HTTP代理服务器接收到请求时：
 // - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
 // - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
-func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr string, err error) {
+func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr *proxy.Address, err error) {
 	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
 	if err != nil {
 		return
@@ -117,27 +118,44 @@ func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr string, err er
 	return newConn, addr, nil
 }
 
-func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (addr string, err error) {
+func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (addr *proxy.Address, err error) {
 	port := req.URL.Port()
 	if port == "" {
 		port = "443"
 	}
-	addr = net.JoinHostPort(req.URL.Hostname(), port)
+	portnum, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return nil, err
+	}
+
+	addr, err = proxy.ParseHostPort("tcp", req.URL.Hostname(), int(portnum))
+	if err != nil {
+		return nil, err
+	}
 
 	_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return addr, nil
 }
 
-func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, buf bytes.Buffer, err error) {
+func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr *proxy.Address, buf bytes.Buffer, err error) {
 	port := req.URL.Port()
 	if port == "" {
 		port = "80"
 	}
-	addr = net.JoinHostPort(req.URL.Hostname(), port)
+	var portnum int64
+	portnum, err = strconv.ParseInt(port, 10, 64)
+	if err != nil {
+		return
+	}
+
+	addr, err = proxy.ParseHostPort("tcp", req.URL.Hostname(), int(portnum))
+	if err != nil {
+		return
+	}
 
 	// 对于HTTP代理请求，需要先行把请求转发一遍
 	if err = req.Write(&buf); err != nil {

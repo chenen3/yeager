@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"yeager/proxy"
 )
 
 func TestMain(m *testing.M) {
@@ -20,7 +22,7 @@ func TestRouter_Dispatch(t *testing.T) {
 		rules []string
 	}
 	type args struct {
-		addr string
+		addr *proxy.Address
 	}
 	tests := []struct {
 		name    string
@@ -34,7 +36,7 @@ func TestRouter_Dispatch(t *testing.T) {
 			fields: fields{rules: []string{
 				"domain,,direct",
 			}},
-			args:    args{"www.apple.com:80"},
+			args:    args{addr: &proxy.Address{Host: "www.apple.com", Type: proxy.AddrDomainName}},
 			wantErr: true,
 		},
 		{
@@ -43,7 +45,7 @@ func TestRouter_Dispatch(t *testing.T) {
 				"domain,apple.com,direct",
 				"final,faketag",
 			}},
-			args: args{"www.apple.com:80"},
+			args: args{addr: &proxy.Address{Host: "www.apple.com", Type: proxy.AddrDomainName}},
 			want: "faketag",
 		},
 		{
@@ -52,31 +54,31 @@ func TestRouter_Dispatch(t *testing.T) {
 				"domain-suffix,le.com,direct",
 				"final,faketag",
 			}},
-			args: args{"www.google.com:443"},
+			args: args{addr: &proxy.Address{Host: "www.google.com", Type: proxy.AddrDomainName}},
 			want: "faketag",
 		},
 		{
 			name:   "domain-keyword",
 			fields: fields{rules: []string{"domain-keyword,apple,faketag"}},
-			args:   args{"www.apple.com:80"},
+			args:   args{addr: &proxy.Address{Host: "www.apple.com", Type: proxy.AddrDomainName}},
 			want:   "faketag",
 		},
 		{
 			name:   "geosite",
 			fields: fields{rules: []string{"geosite,private,faketag"}},
-			args:   args{"localhost:80"},
+			args:   args{addr: &proxy.Address{Host: "localhost", Type: proxy.AddrDomainName}},
 			want:   "faketag",
 		},
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},
-			args:   args{"127.0.0.1:80"},
+			args:   args{addr: &proxy.Address{IP: []byte{127, 0, 0, 1}, Type: proxy.AddrIPv4}},
 			want:   "faketag",
 		},
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,192.168.0.0/16,faketag"}},
-			args:   args{"192.168.1.1:80"},
+			args:   args{addr: &proxy.Address{IP: []byte{192, 168, 1, 1}, Type: proxy.AddrIPv4}},
 			want:   "faketag",
 		},
 		// {

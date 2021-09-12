@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"yeager/transport/quic"
 
 	"yeager/config"
 	"yeager/proxy"
@@ -43,6 +44,8 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 		} else {
 			c.dialer = grpc.NewDialer(tlsConf)
 		}
+	case "quic":
+		c.dialer = quic.NewDialer(tlsConf)
 	default:
 		return nil, errors.New("unsupported transport: " + config.Transport)
 	}
@@ -55,13 +58,13 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 // (例如本地机器ping远端VPS是50ms，建立tls连接延时约150ms)，
 // 如果为了实现认证而再次握手，正是雪上加霜。
 // 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
-func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	cred, err := c.buildCredential(addr)
+	cred, err := c.buildCredential(network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +83,8 @@ const (
 )
 
 // buildCredential 构造凭证，包含UUID和目的地址
-func (c *Client) buildCredential(addr string) (buf bytes.Buffer, err error) {
-	dstAddr, err := proxy.ParseAddress(addr)
+func (c *Client) buildCredential(network, addr string) (buf bytes.Buffer, err error) {
+	dstAddr, err := proxy.ParseAddress(network, addr)
 	if err != nil {
 		return buf, err
 	}
