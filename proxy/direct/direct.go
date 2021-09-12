@@ -7,9 +7,12 @@ import (
 
 const Tag = "direct"
 
-type Client struct{}
+// Direct implement proxy.Outbound
+var Direct = client{}
 
-func (f *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+type client struct{}
+
+func (client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
 	var d net.Dialer
 	return d.DialContext(ctx, "tcp", addr)
 }

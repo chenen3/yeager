@@ -8,8 +8,11 @@ import (
 
 const Tag = "reject"
 
-type Client struct{}
+// Reject implement proxy.Outbound
+var Reject = client{}
 
-func (c *Client) DialContext(_ context.Context, _ string) (net.Conn, error) {
+type client struct{}
+
+func (client) DialContext(_ context.Context, _ string) (net.Conn, error) {
 	return nil, errors.New("traffic rejected")
 }

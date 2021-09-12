@@ -58,8 +58,8 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	}
 
 	// built-in outbound
-	p.outbounds[direct.Tag] = new(direct.Client)
-	p.outbounds[reject.Tag] = new(reject.Client)
+	p.outbounds[direct.Tag] = direct.Direct
+	p.outbounds[reject.Tag] = reject.Reject
 
 	for _, oc := range conf.Outbounds {
 		outbound, err := yeager.NewClient(oc)
