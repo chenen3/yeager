@@ -130,7 +130,16 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	}
 	defer outConn.Close()
 
-	errCh := link(inConn, outConn)
+	errCh := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(outConn, inConn)
+		errCh <- err
+	}()
+	go func() {
+		_, err := io.Copy(inConn, outConn)
+		errCh <- err
+	}()
+
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
@@ -138,18 +147,4 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 			log.Warnf("%s, dst %s", err, addr)
 		}
 	}
-}
-
-func link(a, b io.ReadWriter) <-chan error {
-	errCh := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(b, a)
-		errCh <- err
-	}()
-	go func() {
-		_, err := io.Copy(a, b)
-		errCh <- err
-	}()
-
-	return errCh
 }

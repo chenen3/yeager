@@ -43,7 +43,7 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.Infof("http proxy listening on %s", s.conf.Address)
+	log.Infof("http proxy listening %s", s.conf.Address)
 
 	close(s.ready)
 	for {

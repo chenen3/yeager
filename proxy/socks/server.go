@@ -44,7 +44,7 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.Infof("socks5 proxy listening on %s", s.conf.Address)
+	log.Infof("socks5 proxy listening %s", s.conf.Address)
 
 	close(s.ready)
 	for {

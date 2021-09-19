@@ -109,7 +109,7 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, err
 	}
 
-	log.Infof("yeager proxy listen on %s, transport: %s", lis.Addr(), s.conf.Transport)
+	log.Infof("yeager proxy listening %s, transport: %s", lis.Addr(), s.conf.Transport)
 	return lis, err
 }
 

@@ -44,10 +44,12 @@ func main() {
 	runtime.GC()
 
 	// http server for profiling
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		log.Error(http.ListenAndServe("localhost:6060", nil))
-	}()
+	if conf.Profiling {
+		go func() {
+			http.Handle("/metrics", promhttp.Handler())
+			log.Error(http.ListenAndServe("localhost:6060", nil))
+		}()
+	}
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
