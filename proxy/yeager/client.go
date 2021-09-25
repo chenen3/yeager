@@ -6,13 +6,13 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"io"
 	"net"
 
 	"yeager/config"
 	"yeager/proxy"
 	"yeager/transport"
 	"yeager/transport/grpc"
-	ytls "yeager/transport/tls"
 
 	"github.com/google/uuid"
 )
@@ -36,7 +36,7 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 	}
 	switch config.Transport {
 	case "tls":
-		c.dialer = ytls.NewDialer(tlsConf)
+		c.dialer = &tls.Dialer{Config: tlsConf}
 	case "grpc":
 		if config.Plaintext {
 			c.dialer = grpc.NewDialer(nil)
@@ -56,7 +56,7 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 // 如果为了实现认证而再次握手，正是雪上加霜。
 // 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
 func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
+	conn, err := c.dialer.DialContext(ctx, "tcp", c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -120,5 +120,8 @@ func (c *Client) buildCredential(addr string) (buf bytes.Buffer, err error) {
 }
 
 func (c *Client) Close() error {
-	return c.dialer.Close()
+	if closer, ok := c.dialer.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
