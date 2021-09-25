@@ -6,6 +6,5 @@ import (
 )
 
 type Dialer interface {
-	DialContext(ctx context.Context, addr string) (net.Conn, error)
-	Close() error
+	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 }

@@ -34,8 +34,8 @@ func NewDialer(config *tls.Config) *dialer {
 	return &dialer{tlsConf: config}
 }
 
-func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	conn, err := d.grpcDial(addr, ctx)
+func (d *dialer) DialContext(ctx context.Context, _ string, addr string) (net.Conn, error) {
+	conn, err := d.grpcDial(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	return newConn(stream, cancel), nil
 }
 
-func (d *dialer) grpcDial(addr string, ctx context.Context) (*grpc.ClientConn, error) {
+func (d *dialer) grpcDial(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	// optimized
 	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
 		return d.conn, nil

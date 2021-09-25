@@ -160,13 +160,7 @@ func (s *Server) Close() error {
 
 // parseCredential 解析凭证，若凭证有效则返回其目的地址
 func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
-	timeout := proxy.HandshakeTimeout
-	// 当出站代理使用tls传输方式时，与入站代理建立连接后，
-	// 可能把连接放入连接池，不会立刻发来凭证，因此延长超时时间
-	if s.conf.Transport == "tls" {
-		timeout = proxy.MaxConnectionIdle
-	}
-	err = conn.SetDeadline(time.Now().Add(timeout))
+	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
 	if err != nil {
 		return
 	}
