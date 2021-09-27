@@ -65,10 +65,10 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return LoadBytes(bs)
+	return LoadJSON(bs)
 }
 
-func LoadBytes(bs []byte) (*Config, error) {
+func LoadJSON(bs []byte) (*Config, error) {
 	conf := new(Config)
 	err := json.Unmarshal(bs, conf)
 	return conf, err

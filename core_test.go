@@ -109,7 +109,7 @@ func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) 
         "FINAL,PROXY"
     ]
 }`, inboundPort, outboundPort)
-	return config.LoadBytes([]byte(s))
+	return config.LoadJSON([]byte(s))
 }
 
 func makeServerProxyConf(inboundPort int) (*config.Config, error) {
