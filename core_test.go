@@ -132,7 +132,7 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	conf.Inbounds.Yeager.CertPEMBlock = certPEM
-	conf.Inbounds.Yeager.KeyPEMBlock = keyPEM
+	conf.Inbounds.Yeager.CertPEM = certPEM
+	conf.Inbounds.Yeager.KeyPEM = keyPEM
 	return conf, nil
 }

@@ -1,14 +1,18 @@
 package yeager
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -18,7 +22,6 @@ import (
 	"yeager/proxy"
 	"yeager/transport/grpc"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -44,17 +47,17 @@ func NewServer(config *config.YeagerServer) *Server {
 	}
 }
 
-func makeTLSConfig(ac *config.YeagerServer) (*tls.Config, error) {
+func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 	var (
 		err     error
 		tlsConf *tls.Config
 	)
-	if ac.Domain != "" {
+	if conf.Domain != "" {
 		// manage certificate automatically
 		m := &autocert.Manager{
 			Cache:      autocert.DirCache(certDir),
 			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(ac.Domain),
+			HostPolicy: autocert.HostWhitelist(conf.Domain),
 		}
 		s := &http.Server{
 			Addr:      ":https",
@@ -65,15 +68,37 @@ func makeTLSConfig(ac *config.YeagerServer) (*tls.Config, error) {
 	} else {
 		// manage certificate manually
 		var cert tls.Certificate
-		if len(ac.CertPEMBlock) != 0 && len(ac.KeyPEMBlock) != 0 {
-			cert, err = tls.X509KeyPair(ac.CertPEMBlock, ac.KeyPEMBlock)
+		if len(conf.CertPEM) != 0 && len(conf.KeyPEM) != 0 {
+			cert, err = tls.X509KeyPair(conf.CertPEM, conf.KeyPEM)
 		} else {
-			cert, err = tls.LoadX509KeyPair(ac.CertFile, ac.KeyFile)
+			cert, err = tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
 		}
 		if err != nil {
 			return nil, errors.New("failed to make TLS config: " + err.Error())
 		}
 		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
+
+		if conf.ClientCAFile != "" {
+			ca, err := os.ReadFile("ca.crt")
+			if err != nil {
+				return nil, err
+			}
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(ca)
+			if !ok {
+				return nil, errors.New("failed to parse root certificate")
+			}
+			tlsConf.ClientCAs = pool
+			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+		} else if len(conf.ClientCA) != 0 {
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(conf.ClientCA)
+			if !ok {
+				return nil, errors.New("failed to parse root certificate")
+			}
+			tlsConf.ClientCAs = pool
+			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+		}
 	}
 
 	tlsConf.MinVersion = tls.VersionTLS13
@@ -87,7 +112,7 @@ func (s *Server) listen() (net.Listener, error) {
 	case "tcp":
 		lis, err = net.Listen("tcp", s.conf.Address)
 	case "tls":
-		tlsConf, err := makeTLSConfig(s.conf)
+		tlsConf, err := makeServerTLSConfig(s.conf)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +121,7 @@ func (s *Server) listen() (net.Listener, error) {
 		if s.conf.Plaintext {
 			lis, err = grpc.Listen(s.conf.Address, nil)
 		} else {
-			tlsConf, err := makeTLSConfig(s.conf)
+			tlsConf, err := makeServerTLSConfig(s.conf)
 			if err != nil {
 				return nil, err
 			}
@@ -136,16 +161,16 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			dstAddr, err := s.parseCredential(conn)
+			dstAddr, err := s.parseMetaData(conn)
 			if err != nil {
-				log.Warn("failed to parse credential: " + err.Error())
+				log.Warn("failed to parse metadata: " + err.Error())
 				conn.Close()
 				return
 			}
 
 			newConn := &Conn{
 				Conn:    conn,
-				maxIdle: proxy.MaxConnectionIdle,
+				maxIdle: proxy.MaxConnectionIdle, // FIXME
 			}
 			handle(s.ctx, newConn, dstAddr)
 		}()
@@ -158,8 +183,8 @@ func (s *Server) Close() error {
 	return s.lis.Close()
 }
 
-// parseCredential 解析凭证，若凭证有效则返回其目的地址
-func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
+// parseMetaData 解析元数据，若凭证有效则返回其目的地址
+func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
 	if err != nil {
 		return
@@ -185,16 +210,19 @@ func (s *Server) parseCredential(conn net.Conn) (addr string, err error) {
 	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
 	// keep version number for backward compatibility
 	_ = version
-	gotUUID, err := uuid.ParseBytes(uuidBytes)
-	if err != nil {
-		return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
-	}
-	wantUUID, err := uuid.Parse(s.conf.UUID)
-	if err != nil {
-		return "", err
-	}
-	if gotUUID != wantUUID {
-		return "", errors.New("mismatch UUID: " + gotUUID.String())
+
+	if !bytes.Equal(uuidBytes, uuidPlaceholder[:]) {
+		gotUUID, err := uuid.ParseBytes(uuidBytes)
+		if err != nil {
+			return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
+		}
+		wantUUID, err := uuid.Parse(s.conf.UUID)
+		if err != nil {
+			return "", err
+		}
+		if gotUUID != wantUUID {
+			return "", errors.New("mismatch UUID: " + gotUUID.String())
+		}
 	}
 
 	var host string
