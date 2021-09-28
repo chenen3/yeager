@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"github.com/google/uuid"
 	"io"
 	"net"
+	"os"
 
 	"yeager/config"
 	"yeager/proxy"
 	"yeager/transport"
 	"yeager/transport/grpc"
-
-	"github.com/google/uuid"
 )
 
 type Client struct {
@@ -24,23 +25,21 @@ type Client struct {
 
 func NewClient(config *config.YeagerClient) (*Client, error) {
 	c := Client{conf: config}
-	host, _, err := net.SplitHostPort(config.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	tlsConf := &tls.Config{
-		ServerName:         host,
-		InsecureSkipVerify: config.Insecure,
-		ClientSessionCache: tls.NewLRUClientSessionCache(64),
-	}
 	switch config.Transport {
 	case "tls":
+		tlsConf, err := makeClientTLSConfig(config)
+		if err != nil {
+			return nil, err
+		}
 		c.dialer = &tls.Dialer{Config: tlsConf}
 	case "grpc":
 		if config.Plaintext {
 			c.dialer = grpc.NewDialer(nil)
 		} else {
+			tlsConf, err := makeClientTLSConfig(config)
+			if err != nil {
+				return nil, err
+			}
 			c.dialer = grpc.NewDialer(tlsConf)
 		}
 	default:
@@ -50,25 +49,59 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 	return &c, nil
 }
 
-// 为什么这里实现认证不像socks5/http代理协议那样握手？
-// 出站代理与入站代理建立连接时，tcp握手延时加上tls握手延时已经够大了，
-// (例如本地机器ping远端VPS是50ms，建立tls连接延时约150ms)，
-// 如果为了实现认证而再次握手，正是雪上加霜。
-// 因此出站代理将在建立连接后，第一次发送数据时附带凭证，不增加额外延时
+func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
+	tlsConf := &tls.Config{
+		// ServerName:         host, // FIXME
+		InsecureSkipVerify: conf.Insecure,
+		ClientSessionCache: tls.NewLRUClientSessionCache(64),
+	}
+	if conf.RootCAFile != "" {
+		// mutual TLS
+		cert, err := tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
+		if err != nil {
+			return nil, err
+		}
+		tlsConf.Certificates = []tls.Certificate{cert}
+		ca, err := os.ReadFile(conf.RootCAFile)
+		if err != nil {
+			return nil, err
+		}
+		pool := x509.NewCertPool()
+		ok := pool.AppendCertsFromPEM(ca)
+		if !ok {
+			return nil, errors.New("failed to parse root certificate")
+		}
+		tlsConf.RootCAs = pool
+	} else if len(conf.RootCA) != 0 {
+		cert, err := tls.X509KeyPair(conf.CertPEM, conf.KeyPEM)
+		if err != nil {
+			return nil, err
+		}
+		tlsConf.Certificates = []tls.Certificate{cert}
+		pool := x509.NewCertPool()
+		ok := pool.AppendCertsFromPEM(conf.RootCA)
+		if !ok {
+			return nil, errors.New("failed to parse root certificate")
+		}
+		tlsConf.RootCAs = pool
+	}
+	return tlsConf, nil
+}
+
 func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, "tcp", c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	cred, err := c.buildCredential(addr)
+	metadata, err := c.makeMetaData(addr)
 	if err != nil {
 		return nil, err
 	}
 
 	newConn := &Conn{
 		Conn:       conn,
-		earlyWrite: cred,
+		earlyWrite: metadata,
 		maxIdle:    proxy.MaxConnectionIdle,
 	}
 	return newConn, nil
@@ -79,8 +112,12 @@ const (
 	addressDomain = 0x03
 )
 
-// buildCredential 构造凭证，包含UUID和目的地址
-func (c *Client) buildCredential(addr string) (buf bytes.Buffer, err error) {
+// while using mutual TLS, uuid is ignored,
+// for backward compatibility, left it blank
+var uuidPlaceholder [36]byte
+
+// makeMetaData 构造元数据，包含目的地址
+func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	dstAddr, err := proxy.ParseAddress(addr)
 	if err != nil {
 		return buf, err
@@ -94,11 +131,15 @@ func (c *Client) buildCredential(addr string) (buf bytes.Buffer, err error) {
 	// keep version number for backward compatibility
 	buf.WriteByte(1)
 
-	sendUUID, err := uuid.Parse(c.conf.UUID)
-	if err != nil {
-		return
+	if c.conf.UUID == "" {
+		buf.Write(uuidPlaceholder[:])
+	} else {
+		sendUUID, err := uuid.Parse(c.conf.UUID)
+		if err != nil {
+			return buf, err
+		}
+		buf.WriteString(sendUUID.String())
 	}
-	buf.WriteString(sendUUID.String())
 
 	switch dstAddr.Type {
 	case proxy.AddrIPv4:

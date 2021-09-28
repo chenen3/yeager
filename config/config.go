@@ -44,8 +44,11 @@ type YeagerServer struct {
 	// if domain specified, these certificate related field will be ignored
 	CertFile     string `json:"certFile,omitempty"`
 	KeyFile      string `json:"keyFile,omitempty"`
-	CertPEMBlock []byte `json:"-"`
-	KeyPEMBlock  []byte `json:"-"`
+	ClientCAFile string `json:"clientCAFile,omitempty"` // for mutual TLS
+
+	CertPEM  []byte `json:"-"`
+	KeyPEM   []byte `json:"-"`
+	ClientCA []byte `json:"-"`
 }
 
 type YeagerClient struct {
@@ -58,6 +61,15 @@ type YeagerClient struct {
 	// do not use plaintext unless you know what you are doing
 	Plaintext bool `json:"plaintext,omitempty"`
 	Insecure  bool `json:"insecure,omitempty"` // allow insecure TLS
+
+	// for mutual TLS
+	CertFile   string `json:"certFile,omitempty"`
+	KeyFile    string `json:"keyFile,omitempty"`
+	RootCAFile string `json:"rootCAFile,omitempty"`
+
+	CertPEM []byte `json:"-"`
+	KeyPEM  []byte `json:"-"`
+	RootCA  []byte `json:"-"`
 }
 
 func LoadFile(filename string) (*Config, error) {
