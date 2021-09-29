@@ -16,8 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"yeager/transport/grpc/pb"
-
+	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -40,11 +39,11 @@ func (d *dialer) DialContext(ctx context.Context, _ string, addr string) (net.Co
 		return nil, err
 	}
 
-	client := pb.NewTransportClient(conn)
+	client := pb.NewTunnelClient(conn)
 	// 用来发起连接的参数ctx通常时间很短，而双向流可能会存在一段时间，
 	// 因此使用新的context来控制双向流
 	ctx2, cancel := context.WithCancel(context.Background())
-	stream, err := client.Tunnel(ctx2)
+	stream, err := client.Stream(ctx2)
 	if err != nil {
 		cancel()
 		return nil, err

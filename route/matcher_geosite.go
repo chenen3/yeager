@@ -5,11 +5,11 @@ import (
 	"os"
 	"path"
 	"strings"
-	"yeager/log"
 
+	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/util"
 	"github.com/v2fly/v2ray-core/v4/app/router"
 	"google.golang.org/protobuf/proto"
-	"yeager/proxy"
 )
 
 var assetDirs []string
@@ -110,7 +110,7 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 	return g, nil
 }
 
-func (g geoSiteMatcher) Match(addr *proxy.Address) bool {
+func (g geoSiteMatcher) Match(addr *util.Address) bool {
 	for _, m := range g {
 		if m.Match(addr) {
 			return true

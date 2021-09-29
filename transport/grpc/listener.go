@@ -7,9 +7,8 @@ import (
 	"net"
 	"time"
 
-	"yeager/log"
-	"yeager/transport/grpc/pb"
-
+	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -17,7 +16,7 @@ import (
 
 // listener implement net.Listener and pb.TransportServer
 type listener struct {
-	pb.UnimplementedTransportServer
+	pb.UnimplementedTunnelServer
 	addr    net.Addr
 	connCh  chan net.Conn
 	onClose func() // release resource
@@ -29,7 +28,7 @@ func newListener() *listener {
 	}
 }
 
-func (l *listener) Tunnel(stream pb.Transport_TunnelServer) error {
+func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
 		log.Warn(err)
@@ -60,6 +59,7 @@ func (l *listener) Addr() net.Addr {
 	return l.addr
 }
 
+// given nil tlsConf, data will be transport in plaintext
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	tcpListener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -78,7 +78,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 
 	grpcServer := grpc.NewServer(opt...)
 	grpcListener := newListener()
-	pb.RegisterTransportServer(grpcServer, grpcListener)
+	pb.RegisterTunnelServer(grpcServer, grpcListener)
 	go func() {
 		err := grpcServer.Serve(tcpListener)
 		if err != nil {

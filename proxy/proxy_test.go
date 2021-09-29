@@ -1,4 +1,4 @@
-package yeager
+package proxy
 
 import (
 	"encoding/json"
@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"yeager/config"
-	"yeager/util"
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/util"
 )
 
 var httpProxyURL string
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	clientProxy.Start()
+	go clientProxy.Serve()
 	defer clientProxy.Close()
 
 	srvConf, err := makeServerProxyConf(yeagerProxyPort)
@@ -48,14 +48,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	serverProxy.Start()
+	go serverProxy.Serve()
 	defer serverProxy.Close()
 
 	code := m.Run()
 	os.Exit(code)
 }
 
-func TestCore(t *testing.T) {
+func TestProxy(t *testing.T) {
 	// wait for the proxy server to start in the background
 	time.Sleep(time.Millisecond)
 
@@ -118,7 +118,8 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
         "yeager": {
             "address": "127.0.0.1:%d",
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "tls"
+            "transport": "tcp",
+			"security": "tls"
         }
     }
 }`, inboundPort)
@@ -132,7 +133,7 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	conf.Inbounds.Yeager.CertPEM = certPEM
-	conf.Inbounds.Yeager.KeyPEM = keyPEM
+	conf.Inbounds.Yeager.TLS.CertPEM = certPEM
+	conf.Inbounds.Yeager.TLS.KeyPEM = keyPEM
 	return conf, nil
 }

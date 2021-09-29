@@ -6,11 +6,11 @@ import (
 	"regexp"
 	"strings"
 
-	"yeager/proxy"
+	"github.com/chenen3/yeager/util"
 )
 
 type matcher interface {
-	Match(addr *proxy.Address) bool
+	Match(addr *util.Address) bool
 }
 
 func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
@@ -39,13 +39,13 @@ func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
 
 type nullMatcher struct{}
 
-func (n nullMatcher) Match(addr *proxy.Address) bool {
+func (n nullMatcher) Match(addr *util.Address) bool {
 	return false
 }
 
 type domainKeywordMatcher string
 
-func (d domainKeywordMatcher) Match(addr *proxy.Address) bool {
+func (d domainKeywordMatcher) Match(addr *util.Address) bool {
 	return strings.Contains(addr.Host, string(d))
 }
 
@@ -55,19 +55,19 @@ func newFinalMatcher() *finalMatcher {
 	return &finalMatcher{}
 }
 
-func (f *finalMatcher) Match(addr *proxy.Address) bool {
+func (f *finalMatcher) Match(addr *util.Address) bool {
 	return true
 }
 
 type domainMatcher string
 
-func (d domainMatcher) Match(addr *proxy.Address) bool {
+func (d domainMatcher) Match(addr *util.Address) bool {
 	return string(d) == addr.Host
 }
 
 type domainSuffixMatcher string
 
-func (m domainSuffixMatcher) Match(addr *proxy.Address) bool {
+func (m domainSuffixMatcher) Match(addr *util.Address) bool {
 	domain := addr.Host
 	if !strings.HasSuffix(domain, string(m)) {
 		return false
@@ -88,7 +88,7 @@ func newCIDRMatcher(s string) (*cidrMatcher, error) {
 	return &cidrMatcher{ipNet}, nil
 }
 
-func (c *cidrMatcher) Match(addr *proxy.Address) bool {
+func (c *cidrMatcher) Match(addr *util.Address) bool {
 	return c.Contains(addr.IP)
 }
 
@@ -104,6 +104,6 @@ func newRegexMatcher(expr string) (*domainRegexMatcher, error) {
 	return &domainRegexMatcher{re: re}, nil
 }
 
-func (m *domainRegexMatcher) Match(addr *proxy.Address) bool {
+func (m *domainRegexMatcher) Match(addr *util.Address) bool {
 	return m.re.MatchString(addr.Host)
 }

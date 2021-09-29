@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"yeager/config"
-	"yeager/util"
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/util"
 )
 
 var keyPEM, certPEM []byte
@@ -34,9 +34,9 @@ func serveTLS() (*Server, error) {
 	srv := NewServer(&config.YeagerServer{
 		Address:   fmt.Sprintf("127.0.0.1:%d", port),
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "tls",
-		CertPEM:   certPEM,
-		KeyPEM:    keyPEM,
+		Transport: config.TransTCP,
+		Security:  config.TLS,
+		TLS:       config.Tls{CertPEM: certPEM, KeyPEM: keyPEM},
 	})
 	return srv, nil
 }
@@ -61,12 +61,14 @@ func TestYeager_tls(t *testing.T) {
 		}
 	}()
 
+	// FIXME: if failed to launch server, here blocks forever
 	<-server.ready
 	client, err := NewClient(&config.YeagerClient{
 		Address:   server.conf.Address,
 		UUID:      server.conf.UUID,
-		Transport: "tls",
-		Insecure:  true,
+		Transport: config.TransTCP,
+		Security:  config.ClientTLS,
+		TLS:       config.ClientTls{Insecure: true},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -101,9 +103,12 @@ func serveGRPC() (*Server, error) {
 	srv := NewServer(&config.YeagerServer{
 		Address:   fmt.Sprintf("127.0.0.1:%d", port),
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
-		Transport: "grpc",
-		CertPEM:   certPEM,
-		KeyPEM:    keyPEM,
+		Transport: config.TransGRPC,
+		Security:  config.TLS,
+		TLS: config.Tls{
+			CertPEM: certPEM,
+			KeyPEM:  keyPEM,
+		},
 	})
 	return srv, nil
 }
@@ -133,8 +138,9 @@ func TestYeager_grpc(t *testing.T) {
 	client, err := NewClient(&config.YeagerClient{
 		Address:   server.conf.Address,
 		UUID:      server.conf.UUID,
-		Transport: "grpc",
-		Insecure:  true,
+		Transport: config.TransGRPC,
+		Security:  config.ClientTLS,
+		TLS:       config.ClientTls{Insecure: true},
 	})
 	if err != nil {
 		t.Fatal("NewClient err: " + err.Error())
@@ -173,10 +179,13 @@ func TestYeager_mutualTLS(t *testing.T) {
 	}
 	server := NewServer(&config.YeagerServer{
 		Address:   fmt.Sprintf("127.0.0.1:%d", port),
-		Transport: "tls",
-		CertPEM:   certInfo.ServerCert,
-		KeyPEM:    certInfo.ServerKey,
-		ClientCA:  certInfo.RootCert,
+		Transport: config.TransTCP,
+		Security:  config.TLSMutual,
+		MTLS: config.Mtls{
+			CertPEM:  certInfo.ServerCert,
+			KeyPEM:   certInfo.ServerKey,
+			ClientCA: certInfo.RootCert,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -199,10 +208,13 @@ func TestYeager_mutualTLS(t *testing.T) {
 	<-server.ready
 	client, err := NewClient(&config.YeagerClient{
 		Address:   server.conf.Address,
-		Transport: "tls",
-		CertPEM:   certInfo.ClientCert,
-		KeyPEM:    certInfo.ClientKey,
-		RootCA:    certInfo.RootCert,
+		Transport: config.TransTCP,
+		Security:  config.ClientTLSMutual,
+		MTLS: config.ClientMTLS{
+			CertPEM: certInfo.ClientCert,
+			KeyPEM:  certInfo.ClientKey,
+			RootCA:  certInfo.RootCert,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)

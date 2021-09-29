@@ -7,15 +7,17 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
-	"github.com/google/uuid"
+	"fmt"
 	"io"
 	"net"
 	"os"
 
-	"yeager/config"
-	"yeager/proxy"
-	"yeager/transport"
-	"yeager/transport/grpc"
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/transport"
+	"github.com/chenen3/yeager/transport/grpc"
+	"github.com/chenen3/yeager/util"
+	"github.com/google/uuid"
 )
 
 type Client struct {
@@ -23,27 +25,31 @@ type Client struct {
 	dialer transport.Dialer
 }
 
-func NewClient(config *config.YeagerClient) (*Client, error) {
-	c := Client{conf: config}
-	switch config.Transport {
-	case "tls":
-		tlsConf, err := makeClientTLSConfig(config)
-		if err != nil {
-			return nil, err
+func NewClient(conf *config.YeagerClient) (*Client, error) {
+	c := Client{conf: conf}
+	switch conf.Transport {
+	case config.TransTCP:
+		if conf.Security == config.ClientNoSecurity {
+			c.dialer = new(net.Dialer)
+		} else {
+			tlsConf, err := makeClientTLSConfig(conf)
+			if err != nil {
+				return nil, err
+			}
+			c.dialer = &tls.Dialer{Config: tlsConf}
 		}
-		c.dialer = &tls.Dialer{Config: tlsConf}
-	case "grpc":
-		if config.Plaintext {
+	case config.TransGRPC:
+		if conf.Security == config.ClientNoSecurity {
 			c.dialer = grpc.NewDialer(nil)
 		} else {
-			tlsConf, err := makeClientTLSConfig(config)
+			tlsConf, err := makeClientTLSConfig(conf)
 			if err != nil {
 				return nil, err
 			}
 			c.dialer = grpc.NewDialer(tlsConf)
 		}
 	default:
-		return nil, errors.New("unsupported transport: " + config.Transport)
+		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
 
 	return &c, nil
@@ -51,40 +57,46 @@ func NewClient(config *config.YeagerClient) (*Client, error) {
 
 func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	tlsConf := &tls.Config{
-		// ServerName:         host, // FIXME
-		InsecureSkipVerify: conf.Insecure,
 		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 	}
-	if conf.RootCAFile != "" {
-		// mutual TLS
-		cert, err := tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
-		if err != nil {
-			return nil, err
+
+	switch conf.Security {
+	case config.ClientTLS:
+		tlsConf.InsecureSkipVerify = conf.TLS.Insecure
+	case config.ClientTLSMutual:
+		if conf.MTLS.CertFile != "" {
+			cert, err := tls.LoadX509KeyPair(conf.MTLS.CertFile, conf.MTLS.KeyFile)
+			if err != nil {
+				return nil, err
+			}
+			tlsConf.Certificates = []tls.Certificate{cert}
+			ca, err := os.ReadFile(conf.MTLS.RootCAFile)
+			if err != nil {
+				return nil, err
+			}
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(ca)
+			if !ok {
+				return nil, errors.New("failed to parse root certificate")
+			}
+			tlsConf.RootCAs = pool
+		} else if len(conf.MTLS.CertPEM) != 0 {
+			cert, err := tls.X509KeyPair(conf.MTLS.CertPEM, conf.MTLS.KeyPEM)
+			if err != nil {
+				return nil, err
+			}
+			tlsConf.Certificates = []tls.Certificate{cert}
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(conf.MTLS.RootCA)
+			if !ok {
+				return nil, errors.New("failed to parse root certificate")
+			}
+			tlsConf.RootCAs = pool
+		} else {
+			return nil, errors.New("required client side certificate")
 		}
-		tlsConf.Certificates = []tls.Certificate{cert}
-		ca, err := os.ReadFile(conf.RootCAFile)
-		if err != nil {
-			return nil, err
-		}
-		pool := x509.NewCertPool()
-		ok := pool.AppendCertsFromPEM(ca)
-		if !ok {
-			return nil, errors.New("failed to parse root certificate")
-		}
-		tlsConf.RootCAs = pool
-	} else if len(conf.RootCA) != 0 {
-		cert, err := tls.X509KeyPair(conf.CertPEM, conf.KeyPEM)
-		if err != nil {
-			return nil, err
-		}
-		tlsConf.Certificates = []tls.Certificate{cert}
-		pool := x509.NewCertPool()
-		ok := pool.AppendCertsFromPEM(conf.RootCA)
-		if !ok {
-			return nil, errors.New("failed to parse root certificate")
-		}
-		tlsConf.RootCAs = pool
 	}
+
 	return tlsConf, nil
 }
 
@@ -102,7 +114,7 @@ func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	newConn := &Conn{
 		Conn:       conn,
 		earlyWrite: metadata,
-		maxIdle:    proxy.MaxConnectionIdle,
+		maxIdle:    common.MaxConnectionIdle,
 	}
 	return newConn, nil
 }
@@ -118,7 +130,7 @@ var uuidPlaceholder [36]byte
 
 // makeMetaData 构造元数据，包含目的地址
 func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
-	dstAddr, err := proxy.ParseAddress(addr)
+	dstAddr, err := util.ParseAddress(addr)
 	if err != nil {
 		return buf, err
 	}
@@ -131,7 +143,8 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	// keep version number for backward compatibility
 	buf.WriteByte(1)
 
-	if c.conf.UUID == "" {
+	if c.conf.Security == config.ClientTLSMutual {
+		// when use mutual authentication, UUID is no longer needed
 		buf.Write(uuidPlaceholder[:])
 	} else {
 		sendUUID, err := uuid.Parse(c.conf.UUID)
@@ -142,10 +155,10 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	}
 
 	switch dstAddr.Type {
-	case proxy.AddrIPv4:
+	case util.AddrIPv4:
 		buf.WriteByte(addressIPv4)
 		buf.Write(dstAddr.IP)
-	case proxy.AddrDomainName:
+	case util.AddrDomainName:
 		buf.WriteByte(addressDomain)
 		buf.WriteByte(byte(len(dstAddr.Host)))
 		buf.WriteString(dstAddr.Host)

@@ -1,14 +1,12 @@
 package yeager
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"io"
 	"net"
 	"net/http"
@@ -17,11 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"yeager/config"
-	"yeager/log"
-	"yeager/proxy"
-	"yeager/transport/grpc"
-
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/transport/grpc"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -48,38 +46,68 @@ func NewServer(config *config.YeagerServer) *Server {
 }
 
 func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
-	var (
-		err     error
-		tlsConf *tls.Config
-	)
-	if conf.Domain != "" {
-		// manage certificate automatically
+	tlsConf := new(tls.Config)
+	switch conf.Security {
+	case config.TLS:
+		var cert tls.Certificate
+		var err error
+		if len(conf.TLS.CertPEM) != 0 && len(conf.TLS.KeyPEM) != 0 {
+			cert, err = tls.X509KeyPair(conf.TLS.CertPEM, conf.TLS.KeyPEM)
+			if err != nil {
+				return nil, errors.New("failed to make TLS config: " + err.Error())
+			}
+		} else {
+			cert, err = tls.LoadX509KeyPair(conf.TLS.CertFile, conf.TLS.KeyFile)
+			if err != nil {
+				return nil, errors.New("failed to make TLS config: " + err.Error())
+			}
+		}
+		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
+
+	case config.TLSAcme:
+		if conf.ACME.Domain == "" {
+			return nil, errors.New("domain required")
+		}
 		m := &autocert.Manager{
 			Cache:      autocert.DirCache(certDir),
 			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(conf.Domain),
+			HostPolicy: autocert.HostWhitelist(conf.ACME.Domain),
 		}
 		s := &http.Server{
 			Addr:      ":https",
 			TLSConfig: m.TLSConfig(),
 		}
-		go s.ListenAndServeTLS("", "")
+		go log.Error(s.ListenAndServeTLS("", ""))
 		tlsConf = m.TLSConfig()
-	} else {
-		// manage certificate manually
-		var cert tls.Certificate
-		if len(conf.CertPEM) != 0 && len(conf.KeyPEM) != 0 {
-			cert, err = tls.X509KeyPair(conf.CertPEM, conf.KeyPEM)
-		} else {
-			cert, err = tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
-		}
-		if err != nil {
-			return nil, errors.New("failed to make TLS config: " + err.Error())
-		}
-		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
 
-		if conf.ClientCAFile != "" {
-			ca, err := os.ReadFile("ca.crt")
+	case config.TLSMutual:
+		var cert tls.Certificate
+		var err error
+		if len(conf.MTLS.CertPEM) != 0 && len(conf.MTLS.KeyPEM) != 0 {
+			cert, err = tls.X509KeyPair(conf.MTLS.CertPEM, conf.MTLS.KeyPEM)
+			if err != nil {
+				return nil, errors.New("failed to make TLS config: " + err.Error())
+			}
+		} else if conf.MTLS.CertFile != "" && conf.MTLS.KeyFile != "" {
+			cert, err = tls.LoadX509KeyPair(conf.MTLS.CertFile, conf.MTLS.KeyFile)
+			if err != nil {
+				return nil, errors.New("failed to make TLS config: " + err.Error())
+			}
+		} else {
+			return nil, errors.New("certificate and key required")
+		}
+
+		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
+		if len(conf.MTLS.ClientCA) != 0 {
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(conf.MTLS.ClientCA)
+			if !ok {
+				return nil, errors.New("failed to parse root certificate")
+			}
+			tlsConf.ClientCAs = pool
+			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+		} else if conf.MTLS.ClientCAFile != "" {
+			ca, err := os.ReadFile(conf.MTLS.ClientCAFile)
 			if err != nil {
 				return nil, err
 			}
@@ -90,15 +118,11 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 			}
 			tlsConf.ClientCAs = pool
 			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-		} else if len(conf.ClientCA) != 0 {
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(conf.ClientCA)
-			if !ok {
-				return nil, errors.New("failed to parse root certificate")
-			}
-			tlsConf.ClientCAs = pool
-			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+		} else {
+			return nil, errors.New("certificate and key required")
 		}
+	default:
+		return nil, fmt.Errorf("unsupported certStrategy: %s", conf.Security)
 	}
 
 	tlsConf.MinVersion = tls.VersionTLS13
@@ -109,36 +133,49 @@ func (s *Server) listen() (net.Listener, error) {
 	var lis net.Listener
 	var err error
 	switch s.conf.Transport {
-	case "tcp":
-		lis, err = net.Listen("tcp", s.conf.Address)
-	case "tls":
-		tlsConf, err := makeServerTLSConfig(s.conf)
-		if err != nil {
-			return nil, err
-		}
-		lis, err = tls.Listen("tcp", s.conf.Address, tlsConf)
-	case "grpc":
-		if s.conf.Plaintext {
-			lis, err = grpc.Listen(s.conf.Address, nil)
+	case config.TransTCP:
+		if s.conf.Security == config.NoSecurity {
+			lis, err = net.Listen("tcp", s.conf.Address)
+			if err != nil {
+				return nil, err
+			}
 		} else {
+			var tlsConf *tls.Config
+			tlsConf, err = makeServerTLSConfig(s.conf)
+			if err != nil {
+				return nil, err
+			}
+			lis, err = tls.Listen("tcp", s.conf.Address, tlsConf)
+			if err != nil {
+				return nil, err
+			}
+		}
+	case config.TransGRPC:
+		if s.conf.Security == config.NoSecurity {
+			lis, err = grpc.Listen(s.conf.Address, nil)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// var tlsConf *tls.Config
 			tlsConf, err := makeServerTLSConfig(s.conf)
 			if err != nil {
 				return nil, err
 			}
 			lis, err = grpc.Listen(s.conf.Address, tlsConf)
+			if err != nil {
+				return nil, err
+			}
 		}
 	default:
-		err = errors.New("unsupported transport: " + s.conf.Transport)
-	}
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
 	}
 
 	log.Infof("yeager proxy listening %s, transport: %s", lis.Addr(), s.conf.Transport)
-	return lis, err
+	return lis, nil
 }
 
-func (s *Server) ListenAndServe(handle proxy.Handler) error {
+func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
 	lis, err := s.listen()
 	if err != nil {
 		return err
@@ -170,7 +207,7 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 
 			newConn := &Conn{
 				Conn:    conn,
-				maxIdle: proxy.MaxConnectionIdle, // FIXME
+				maxIdle: common.MaxConnectionIdle, // FIXME
 			}
 			handle(s.ctx, newConn, dstAddr)
 		}()
@@ -180,12 +217,15 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 func (s *Server) Close() error {
 	defer s.wg.Wait()
 	s.cancel()
-	return s.lis.Close()
+	if s.lis != nil {
+		return s.lis.Close()
+	}
+	return nil
 }
 
 // parseMetaData 解析元数据，若凭证有效则返回其目的地址
 func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
 	if err != nil {
 		return
 	}
@@ -211,7 +251,8 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 	// keep version number for backward compatibility
 	_ = version
 
-	if !bytes.Equal(uuidBytes, uuidPlaceholder[:]) {
+	// when use mutual authentication, UUID is no longer needed
+	if s.conf.Security != config.TLSMutual {
 		gotUUID, err := uuid.ParseBytes(uuidBytes)
 		if err != nil {
 			return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)

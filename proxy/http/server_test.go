@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"yeager/config"
-	"yeager/log"
-	"yeager/util"
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/util"
 )
 
 func TestServer(t *testing.T) {

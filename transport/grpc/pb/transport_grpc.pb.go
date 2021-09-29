@@ -14,45 +14,45 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// TransportClient is the client API for Transport service.
+// TunnelClient is the client API for Tunnel service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type TransportClient interface {
-	Tunnel(ctx context.Context, opts ...grpc.CallOption) (Transport_TunnelClient, error)
+type TunnelClient interface {
+	Stream(ctx context.Context, opts ...grpc.CallOption) (Tunnel_StreamClient, error)
 }
 
-type transportClient struct {
+type tunnelClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewTransportClient(cc grpc.ClientConnInterface) TransportClient {
-	return &transportClient{cc}
+func NewTunnelClient(cc grpc.ClientConnInterface) TunnelClient {
+	return &tunnelClient{cc}
 }
 
-func (c *transportClient) Tunnel(ctx context.Context, opts ...grpc.CallOption) (Transport_TunnelClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Transport_ServiceDesc.Streams[0], "/pb.Transport/Tunnel", opts...)
+func (c *tunnelClient) Stream(ctx context.Context, opts ...grpc.CallOption) (Tunnel_StreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Tunnel_ServiceDesc.Streams[0], "/pb.Tunnel/Stream", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &transportTunnelClient{stream}
+	x := &tunnelStreamClient{stream}
 	return x, nil
 }
 
-type Transport_TunnelClient interface {
+type Tunnel_StreamClient interface {
 	Send(*Data) error
 	Recv() (*Data, error)
 	grpc.ClientStream
 }
 
-type transportTunnelClient struct {
+type tunnelStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *transportTunnelClient) Send(m *Data) error {
+func (x *tunnelStreamClient) Send(m *Data) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *transportTunnelClient) Recv() (*Data, error) {
+func (x *tunnelStreamClient) Recv() (*Data, error) {
 	m := new(Data)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -60,53 +60,53 @@ func (x *transportTunnelClient) Recv() (*Data, error) {
 	return m, nil
 }
 
-// TransportServer is the server API for Transport service.
-// All implementations must embed UnimplementedTransportServer
+// TunnelServer is the server API for Tunnel service.
+// All implementations must embed UnimplementedTunnelServer
 // for forward compatibility
-type TransportServer interface {
-	Tunnel(Transport_TunnelServer) error
-	mustEmbedUnimplementedTransportServer()
+type TunnelServer interface {
+	Stream(Tunnel_StreamServer) error
+	mustEmbedUnimplementedTunnelServer()
 }
 
-// UnimplementedTransportServer must be embedded to have forward compatible implementations.
-type UnimplementedTransportServer struct {
+// UnimplementedTunnelServer must be embedded to have forward compatible implementations.
+type UnimplementedTunnelServer struct {
 }
 
-func (UnimplementedTransportServer) Tunnel(Transport_TunnelServer) error {
-	return status.Errorf(codes.Unimplemented, "method Tunnel not implemented")
+func (UnimplementedTunnelServer) Stream(Tunnel_StreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method Stream not implemented")
 }
-func (UnimplementedTransportServer) mustEmbedUnimplementedTransportServer() {}
+func (UnimplementedTunnelServer) mustEmbedUnimplementedTunnelServer() {}
 
-// UnsafeTransportServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to TransportServer will
+// UnsafeTunnelServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TunnelServer will
 // result in compilation errors.
-type UnsafeTransportServer interface {
-	mustEmbedUnimplementedTransportServer()
+type UnsafeTunnelServer interface {
+	mustEmbedUnimplementedTunnelServer()
 }
 
-func RegisterTransportServer(s grpc.ServiceRegistrar, srv TransportServer) {
-	s.RegisterService(&Transport_ServiceDesc, srv)
+func RegisterTunnelServer(s grpc.ServiceRegistrar, srv TunnelServer) {
+	s.RegisterService(&Tunnel_ServiceDesc, srv)
 }
 
-func _Transport_Tunnel_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TransportServer).Tunnel(&transportTunnelServer{stream})
+func _Tunnel_Stream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TunnelServer).Stream(&tunnelStreamServer{stream})
 }
 
-type Transport_TunnelServer interface {
+type Tunnel_StreamServer interface {
 	Send(*Data) error
 	Recv() (*Data, error)
 	grpc.ServerStream
 }
 
-type transportTunnelServer struct {
+type tunnelStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *transportTunnelServer) Send(m *Data) error {
+func (x *tunnelStreamServer) Send(m *Data) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *transportTunnelServer) Recv() (*Data, error) {
+func (x *tunnelStreamServer) Recv() (*Data, error) {
 	m := new(Data)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -114,17 +114,17 @@ func (x *transportTunnelServer) Recv() (*Data, error) {
 	return m, nil
 }
 
-// Transport_ServiceDesc is the grpc.ServiceDesc for Transport service.
+// Tunnel_ServiceDesc is the grpc.ServiceDesc for Tunnel service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Transport_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "pb.Transport",
-	HandlerType: (*TransportServer)(nil),
+var Tunnel_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "pb.Tunnel",
+	HandlerType: (*TunnelServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "Tunnel",
-			Handler:       _Transport_Tunnel_Handler,
+			StreamName:    "Stream",
+			Handler:       _Tunnel_Stream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

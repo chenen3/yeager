@@ -8,10 +8,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -42,6 +44,15 @@ type Cert struct {
 	ClientKey  []byte
 }
 
+const (
+	CACertFile     = "/usr/local/etc/yeager/ca-cert.pem"
+	CAKeyFile      = "/usr/local/etc/yeager/ca-key.pem"
+	ServerCertFile = "/usr/local/etc/yeager/server-cert.pem"
+	ServerKeyFile  = "/usr/local/etc/yeager/server-key.pem"
+	ClientCertFile = "/usr/local/etc/yeager/client-cert.pem"
+	ClientKeyFile  = "/usr/local/etc/yeager/client-key.pem"
+)
+
 // GenerateCertificate generate TLS certificates for mutual authentication,
 // the output files are: ca.key, ca.cert, server.key, server.crt, client.key, client.crt
 func GenerateCertificate(host string, save bool) (*Cert, error) {
@@ -61,22 +72,22 @@ func GenerateCertificate(host string, save bool) (*Cert, error) {
 	}
 
 	if save {
-		if err = savePEM("/usr/local/etc/yeager/ca-cert.pem", rootCert); err != nil {
+		if err = savePEM(CACertFile, rootCert); err != nil {
 			return nil, err
 		}
-		if err = savePEM("/usr/local/etc/yeager/ca-key.pem", rootKey); err != nil {
+		if err = savePEM(CAKeyFile, rootKey); err != nil {
 			return nil, err
 		}
-		if err = savePEM("/usr/local/etc/yeager/server-cert.pem", serverCert); err != nil {
+		if err = savePEM(ServerCertFile, serverCert); err != nil {
 			return nil, err
 		}
-		if err = savePEM("/usr/local/etc/yeager/server-key.pem", serverKey); err != nil {
+		if err = savePEM(ServerKeyFile, serverKey); err != nil {
 			return nil, err
 		}
-		if err = savePEM("/usr/local/etc/yeager/client-cert.pem", clientCert); err != nil {
+		if err = savePEM(ClientCertFile, clientCert); err != nil {
 			return nil, err
 		}
-		if err = savePEM("/usr/local/etc/yeager/client-key.pem", clientKey); err != nil {
+		if err = savePEM(ClientKeyFile, clientKey); err != nil {
 			return nil, err
 		}
 	}
@@ -163,11 +174,19 @@ func createCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, ke
 		BasicConstraintsValid: true,
 		IsCA:                  false,
 	}
-	if ip := net.ParseIP(host); ip != nil {
-		template.IPAddresses = append(template.IPAddresses, ip)
-	} else {
-		template.DNSNames = append(template.DNSNames, host)
+
+	hosts := strings.Split(host, ",")
+	if len(hosts) == 0 {
+		return nil, nil, errors.New("invalid host: " + host)
 	}
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			template.IPAddresses = append(template.IPAddresses, ip)
+		} else {
+			template.DNSNames = append(template.DNSNames, h)
+		}
+	}
+
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, rootCert, &key.PublicKey, rootKey)
 	if err != nil {
 		return nil, nil, err
@@ -188,7 +207,10 @@ func savePEM(filename string, pem []byte) error {
 		return err
 	}
 	defer f.Close()
-	_, err = f.Write(pem)
-	return err
+	if _, err = f.Write(pem); err != nil {
+		return err
+	}
 
+	fmt.Printf("created certificate file: %s\n", filename)
+	return nil
 }
