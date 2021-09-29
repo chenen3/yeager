@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"yeager/config"
-	"yeager/log"
-	"yeager/proxy"
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/proxy/common"
 )
 
 // Server implements protocol.Inbound interface
@@ -38,7 +38,7 @@ func NewServer(config *config.SOCKSProxy) *Server {
 	}
 }
 
-func (s *Server) ListenAndServe(handle proxy.Handler) error {
+func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
 	lis, err := net.Listen("tcp", s.conf.Address)
 	if err != nil {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
@@ -77,11 +77,14 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 func (s *Server) Close() error {
 	defer s.wg.Wait()
 	s.cancel()
-	return s.lis.Close()
+	if s.lis != nil {
+		return s.lis.Close()
+	}
+	return nil
 }
 
 func (s *Server) handshake(conn net.Conn) (addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
 	if err != nil {
 		return
 	}

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"yeager/proxy"
-	"yeager/proxy/direct"
+	"github.com/chenen3/yeager/proxy/direct"
+	"github.com/chenen3/yeager/util"
 )
 
 // rule type
@@ -49,14 +49,14 @@ func newRule(type_ string, value string, outboundTag string) (*rule, error) {
 	return ru, err
 }
 
-func (r *rule) Match(addr *proxy.Address) bool {
+func (r *rule) Match(addr *util.Address) bool {
 	switch r.type_ {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
-		if addr.Type != proxy.AddrDomainName {
+		if addr.Type != util.AddrDomainName {
 			return false
 		}
 	case ruleIPCIDR:
-		if addr.Type != proxy.AddrIPv4 {
+		if addr.Type != util.AddrIPv4 {
 			// ipv6 not supported yet
 			return false
 		}
@@ -122,8 +122,8 @@ func parseRule(rule string) (*rule, error) {
 }
 
 func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
-	var dst *proxy.Address
-	dst, err = proxy.ParseAddress(addr)
+	var dst *util.Address
+	dst, err = util.ParseAddress(addr)
 	if err != nil {
 		return "", err
 	}

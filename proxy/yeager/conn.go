@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"yeager/log"
+	"github.com/chenen3/yeager/log"
 )
 
 type Conn struct {

@@ -1,7 +1,9 @@
 package util
 
 import (
+	"errors"
 	"net"
+	"strconv"
 )
 
 // ChoosePort choose a local port number automatically
@@ -14,55 +16,58 @@ func ChoosePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-/*
-var pool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 32*1024)
-	},
+type AddrType int
+
+const (
+	AddrIPv4 = iota
+	AddrIPv6
+	AddrDomainName
+)
+
+type Address struct {
+	Type AddrType
+	Host string
+	Port int
+	IP   net.IP
 }
 
-// Copy use the code from io.copyBuffer with build-in buffer pool, to reduce heap memory alloc
-func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
-	// If the reader has a WriteTo method, use it to do the copy.
-	// Avoids an allocation and a copy.
-	if wt, ok := src.(io.WriterTo); ok {
-		return wt.WriteTo(dst)
+// ParseAddress parse a network address to domain, ip
+func ParseAddress(addr string) (*Address, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
 	}
-	// Similarly, if the writer has a ReadFrom method, use it to do the copy.
-	if rt, ok := dst.(io.ReaderFrom); ok {
-		return rt.ReadFrom(src)
+	uintPort, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return nil, errors.New("failed to parse port: " + err.Error())
+	}
+	portnum := int(uintPort)
+
+	var typ AddrType
+	ip := net.ParseIP(host)
+	if ip == nil {
+		typ = AddrDomainName
+	} else if ipv4 := ip.To4(); ipv4 != nil {
+		typ = AddrIPv4
+		ip = ipv4
+	} else {
+		typ = AddrIPv6
+		ip = ip.To16()
 	}
 
-	buf := pool.Get().([]byte)
-	defer pool.Put(buf)
-
-	for {
-		nr, er := src.Read(buf)
-		if nr > 0 {
-			nw, ew := dst.Write(buf[0:nr])
-			if nw < 0 || nr < nw {
-				nw = 0
-				if ew == nil {
-					ew = errors.New("invalid write result")
-				}
-			}
-			written += int64(nw)
-			if ew != nil {
-				err = ew
-				break
-			}
-			if nr != nw {
-				err = io.ErrShortWrite
-				break
-			}
-		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
-			}
-			break
-		}
+	a := &Address{
+		Type: typ,
+		Host: host,
+		Port: portnum,
+		IP:   ip,
 	}
-	return written, err
+	return a, nil
 }
-*/
+
+func (a *Address) Network() string {
+	return "tcp"
+}
+
+func (a *Address) String() string {
+	return net.JoinHostPort(a.Host, strconv.Itoa(a.Port))
+}

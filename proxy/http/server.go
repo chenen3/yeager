@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"yeager/config"
-	"yeager/log"
-	"yeager/proxy"
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/proxy/common"
 )
 
 type Server struct {
@@ -37,7 +37,7 @@ func NewServer(conf *config.HTTPProxy) *Server {
 	}
 }
 
-func (s *Server) ListenAndServe(handle proxy.Handler) error {
+func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
 	lis, err := net.Listen("tcp", s.conf.Address)
 	if err != nil {
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
@@ -76,14 +76,17 @@ func (s *Server) ListenAndServe(handle proxy.Handler) error {
 func (s *Server) Close() error {
 	defer s.wg.Wait()
 	s.cancel()
-	return s.lis.Close()
+	if s.lis != nil {
+		s.lis.Close()
+	}
+	return nil
 }
 
 // HTTP代理服务器接收到请求时：
 // - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
 // - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
 func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(proxy.HandshakeTimeout))
+	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
 	if err != nil {
 		return
 	}

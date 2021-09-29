@@ -7,10 +7,10 @@ import (
 	"io"
 	"net"
 	"testing"
-	"yeager/config"
 
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/util"
 	gproxy "golang.org/x/net/proxy"
-	"yeager/util"
 )
 
 func TestServer(t *testing.T) {
