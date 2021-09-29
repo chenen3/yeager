@@ -77,7 +77,9 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 			Addr:      ":https",
 			TLSConfig: m.TLSConfig(),
 		}
-		go log.Error(s.ListenAndServeTLS("", ""))
+		go func() {
+			log.Error(s.ListenAndServeTLS("", ""))
+		}()
 		tlsConf = m.TLSConfig()
 
 	case config.TLSMutual:

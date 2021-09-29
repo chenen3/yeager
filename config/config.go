@@ -82,15 +82,12 @@ type Mtls struct {
 
 type YeagerServer struct {
 	Address   string             `json:"address"`
-	UUID      string             `json:"uuid"`
+	UUID      string             `json:"uuid"` // ignored when Security is TLSMutual
 	Transport Transport          `json:"transport"`
 	Security  ServerSecurityType `json:"security"`
-	// available when Security is TLS
-	TLS Tls `json:"tls,omitempty"`
-	// available when Security is TLSAcme
-	ACME Acme `json:"acme,omitempty"`
-	// available when Security is TLSMutual
-	MTLS Mtls `json:"mtls,omitempty"`
+	TLS       Tls                `json:"tls,omitempty"`  // available when Security is TLS
+	ACME      Acme               `json:"acme,omitempty"` // available when Security is TLSAcme
+	MTLS      Mtls               `json:"mtls,omitempty"` // available when Security is TLSMutual
 }
 
 type ClientSecurityType string
@@ -117,13 +114,11 @@ type ClientMTLS struct {
 type YeagerClient struct {
 	Tag       string             `json:"tag"` // 出站标记，用于路由规则指定出站代理
 	Address   string             `json:"address"`
-	UUID      string             `json:"uuid"`
+	UUID      string             `json:"uuid"` // ignored when Security is TLSMutual
 	Transport Transport          `json:"transport"`
 	Security  ClientSecurityType `json:"security"`
-	// available when Security is ClientTLS
-	TLS ClientTls `json:"tls,omitempty"`
-	// available when Security is ClientTLSMutual
-	MTLS ClientMTLS `json:"mtls,omitempty"`
+	TLS       ClientTls          `json:"tls,omitempty"`  // available when Security is ClientTLS
+	MTLS      ClientMTLS         `json:"mtls,omitempty"` // available when Security is ClientTLSMutual
 }
 
 const (
