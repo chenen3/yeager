@@ -18,10 +18,11 @@ func init() {
 var certCmd = &cobra.Command{
 	Use:   "cert",
 	Short: "Generate certificates for mutual TLS",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	Run: func(cmd *cobra.Command, args []string) {
 		_, err := util.GenerateCertificate(host, true)
 		if err != nil {
-			return err
+			fmt.Println("failed to generate certificate, err: ", err)
+			return
 		}
 
 		fmt.Printf("generate certificate: \n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n",
@@ -32,6 +33,5 @@ var certCmd = &cobra.Command{
 		fmt.Printf("please copy %s, %s, and %s to client device\n",
 			util.CACertFile, util.ClientCertFile, util.ClientKeyFile,
 		)
-		return nil
 	},
 }
