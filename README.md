@@ -20,7 +20,7 @@ Generate certificate files:
 ```bash
 mkdir -p /usr/local/etc/yeager
 cd /usr/local/etc/yeager
-podman run --rm \
+docker run --rm \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     ghcr.io/chenen3/yeager:latest \
     yeager cert --host [server-public-ip]
@@ -46,7 +46,7 @@ Create config file `/usr/local/etc/yeager/config.json`
 
 Launch:
 ```bash
-podman run -d \
+docker run -d \
 	--name yeager \
 	--restart=always \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
@@ -67,9 +67,9 @@ brew tap chenen3/yeager
 brew install yeager
 ```
 
-- Via podman
+- Via docker
 
-`podman pull ghcr.io/chenen3/yeager:latest`
+`docker pull ghcr.io/chenen3/yeager:latest`
 
 #### Configure
 > ensure you have copy the certificate files to client device, and place in directory `/usr/local/etc/yeager`
@@ -118,10 +118,10 @@ create config file `/usr/local/etc/yeager/config.json`
 
 `brew services start yeager`
 
-- Via podman
+- Via docker
 
 ```bash
-podman run -d \
+docker run -d \
 	--name yeager \
 	--restart=always \
 	--network host \
@@ -159,12 +159,12 @@ brew upgrade yeager
 brew services restart yeager
 ```
 
-Via podman
+Via docker
 
 ```bash
-podman pull ghcr.io/chenen3/yeager:latest
-podman stop yeager
-podman rm yeager
+docker pull ghcr.io/chenen3/yeager:latest
+docker stop yeager
+docker rm yeager
 # then create the container again as described above
 ```
 
@@ -177,10 +177,10 @@ brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-via podman:
+via docker:
 
 ```bash
-podman stop yeager
-podman rm yeager
-podman image rm ghcr.io/chenen3/yeager
+docker stop yeager
+docker rm yeager
+docker image rm ghcr.io/chenen3/yeager
 ```
