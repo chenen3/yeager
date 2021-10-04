@@ -24,7 +24,14 @@ var certCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println("next please copy the files ca-cert.pem, client-cert.pem, client-key.pem to client device")
+		fmt.Printf("generate certificate: \n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n",
+			util.CACertFile, util.CAKeyFile,
+			util.ServerCertFile, util.ServerKeyFile,
+			util.ClientCertFile, util.ClientKeyFile,
+		)
+		fmt.Printf("please copy %s, %s, and %s to client device\n",
+			util.CACertFile, util.ClientCertFile, util.ClientKeyFile,
+		)
 		return nil
 	},
 }
