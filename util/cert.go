@@ -45,12 +45,12 @@ type Cert struct {
 }
 
 const (
-	CACertFile     = "/usr/local/etc/yeager/ca-cert.pem"
-	CAKeyFile      = "/usr/local/etc/yeager/ca-key.pem"
-	ServerCertFile = "/usr/local/etc/yeager/server-cert.pem"
-	ServerKeyFile  = "/usr/local/etc/yeager/server-key.pem"
-	ClientCertFile = "/usr/local/etc/yeager/client-cert.pem"
-	ClientKeyFile  = "/usr/local/etc/yeager/client-key.pem"
+	CACertFile     = "ca-cert.pem"
+	CAKeyFile      = "ca-key.pem"
+	ServerCertFile = "server-cert.pem"
+	ServerKeyFile  = "server-key.pem"
+	ClientCertFile = "client-cert.pem"
+	ClientKeyFile  = "client-key.pem"
 )
 
 // GenerateCertificate generate TLS certificates for mutual authentication,
@@ -207,10 +207,7 @@ func savePEM(filename string, pem []byte) error {
 		return err
 	}
 	defer f.Close()
-	if _, err = f.Write(pem); err != nil {
-		return err
-	}
 
-	fmt.Printf("created certificate file: %s\n", filename)
-	return nil
+	_, err = f.Write(pem)
+	return err
 }
