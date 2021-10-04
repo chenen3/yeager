@@ -1,70 +1,60 @@
 # yeager
 
-> Note: yeager is my personal training project, mostly learn from v2ray-core and xray-core, and do it in my way. If you are beginner looking for proxy tool, please consider [v2ray-core](https://github.com/v2fly/v2ray-core) or [Xray-core](https://github.com/XTLS/Xray-core) firstly, they are strong enough and having better community support.
+> yeager is my personal training project, mostly learn from v2ray-core, and do it in my way. If you are beginner looking for similar tool, please consider [v2ray-core](https://github.com/v2fly/v2ray-core) or [Xray-core](https://github.com/XTLS/Xray-core) firstly, which have more features and better community support
 
-yeager aims to bypass network restriction, supports features:
+yeager aims to bypass network restrictions, supports features:
+- lightweight proxy for outbound
+    - transport by gRPC (or TCP)
+    - secure by TLS
+- SOCKS5 and HTTP proxy for inbound
+- routing by rule
 
-- SOCKS5 proxy for inbound usage
-- HTTP proxy for inbound usage
-- lightweight outbound proxy
-    - secure transport via TLS or gRPC
-    - issue and renew certificate automatically
-- rule routing
-
-## Requirements
-
-1. server reachable from public Internet (e.g. Amazon Lightsail), update firewall:
-   - expose port 443 which ACME protocol requires for HTTPS challenge
-   - expose port 9000 which yeager proxy server listen on
-
-2. domain name that pointed (A records) at the server
+## Requirement
+Server reachable from public Internet, with port 9000 exposed
 
 ## Usage
 
 ### As server
 
-- start with environment variables
-
+Generate certificate files:
 ```bash
 mkdir -p /usr/local/etc/yeager
-docker run -d \
-	--name yeager \
-	--restart always \
-	-e YEAGER_TRANSPORT=grpc \
-	-e YEAGER_UUID=example-UUID `#replace with UUID` \
-	-e YEAGER_DOMAIN=example.com `#replace with domain name` \
-	-p 443:443 \
-	-p 9000:9000 \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	ghcr.io/chenen3/yeager:latest
+cd /usr/local/etc/yeager
+podman run --rm \
+    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
+    ghcr.io/chenen3/yeager:latest \
+    yeager cert --host [server-public-ip]
 ```
 
-- start with configuration file
-
-create config file `/usr/local/etc/yeager/config.json`
+Create config file `/usr/local/etc/yeager/config.json`
 ```json
 {
     "inbounds": {
         "yeager": {
             "address": "0.0.0.0:9000",
-            "uuid": "example-UUID", // replace with UUID
             "transport": "grpc",
-            "domain": "example.com" // replace with domain name
+            "security": "tls-mutual",
+            "mtls": {
+                "certFile": "/usr/local/etc/yeager/server-cert.pem",
+                "keyFile": "/usr/local/etc/yeager/server-key.pem",
+                "clientCAFile": "/usr/local/etc/yeager/ca-cert.pem"
+            }
         }
     }
 }
 ```
 
-then execute command:
+Launch:
 ```bash
-docker run -d \
+podman run -d \
 	--name yeager \
 	--restart=always \
 	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	-p 443:443 \
 	-p 9000:9000 \
 	ghcr.io/chenen3/yeager:latest
 ```
+
+- start with configuration file
 
 ### As client
 
@@ -77,11 +67,12 @@ brew tap chenen3/yeager
 brew install yeager
 ```
 
-- Via docker on Linux distribution
+- Via podman
 
-`docker pull ghcr.io/chenen3/yeager:latest`
+`podman pull ghcr.io/chenen3/yeager:latest`
 
 #### Configure
+> ensure you have copy the certificate files to client device, and place in directory `/usr/local/etc/yeager`
 
 create config file `/usr/local/etc/yeager/config.json`
 
@@ -98,9 +89,14 @@ create config file `/usr/local/etc/yeager/config.json`
     "outbounds": [
         {
             "tag": "PROXY",
-            "address": "example.com:9000", // replace with domain name
-            "uuid": "example-uuid", // replace with UUID
-            "transport": "grpc"
+            "address": "server-ip:9000", // replace server-ip
+            "transport": "grpc",
+            "security": "tls-mutual",
+            "mtls": {
+                "certFile": "/usr/local/etc/yeager/client-cert.pem",
+                "keyFile": "/usr/local/etc/yeager/client-key.pem",
+                "rootCAFile": "/usr/local/etc/yeager/ca-cert.pem"
+            }
         }
     ],
     "rules": [
@@ -122,10 +118,10 @@ create config file `/usr/local/etc/yeager/config.json`
 
 `brew services start yeager`
 
-- Via docker on Linux distribution
+- Via podman
 
 ```bash
-docker run -d \
+podman run -d \
 	--name yeager \
 	--restart=always \
 	--network host \
@@ -133,53 +129,12 @@ docker run -d \
 	ghcr.io/chenen3/yeager:latest
 ```
 
-After running client side yeager, do not forget to **setup local device's SOCKS5 or HTTP proxy**. Good luck
+After running client side yeager, do not forget to **setup SOCKS5 or HTTP proxy for client device**. Good luck
 
 
 ## Advance usage
 
-### Configuration explain
-
-```json
-{
-    "inbounds": {
-        "socks": {
-            "address": "127.0.0.1:1080" // SOCKS5 proxy listening address
-        },
-        "http": {
-            "address": "127.0.0.1:8080" // HTTP proxy listening address
-        },
-        "yeager": {
-            "address": "0.0.0.0:9000", // yeager proxy listening address
-            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "grpc", // tcp, tls, grpc
-            "plaintext": false, // whether accept gRPC request in plaintext
-            "domain": "example.com", // if specified, manage certificate automatically
-            "certFile": "/path/to/certificate", // manage certificate manually
-            "keyFile": "/path/to/key" // manage certificate manually
-        }
-    },
-    "outbounds": [
-        {
-            "tag": "PROXY", // tag value must be unique in all outbounds
-            "address": "example.com:9000", // correspond to inbound yeager domain name
-            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4", // correspond to inbound yeager UUID
-            "transport": "grpc", // correspond to inbound yeager transport
-            "plaintext": false // whether send gRPC request in plaintext
-        }
-    ],
-    "rules": [
-        "IP-CIDR,127.0.0.1/8,DIRECT",
-        "IP-CIDR,192.168.0.0/16,DIRECT",
-        "GEOSITE,private,DIRECT",
-        "GEOSITE,google,PROXY",
-        "GEOSITE,twitter,PROXY",
-        "GEOSITE,cn,DIRECT",
-        "GEOSITE,apple@cn,DIRECT",
-        "FINAL,PROXY"
-    ]
-}
-```
+### Routing rule
 
 Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`.
 Outbound tag specified by the user, and yeager also comes with two built-in outbound tags:
@@ -194,25 +149,6 @@ rule example:
 - `GEOSITE,cn,DIRECT` matches if destination domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
 - `FINAL,PROXY` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `FINAL,DIRECT`
 
-
-### Manually run yeager
-
-1. download the latest [release](https://github.com/chenen3/yeager/releases)
-2. create config file as explained
-3. run command: `YEAGER_ASSET_DIR=. yeager -config config.json`
-
-### Transport via TLS
-
-If the network between local device and remote server is not good enough, please use the TLS transport feature, simply set `transport` field  to `tls` in both server and client config
-
-### Transport in plaintext
-
-**Please do not use plaintext unless you know what you are doing.**
-
-In some situations we want reverse proxy or load balancing yeager server, yeager works with API gateway (e.g. nginx) which terminates TLS. Update yeager server config:
-- while transport via tcp, set `transport` field to `tcp`
-- while transport via gRPC, set `plaintext` fields to `true`
-
 ### Upgrade
 
 Via homebrew on macOS
@@ -223,13 +159,13 @@ brew upgrade yeager
 brew services restart yeager
 ```
 
-Via docker on Linux distribution
+Via podman
 
 ```bash
-docker pull ghcr.io/chenen3/yeager:latest
-docker stop yeager
-docker rm yeager
-# then run the container again
+podman pull ghcr.io/chenen3/yeager:latest
+podman stop yeager
+podman rm yeager
+# then create the container again as described above
 ```
 
 ### Uninstall
@@ -241,10 +177,10 @@ brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-via docker:
+via podman:
 
 ```bash
-docker stop yeager
-docker rm yeager
-docker image rm ghcr.io/chenen3/yeager
+podman stop yeager
+podman rm yeager
+podman image rm ghcr.io/chenen3/yeager
 ```
