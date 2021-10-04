@@ -1,4 +1,5 @@
 {
+    "develop": true,
     "inbounds": {
         "yeager": {
             "address": ":10812",

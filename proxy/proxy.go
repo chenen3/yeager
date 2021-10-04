@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/direct"
 	"github.com/chenen3/yeager/proxy/http"
@@ -18,6 +17,7 @@ import (
 	"github.com/chenen3/yeager/proxy/yeager"
 	"github.com/chenen3/yeager/route"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 var activeConn prometheus.Gauge
@@ -104,7 +104,7 @@ func (p *Proxy) Serve() error {
 			defer wg.Done()
 			err := ib.ListenAndServe(p.handle)
 			if err != nil {
-				log.Error(err)
+				zap.S().Error(err)
 				once.Do(p.Close)
 				return
 			}
@@ -136,21 +136,25 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 
 	tag, err := p.router.Dispatch(addr)
 	if err != nil {
-		log.Error(err)
+		zap.S().Error(err)
 		return
 	}
 	outbound, ok := p.outbounds[tag]
 	if !ok {
-		log.Errorf("unknown outbound tag: %s", tag)
+		zap.S().Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	log.Infof("dispatch %s from %s to [%s]\n", addr, inConn.RemoteAddr(), tag)
+	zap.L().Info("proxy request",
+		zap.String("addr", addr),
+		zap.String("src", inConn.RemoteAddr().String()),
+		zap.String("dst", tag),
+	)
 
 	dialCtx, cancel := context.WithTimeout(ctx, common.DialTimeout)
 	defer cancel()
 	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {
-		log.Error(err)
+		zap.S().Error(err)
 		return
 	}
 	defer outConn.Close()
@@ -169,7 +173,7 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	case <-ctx.Done():
 	case err := <-errCh:
 		if err != nil {
-			log.Warnf("%s, dst %s", err, addr)
+			zap.S().Warnf("%s, dst %s", err, addr)
 		}
 	}
 }

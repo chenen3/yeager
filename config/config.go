@@ -27,7 +27,7 @@ type Config struct {
 	Inbounds  Inbounds        `json:"inbounds,omitempty"`  // 入站代理
 	Outbounds []*YeagerClient `json:"outbounds,omitempty"` // 出站代理
 	Rules     []string        `json:"rules,omitempty"`     // 路由规则
-	Profiling bool            `json:"profiling,omitempty"` // developer only
+	Develop   bool            `json:"develop,omitempty"`   // developer only
 }
 
 type Inbounds struct {

@@ -1,4 +1,5 @@
 {
+    "develop": true,
     "inbounds": {
         "socks": {
             "address": ":1081"

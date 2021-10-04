@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -43,7 +43,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.Infof("http proxy listening %s", s.conf.Address)
+	zap.S().Infof("http proxy listening %s", s.conf.Address)
 
 	close(s.ready)
 	for {
@@ -54,7 +54,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 				return nil
 			default:
 			}
-			log.Warn(err)
+			zap.S().Warn(err)
 			continue
 		}
 
@@ -63,7 +63,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 			defer s.wg.Done()
 			newConn, addr, err := s.handshake(conn)
 			if err != nil {
-				log.Error("handshake: " + err.Error())
+				zap.S().Error("handshake: " + err.Error())
 				conn.Close()
 				return
 			}
