@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/transport/grpc"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -78,7 +78,7 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 			TLSConfig: m.TLSConfig(),
 		}
 		go func() {
-			log.Error(s.ListenAndServeTLS("", ""))
+			zap.S().Error(s.ListenAndServeTLS("", ""))
 		}()
 		tlsConf = m.TLSConfig()
 
@@ -173,7 +173,7 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
 	}
 
-	log.Infof("yeager proxy listening %s, transport: %s", lis.Addr(), s.conf.Transport)
+	zap.S().Infof("yeager proxy listening %s", lis.Addr())
 	return lis, nil
 }
 
@@ -193,7 +193,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 				return nil
 			default:
 			}
-			log.Warn(err)
+			zap.S().Warn(err)
 			continue
 		}
 
@@ -202,7 +202,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 			defer s.wg.Done()
 			dstAddr, err := s.parseMetaData(conn)
 			if err != nil {
-				log.Warn("failed to parse metadata: " + err.Error())
+				zap.S().Warn("failed to parse metadata: " + err.Error())
 				conn.Close()
 				return
 			}

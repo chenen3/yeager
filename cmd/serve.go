@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -9,10 +10,11 @@ import (
 	"syscall"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var confFile string
@@ -38,26 +40,40 @@ func serve() {
 		conf, err = config.LoadFile(confFile)
 	}
 	if err != nil {
-		log.Error(err)
+		zap.S().Error(err)
 		return
 	}
-
 	bs, _ := json.MarshalIndent(conf, "", "  ")
-	log.Infof("current configuration: \n%s\n", bs)
+	log.Printf("loaded config: \n%s\n", bs)
+
+	var zc zap.Config
+	if conf.Develop {
+		zc = zap.NewDevelopmentConfig()
+	} else {
+		zc = zap.NewProductionConfig()
+	}
+	zc.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+	logger, err := zc.Build()
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
+	undo := zap.ReplaceGlobals(logger)
+	defer undo()
 
 	p, err := proxy.NewProxy(conf)
 	if err != nil {
-		log.Error(err)
+		zap.S().Error(err)
 		return
 	}
 	// trigger GC to release memory usage. (especially routing rule parsing)
 	runtime.GC()
 
 	// http server for profiling
-	if conf.Profiling {
+	if conf.Develop {
 		go func() {
 			http.Handle("/metrics", promhttp.Handler())
-			log.Error(http.ListenAndServe("localhost:6060", nil))
+			zap.S().Error(http.ListenAndServe("localhost:6060", nil))
 		}()
 	}
 
@@ -69,7 +85,7 @@ func serve() {
 		p.Close()
 	}()
 
-	log.Infof("starting ...")
+	zap.S().Info("starting ...")
 	p.Serve()
-	log.Infof("closed")
+	zap.S().Info("closed")
 }
