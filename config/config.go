@@ -37,11 +37,11 @@ type Inbounds struct {
 }
 
 type SOCKSProxy struct {
-	Address string `json:"address"`
+	Listen string `json:"listen"`
 }
 
 type HTTPProxy struct {
-	Address string `json:"address"`
+	Listen string `json:"listen"`
 }
 
 type Transport string
@@ -81,7 +81,7 @@ type Mtls struct {
 }
 
 type YeagerServer struct {
-	Address   string             `json:"address"`
+	Listen    string             `json:"listen"`
 	UUID      string             `json:"uuid"` // ignored when Security is TLSMutual
 	Transport Transport          `json:"transport"`
 	Security  ServerSecurityType `json:"security"`
@@ -157,7 +157,7 @@ func LoadEnv() (conf *Config, err error, foundEnv bool) {
 	security := os.Getenv(EnvYeagerSecurity)
 
 	sc := &YeagerServer{
-		Address:   address,
+		Listen:    address,
 		UUID:      uuid,
 		Transport: Transport(transport),
 		Security:  ServerSecurityType(security),

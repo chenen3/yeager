@@ -28,23 +28,27 @@ type Server struct {
 	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(config *config.SOCKSProxy) *Server {
+func NewServer(conf *config.SOCKSProxy) (*Server, error) {
+	if conf == nil || conf.Listen == "" {
+		return nil, errors.New("config missing listening address")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		conf:   config,
+		conf:   conf,
 		ready:  make(chan struct{}),
 		ctx:    ctx,
 		cancel: cancel,
-	}
+	}, nil
 }
 
 func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
-	lis, err := net.Listen("tcp", s.conf.Address)
+	lis, err := net.Listen("tcp", s.conf.Listen)
 	if err != nil {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	zap.S().Infof("socks5 proxy listening %s", s.conf.Address)
+	zap.S().Infof("socks5 proxy listening %s", s.conf.Listen)
 
 	close(s.ready)
 	for {

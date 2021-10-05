@@ -4,13 +4,15 @@
 
 yeager aims to bypass network restrictions, supports features:
 - lightweight proxy for outbound
-    - transport by gRPC (or TCP)
+    - transport by gRPC
     - secure by TLS
 - SOCKS5 and HTTP proxy for inbound
 - routing by rule
 
-## Requirement
-Server reachable from public Internet, with port 9000 exposed
+## Prerequisites
+
+- Server reachable from public Internet, with port 9000 exposed
+- docker
 
 ## Usage
 
@@ -47,20 +49,18 @@ Create config file `/usr/local/etc/yeager/config.json`
 Launch:
 ```bash
 docker run -d \
-	--name yeager \
-	--restart=always \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	-p 9000:9000 \
-	ghcr.io/chenen3/yeager:latest
+    --name yeager \
+    --restart=always \
+    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
+    -p 9000:9000 \
+    ghcr.io/chenen3/yeager:latest
 ```
-
-- start with configuration file
 
 ### As client
 
 #### Install
 
-- Via homebrew on MacOS 
+- Via homebrew (macOS only)
 
 ```
 brew tap chenen3/yeager
@@ -72,7 +72,7 @@ brew install yeager
 `docker pull ghcr.io/chenen3/yeager:latest`
 
 #### Configure
-> ensure you have copy the certificate files to client device, and place in directory `/usr/local/etc/yeager`
+> At server side we have generated certificate files: client-cert.pem, client-key.pem, ca-cert.pem. Ensure you have copy these files to client device, and place in directory `/usr/local/etc/yeager`
 
 create config file `/usr/local/etc/yeager/config.json`
 
@@ -122,15 +122,14 @@ create config file `/usr/local/etc/yeager/config.json`
 
 ```bash
 docker run -d \
-	--name yeager \
-	--restart=always \
-	--network host \
-	-v /usr/local/etc/yeager:/usr/local/etc/yeager \
-	ghcr.io/chenen3/yeager:latest
+    --name yeager \
+    --restart=always \
+    --network host \
+    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
+    ghcr.io/chenen3/yeager:latest
 ```
 
-After running client side yeager, do not forget to **setup SOCKS5 or HTTP proxy for client device**. Good luck
-
+After running client side yeager, do not forget to **setup SOCKS5 or HTTP proxy for client device**. Good luck.
 
 ## Advance usage
 

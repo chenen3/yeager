@@ -54,15 +54,24 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	}
 
 	if conf.Inbounds.SOCKS != nil {
-		srv := socks.NewServer(conf.Inbounds.SOCKS)
+		srv, err := socks.NewServer(conf.Inbounds.SOCKS)
+		if err != nil {
+			return nil, err
+		}
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if conf.Inbounds.HTTP != nil {
-		srv := http.NewServer(conf.Inbounds.HTTP)
+		srv, err := http.NewServer(conf.Inbounds.HTTP)
+		if err != nil {
+			return nil, err
+		}
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if conf.Inbounds.Yeager != nil {
-		srv := yeager.NewServer(conf.Inbounds.Yeager)
+		srv, err := yeager.NewServer(conf.Inbounds.Yeager)
+		if err != nil {
+			return nil, err
+		}
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if len(p.inbounds) == 0 {
