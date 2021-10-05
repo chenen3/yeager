@@ -22,12 +22,15 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := NewServer(&config.HTTPProxy{
-		Address: fmt.Sprintf("127.0.0.1:%d", port),
+	server, err := NewServer(&config.HTTPProxy{
+		Listen: fmt.Sprintf("127.0.0.1:%d", port),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer server.Close()
 	go func() {
-		t.Log(server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
 			defer conn.Close()
 			if addr != "fake.domain.com:1234" {
 				t.Errorf("received unexpected dst addr: %s", addr)
@@ -46,11 +49,14 @@ func TestServer(t *testing.T) {
 				t.Error(err)
 				return
 			}
-		}))
+		})
+		if err != nil {
+			t.Error(err)
+		}
 	}()
 
 	<-server.ready
-	proxyUrl, _ := url.Parse("http://" + server.conf.Address)
+	proxyUrl, _ := url.Parse("http://" + server.conf.Listen)
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(proxyUrl),

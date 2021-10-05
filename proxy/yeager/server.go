@@ -35,14 +35,18 @@ type Server struct {
 	ready chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(config *config.YeagerServer) *Server {
+func NewServer(conf *config.YeagerServer) (*Server, error) {
+	if conf == nil || conf.Listen == "" {
+		return nil, errors.New("config missing listening address")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		conf:   config,
+		conf:   conf,
 		ready:  make(chan struct{}),
 		ctx:    ctx,
 		cancel: cancel,
-	}
+	}, nil
 }
 
 func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
@@ -124,7 +128,7 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 			return nil, errors.New("certificate and key required")
 		}
 	default:
-		return nil, fmt.Errorf("unsupported certStrategy: %s", conf.Security)
+		return nil, fmt.Errorf("unsupported security: %s", conf.Security)
 	}
 
 	tlsConf.MinVersion = tls.VersionTLS13
@@ -137,7 +141,7 @@ func (s *Server) listen() (net.Listener, error) {
 	switch s.conf.Transport {
 	case config.TransTCP:
 		if s.conf.Security == config.NoSecurity {
-			lis, err = net.Listen("tcp", s.conf.Address)
+			lis, err = net.Listen("tcp", s.conf.Listen)
 			if err != nil {
 				return nil, err
 			}
@@ -147,14 +151,14 @@ func (s *Server) listen() (net.Listener, error) {
 			if err != nil {
 				return nil, err
 			}
-			lis, err = tls.Listen("tcp", s.conf.Address, tlsConf)
+			lis, err = tls.Listen("tcp", s.conf.Listen, tlsConf)
 			if err != nil {
 				return nil, err
 			}
 		}
 	case config.TransGRPC:
 		if s.conf.Security == config.NoSecurity {
-			lis, err = grpc.Listen(s.conf.Address, nil)
+			lis, err = grpc.Listen(s.conf.Listen, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -164,7 +168,7 @@ func (s *Server) listen() (net.Listener, error) {
 			if err != nil {
 				return nil, err
 			}
-			lis, err = grpc.Listen(s.conf.Address, tlsConf)
+			lis, err = grpc.Listen(s.conf.Listen, tlsConf)
 			if err != nil {
 				return nil, err
 			}

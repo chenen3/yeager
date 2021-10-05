@@ -22,8 +22,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	code := m.Run()
-	os.Exit(code)
+	os.Exit(m.Run())
 }
 
 func serveTLS() (*Server, error) {
@@ -31,14 +30,13 @@ func serveTLS() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := NewServer(&config.YeagerServer{
-		Address:   fmt.Sprintf("127.0.0.1:%d", port),
+	return NewServer(&config.YeagerServer{
+		Listen:    fmt.Sprintf("127.0.0.1:%d", port),
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		Transport: config.TransTCP,
 		Security:  config.TLS,
 		TLS:       config.Tls{CertPEM: certPEM, KeyPEM: keyPEM},
 	})
-	return srv, nil
 }
 
 func TestYeager_tls(t *testing.T) {
@@ -64,7 +62,7 @@ func TestYeager_tls(t *testing.T) {
 	// FIXME: if failed to launch server, here blocks forever
 	<-server.ready
 	client, err := NewClient(&config.YeagerClient{
-		Address:   server.conf.Address,
+		Address:   server.conf.Listen,
 		UUID:      server.conf.UUID,
 		Transport: config.TransTCP,
 		Security:  config.ClientTLS,
@@ -100,8 +98,8 @@ func serveGRPC() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := NewServer(&config.YeagerServer{
-		Address:   fmt.Sprintf("127.0.0.1:%d", port),
+	return NewServer(&config.YeagerServer{
+		Listen:    fmt.Sprintf("127.0.0.1:%d", port),
 		UUID:      "ce9f7ded-027c-e7b3-9369-308b7208d498",
 		Transport: config.TransGRPC,
 		Security:  config.TLS,
@@ -110,7 +108,6 @@ func serveGRPC() (*Server, error) {
 			KeyPEM:  keyPEM,
 		},
 	})
-	return srv, nil
 }
 
 func TestYeager_grpc(t *testing.T) {
@@ -136,7 +133,7 @@ func TestYeager_grpc(t *testing.T) {
 
 	<-server.ready
 	client, err := NewClient(&config.YeagerClient{
-		Address:   server.conf.Address,
+		Address:   server.conf.Listen,
 		UUID:      server.conf.UUID,
 		Transport: config.TransGRPC,
 		Security:  config.ClientTLS,
@@ -177,8 +174,8 @@ func TestYeager_mutualTLS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := NewServer(&config.YeagerServer{
-		Address:   fmt.Sprintf("127.0.0.1:%d", port),
+	server, err := NewServer(&config.YeagerServer{
+		Listen:    fmt.Sprintf("127.0.0.1:%d", port),
 		Transport: config.TransTCP,
 		Security:  config.TLSMutual,
 		MTLS: config.Mtls{
@@ -207,7 +204,7 @@ func TestYeager_mutualTLS(t *testing.T) {
 
 	<-server.ready
 	client, err := NewClient(&config.YeagerClient{
-		Address:   server.conf.Address,
+		Address:   server.conf.Listen,
 		Transport: config.TransTCP,
 		Security:  config.ClientTLSMutual,
 		MTLS: config.ClientMTLS{

@@ -19,9 +19,12 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := NewServer(&config.SOCKSProxy{
-		Address: fmt.Sprintf("127.0.0.1:%d", port),
+	server, err := NewServer(&config.SOCKSProxy{
+		Listen: fmt.Sprintf("127.0.0.1:%d", port),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer server.Close()
 	go func() {
 		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
@@ -38,7 +41,7 @@ func TestServer(t *testing.T) {
 	}()
 
 	<-server.ready
-	client, err := gproxy.SOCKS5("tcp", server.conf.Address, nil, nil)
+	client, err := gproxy.SOCKS5("tcp", server.conf.Listen, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 		return

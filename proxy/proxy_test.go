@@ -13,46 +13,54 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
+	"go.uber.org/zap"
 )
 
 var httpProxyURL string
 
 func TestMain(m *testing.M) {
-	// setup proxy server
-	httpProxyPort, err := util.ChoosePort()
+	logger, err := zap.NewDevelopment()
 	if err != nil {
-		return
+		panic(err)
 	}
-	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
+	defer logger.Sync()
+	undo := zap.ReplaceGlobals(logger)
+	defer undo()
 
+	// setup proxy server
 	yeagerProxyPort, err := util.ChoosePort()
 	if err != nil {
-		return
+		panic(err)
 	}
-	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort)
-	if err != nil {
-		return
-	}
-	clientProxy, err := NewProxy(cliConf)
-	if err != nil {
-		return
-	}
-	go clientProxy.Serve()
-	defer clientProxy.Close()
-
 	srvConf, err := makeServerProxyConf(yeagerProxyPort)
 	if err != nil {
-		return
+		panic(err)
 	}
 	serverProxy, err := NewProxy(srvConf)
 	if err != nil {
-		return
+		panic(err)
 	}
 	go serverProxy.Serve()
 	defer serverProxy.Close()
 
-	code := m.Run()
-	os.Exit(code)
+	httpProxyPort, err := util.ChoosePort()
+	if err != nil {
+		panic(err)
+	}
+	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
+
+	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort)
+	if err != nil {
+		panic(err)
+	}
+	clientProxy, err := NewProxy(cliConf)
+	if err != nil {
+		panic(err)
+	}
+	go clientProxy.Serve()
+	defer clientProxy.Close()
+
+	os.Exit(m.Run())
 }
 
 func TestProxy(t *testing.T) {
@@ -74,7 +82,7 @@ func TestProxy(t *testing.T) {
 		},
 		Timeout: time.Second,
 	}
-	// flow direction: client request -> inbound http proxy -> outbound yeager proxy -> inbound yeager proxy -> http test server
+	// traffic direction: client request -> inbound http proxy -> outbound yeager proxy -> inbound yeager proxy -> http test server
 	resp, err := client.Get(ts.URL)
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +101,7 @@ func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) 
 	s := fmt.Sprintf(`{
     "inbounds": {
 		"http": {
-            "address": "127.0.0.1:%d"
+            "listen": "127.0.0.1:%d"
         }
 	},
     "outbounds": [
@@ -101,8 +109,11 @@ func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) 
             "tag": "PROXY",
             "address": "127.0.0.1:%d",
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "tls",
-			"insecure": true
+            "transport": "tcp",
+			"security": "tls",
+			"tls": {
+				"insecure": true
+			}
         }
     ],
     "rules": [
@@ -116,7 +127,7 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
         "yeager": {
-            "address": "127.0.0.1:%d",
+            "listen": "127.0.0.1:%d",
             "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
             "transport": "tcp",
 			"security": "tls"

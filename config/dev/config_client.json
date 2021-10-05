@@ -2,10 +2,10 @@
     "develop": true,
     "inbounds": {
         "socks": {
-            "address": ":1081"
+            "listen": ":1081"
         },
         "http": {
-            "address": ":8081"
+            "listen": ":8081"
         }
     },
     "outbounds": [
