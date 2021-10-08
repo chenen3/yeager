@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"encoding/json"
+	_ "expvar"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -22,7 +23,6 @@ var confFile string
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().StringVarP(&confFile, "config", "c", "/usr/local/etc/yeager/config.json", "Configuration file to read from")
-	serveCmd.MarkFlagRequired("config")
 }
 
 var serveCmd = &cobra.Command{
@@ -37,6 +37,7 @@ func serve() {
 	// load config from environment variables or file
 	conf, err, foundEnv := config.LoadEnv()
 	if !foundEnv {
+		log.Printf("loading config from %s\n", confFile)
 		conf, err = config.LoadFile(confFile)
 	}
 	if err != nil {
@@ -72,7 +73,6 @@ func serve() {
 	// http server for profiling
 	if conf.Develop {
 		go func() {
-			http.Handle("/metrics", promhttp.Handler())
 			zap.S().Error(http.ListenAndServe("localhost:6060", nil))
 		}()
 	}

@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"expvar"
 	"io"
 	"net"
 	"strings"
@@ -16,19 +17,8 @@ import (
 	"github.com/chenen3/yeager/proxy/socks"
 	"github.com/chenen3/yeager/proxy/yeager"
 	"github.com/chenen3/yeager/route"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
-
-var activeConn prometheus.Gauge
-
-func init() {
-	activeConn = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "active_connections",
-		Help: "Number of active connections.",
-	})
-	prometheus.MustRegister(activeConn)
-}
 
 type inbounder interface {
 	// ListenAndServe start the proxy server and block until closed or encounter error
@@ -41,6 +31,7 @@ type outbounder interface {
 }
 
 type Proxy struct {
+	conf      *config.Config
 	inbounds  []inbounder
 	outbounds map[string]outbounder
 	router    *route.Router
@@ -49,6 +40,7 @@ type Proxy struct {
 
 func NewProxy(conf *config.Config) (*Proxy, error) {
 	p := &Proxy{
+		conf:      conf,
 		outbounds: make(map[string]outbounder, 2+len(conf.Outbounds)),
 		done:      make(chan struct{}),
 	}
@@ -138,9 +130,13 @@ func (p *Proxy) Close() {
 	}
 }
 
+var activeConn = expvar.NewInt("activeConn")
+
 func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
-	activeConn.Inc()
-	defer activeConn.Dec()
+	if p.conf.Develop {
+		activeConn.Add(1)
+		defer activeConn.Add(-1)
+	}
 	defer inConn.Close()
 
 	tag, err := p.router.Dispatch(addr)
