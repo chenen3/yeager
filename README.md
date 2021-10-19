@@ -23,6 +23,7 @@ Generate certificate files:
 mkdir -p /usr/local/etc/yeager
 cd /usr/local/etc/yeager
 docker run --rm \
+    --workdir /usr/local/etc/yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     ghcr.io/chenen3/yeager:latest \
     yeager cert --host [server-public-ip]
@@ -33,7 +34,7 @@ Create config file `/usr/local/etc/yeager/config.json`
 {
     "inbounds": {
         "yeager": {
-            "address": "0.0.0.0:9000",
+            "listen": "0.0.0.0:9000",
             "transport": "grpc",
             "security": "tls-mutual",
             "mtls": {
