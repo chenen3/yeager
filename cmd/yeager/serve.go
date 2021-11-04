@@ -11,11 +11,12 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/proxy"
 )
 
 var confFile string

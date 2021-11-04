@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
-	"go.uber.org/zap"
 )
 
 type Server struct {
