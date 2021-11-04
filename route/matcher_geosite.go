@@ -6,10 +6,11 @@ import (
 	"path"
 	"strings"
 
-	"github.com/chenen3/yeager/util"
 	"github.com/v2fly/v2ray-core/v4/app/router"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/chenen3/yeager/util"
 )
 
 var assetDirs []string

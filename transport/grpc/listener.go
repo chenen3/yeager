@@ -7,11 +7,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/chenen3/yeager/transport/grpc/pb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+
+	"github.com/chenen3/yeager/transport/grpc/pb"
 )
 
 // listener implement net.Listener and pb.TransportServer

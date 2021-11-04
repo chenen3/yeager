@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
-	"go.uber.org/zap"
 )
 
 var httpProxyURL string

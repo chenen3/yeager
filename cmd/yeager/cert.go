@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/chenen3/yeager/util"
 	"github.com/spf13/cobra"
+
+	"github.com/chenen3/yeager/util"
 )
 
 var host string

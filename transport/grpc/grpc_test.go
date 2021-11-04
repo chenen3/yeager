@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"github.com/chenen3/yeager/util"
 	"io"
 	"testing"
+
+	"github.com/chenen3/yeager/util"
 )
 
 func generateTLSConfig() *tls.Config {
