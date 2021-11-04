@@ -11,9 +11,9 @@ import (
 
 type Conn struct {
 	net.Conn
-	earlyWrite bytes.Buffer
-	once       sync.Once
-	maxIdle    time.Duration
+	metadata bytes.Buffer
+	once     sync.Once
+	maxIdle  time.Duration
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
@@ -46,8 +46,8 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 		})
 	}
 
-	if c.earlyWrite.Len() > 0 {
-		_, err = c.earlyWrite.WriteTo(c.Conn)
+	if c.metadata.Len() > 0 {
+		_, err = c.metadata.WriteTo(c.Conn)
 		if err != nil {
 			return 0, err
 		}

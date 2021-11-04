@@ -16,11 +16,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+
+	"github.com/chenen3/yeager/transport/grpc/pb"
 )
 
 type dialer struct {

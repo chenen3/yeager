@@ -15,12 +15,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/transport/grpc"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/acme/autocert"
+
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/transport/grpc"
+	"github.com/chenen3/yeager/transport/quic"
 )
 
 const certDir = "/usr/local/etc/yeager/golang-autocert"
@@ -163,12 +165,29 @@ func (s *Server) listen() (net.Listener, error) {
 				return nil, err
 			}
 		} else {
-			// var tlsConf *tls.Config
-			tlsConf, err := makeServerTLSConfig(s.conf)
+			var tlsConf *tls.Config
+			tlsConf, err = makeServerTLSConfig(s.conf)
 			if err != nil {
 				return nil, err
 			}
 			lis, err = grpc.Listen(s.conf.Listen, tlsConf)
+			if err != nil {
+				return nil, err
+			}
+		}
+	case config.TransQUIC:
+		if s.conf.Security == config.NoSecurity {
+			lis, err = quic.Listen(s.conf.Listen, nil)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			var tlsConf *tls.Config
+			tlsConf, err = makeServerTLSConfig(s.conf)
+			if err != nil {
+				return nil, err
+			}
+			lis, err = quic.Listen(s.conf.Listen, tlsConf)
 			if err != nil {
 				return nil, err
 			}

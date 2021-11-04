@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/direct"
@@ -17,7 +19,6 @@ import (
 	"github.com/chenen3/yeager/proxy/socks"
 	"github.com/chenen3/yeager/proxy/yeager"
 	"github.com/chenen3/yeager/route"
-	"go.uber.org/zap"
 )
 
 type inbounder interface {
@@ -106,7 +107,12 @@ func (p *Proxy) Serve() error {
 			err := ib.ListenAndServe(p.handle)
 			if err != nil {
 				zap.S().Error(err)
-				once.Do(p.Close)
+				// clean up before exit
+				once.Do(func() {
+					if err := p.Close(); err != nil {
+						zap.S().Error(err)
+					}
+				})
 				return
 			}
 		}(inbound)
@@ -117,17 +123,26 @@ func (p *Proxy) Serve() error {
 	return nil
 }
 
-func (p *Proxy) Close() {
+func (p *Proxy) Close() error {
+	var err error
 	defer close(p.done)
 	for _, ib := range p.inbounds {
-		ib.Close()
+		e := ib.Close()
+		if e != nil {
+			err = e
+		}
 	}
 
 	for _, outbound := range p.outbounds {
 		if c, ok := outbound.(io.Closer); ok {
-			c.Close()
+			e := c.Close()
+			if e != nil {
+				err = e
+			}
 		}
 	}
+
+	return err
 }
 
 var activeConn = expvar.NewInt("activeConn")

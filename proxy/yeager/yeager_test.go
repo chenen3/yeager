@@ -110,6 +110,23 @@ func TestYeager(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "quic",
+			serverConf: &config.YeagerServer{
+				Listen:    addr,
+				UUID:      uuid,
+				Transport: config.TransQUIC,
+				Security:  config.TLS,
+				TLS:       config.Tls{CertPEM: certInfo.ServerCert, KeyPEM: certInfo.ServerKey},
+			},
+			clientConf: &config.YeagerClient{
+				Address:   addr,
+				UUID:      uuid,
+				Transport: config.TransQUIC,
+				Security:  config.ClientTLS,
+				TLS:       config.ClientTls{Insecure: true},
+			},
+		},
 	}
 
 	for _, test := range tests {

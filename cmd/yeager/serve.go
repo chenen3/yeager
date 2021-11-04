@@ -82,7 +82,9 @@ func serve() {
 		terminate := make(chan os.Signal, 1)
 		signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
 		<-terminate
-		p.Close()
+		if err := p.Close(); err != nil {
+			zap.S().Error(err)
+		}
 	}()
 
 	zap.S().Info("starting ...")
