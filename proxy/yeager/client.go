@@ -12,12 +12,14 @@ import (
 	"net"
 	"os"
 
+	"github.com/google/uuid"
+
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/transport"
 	"github.com/chenen3/yeager/transport/grpc"
+	"github.com/chenen3/yeager/transport/quic"
 	"github.com/chenen3/yeager/util"
-	"github.com/google/uuid"
 )
 
 type Client struct {
@@ -26,28 +28,27 @@ type Client struct {
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
+	var tlsConf *tls.Config
+	if conf.Security != config.ClientNoSecurity {
+		var err error
+		tlsConf, err = makeClientTLSConfig(conf)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
 		if conf.Security == config.ClientNoSecurity {
 			c.dialer = new(net.Dialer)
 		} else {
-			tlsConf, err := makeClientTLSConfig(conf)
-			if err != nil {
-				return nil, err
-			}
 			c.dialer = &tls.Dialer{Config: tlsConf}
 		}
 	case config.TransGRPC:
-		if conf.Security == config.ClientNoSecurity {
-			c.dialer = grpc.NewDialer(nil)
-		} else {
-			tlsConf, err := makeClientTLSConfig(conf)
-			if err != nil {
-				return nil, err
-			}
-			c.dialer = grpc.NewDialer(tlsConf)
-		}
+		c.dialer = grpc.NewDialer(tlsConf)
+	case config.TransQUIC:
+		c.dialer = quic.NewDialer(tlsConf)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
@@ -112,9 +113,9 @@ func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	}
 
 	newConn := &Conn{
-		Conn:       conn,
-		earlyWrite: metadata,
-		maxIdle:    common.MaxConnectionIdle,
+		Conn:     conn,
+		metadata: metadata,
+		maxIdle:  common.MaxConnectionIdle,
 	}
 	return newConn, nil
 }

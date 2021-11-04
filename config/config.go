@@ -49,6 +49,7 @@ type Transport string
 const (
 	TransTCP  Transport = "tcp"
 	TransGRPC Transport = "grpc"
+	TransQUIC Transport = "quic"
 )
 
 type ServerSecurityType string
