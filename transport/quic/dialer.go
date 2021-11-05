@@ -64,14 +64,13 @@ func (d *dialer) quicDial(ctx context.Context, addr string) (quic.Session, error
 func (d *dialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	session, err := d.quicDial(ctx, addr)
 	if err != nil {
-		err = errors.New("failed to dial quic: " + err.Error())
+		err = errors.New("dial quic: " + err.Error())
 		return nil, err
 	}
 
-	stream, err := session.OpenStreamSync(ctx)
+	stream, err := session.OpenStream()
 	if err != nil {
-		err = errors.New("failed to open stream: " + err.Error())
-		return nil, err
+		return nil, errors.New("open stream: " + err.Error())
 	}
 
 	conn := &conn{
