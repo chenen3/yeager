@@ -36,7 +36,7 @@ Create config file `/usr/local/etc/yeager/config.json`
     "inbounds": {
         "yeager": {
             "listen": "0.0.0.0:9000",
-            "transport": "grpc",
+            "transport": "tcp",
             "security": "tls-mutual",
             "mtls": {
                 "certFile": "/usr/local/etc/yeager/server-cert.pem",
@@ -94,7 +94,7 @@ create config file `/usr/local/etc/yeager/config.json`
         {
             "tag": "PROXY",
             "address": "server-ip:9000", // replace server-ip
-            "transport": "grpc",
+            "transport": "tcp",
             "security": "tls-mutual",
             "mtls": {
                 "certFile": "/usr/local/etc/yeager/client-cert.pem",
