@@ -1,35 +1,36 @@
 # yeager
 
-> yeager is my personal training project, mostly learn from v2ray-core, and do it in my way. If you are beginner looking for similar tool, please consider [v2ray-core](https://github.com/v2fly/v2ray-core) or [Xray-core](https://github.com/XTLS/Xray-core) firstly, which have more features and better community support
+Yeager is a tool for bypassing network restrictions, supports the following features:
 
-yeager aims to bypass network restrictions, supports features:
-- lightweight proxy for outbound
-    - transport by gRPC
-    - secure by TLS
-- SOCKS5 and HTTP proxy for inbound
-- routing by rule
+- SOCKS5 and HTTP/HTTPS proxy
+- Self-implement lightweight proxy
+  - security via TLS
+  - transport over TCP, gRPC or QUIC
+- Rule-based routing
 
 ## Prerequisites
 
-- Server reachable from public Internet, with port 9000 exposed
-- docker
+- The server is reachable from the public Internet and exposes TCP port 9000
+- Docker
 
 ## Usage
 
 ### As server
 
 Generate certificate files:
+
 ```bash
 mkdir -p /usr/local/etc/yeager
 cd /usr/local/etc/yeager
 docker run --rm \
     --workdir /usr/local/etc/yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
-    ghcr.io/chenen3/yeager:latest \
+    ghcr.io/chenen3/yeager \
     yeager cert --host [server-public-ip]
 ```
 
 Create config file `/usr/local/etc/yeager/config.json`
+
 ```json
 {
     "inbounds": {
@@ -48,13 +49,14 @@ Create config file `/usr/local/etc/yeager/config.json`
 ```
 
 Launch:
+
 ```bash
 docker run -d \
     --name yeager \
     --restart=always \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     -p 9000:9000 \
-    ghcr.io/chenen3/yeager:latest
+    ghcr.io/chenen3/yeager
 ```
 
 ### As client
@@ -63,16 +65,17 @@ docker run -d \
 
 - Via homebrew (macOS only)
 
-```
+```bash
 brew tap chenen3/yeager
 brew install yeager
 ```
 
 - Via docker
 
-`docker pull ghcr.io/chenen3/yeager:latest`
+`docker pull ghcr.io/chenen3/yeager`
 
 #### Configure
+
 > At server side we have generated certificate files: client-cert.pem, client-key.pem, ca-cert.pem. Ensure you have copy these files to client device, and place in directory `/usr/local/etc/yeager`
 
 create config file `/usr/local/etc/yeager/config.json`
@@ -127,7 +130,7 @@ docker run -d \
     --restart=always \
     --network host \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
-    ghcr.io/chenen3/yeager:latest
+    ghcr.io/chenen3/yeager
 ```
 
 After running client side yeager, do not forget to **setup SOCKS5 or HTTP proxy for client device**. Good luck.
@@ -138,14 +141,16 @@ After running client side yeager, do not forget to **setup SOCKS5 or HTTP proxy 
 
 Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`.
 Outbound tag specified by the user, and yeager also comes with two built-in outbound tags:
+
 - `DIRECT` means sending traffic directly, do not pass by proxy
 - `REJECT` means rejecting traffic and close the connection
 
 rule example:
-- `IP-CIDR,127.0.0.1/8,DIRECT ` matches if destination IP is in specified CIDR
+
+- `IP-CIDR,127.0.0.1/8,DIRECT` matches if destination IP is in specified CIDR
 - `DOMAIN,www.apple.com,DIRECT` matches if destination domain is the given one
 - `DOMAIN-SUFFIX,apple.com,DIRECT` matches if destination domain has the suffix, AKA subdomain name
-- `DOMAIN-KEYWORD,apple,DIRECT ` matches if destination domain has the keyword
+- `DOMAIN-KEYWORD,apple,DIRECT` matches if destination domain has the keyword
 - `GEOSITE,cn,DIRECT` matches if destination domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
 - `FINAL,PROXY` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `FINAL,DIRECT`
 
@@ -162,7 +167,7 @@ brew services restart yeager
 Via docker
 
 ```bash
-docker pull ghcr.io/chenen3/yeager:latest
+docker pull ghcr.io/chenen3/yeager
 docker stop yeager
 docker rm yeager
 # then create the container again as described above
@@ -184,3 +189,8 @@ docker stop yeager
 docker rm yeager
 docker image rm ghcr.io/chenen3/yeager
 ```
+
+## Credit
+
+- [v2ray](https://github.com/v2fly/v2ray-core)
+- [quic-go](https://github.com/lucas-clemente/quic-go)
