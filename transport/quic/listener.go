@@ -56,7 +56,7 @@ func (l *Listener) acceptStream(session quic.Session) {
 		default:
 		}
 
-		l.conns <- &conn{
+		l.conns <- &streamConn{
 			Stream:     stream,
 			localAddr:  session.LocalAddr(),
 			remoteAddr: session.RemoteAddr(),
