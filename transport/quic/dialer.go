@@ -73,7 +73,7 @@ func (d *dialer) DialContext(ctx context.Context, network string, addr string) (
 		return nil, errors.New("open stream: " + err.Error())
 	}
 
-	conn := &conn{
+	conn := &streamConn{
 		Stream:     stream,
 		localAddr:  session.LocalAddr(),
 		remoteAddr: session.RemoteAddr(),
