@@ -18,7 +18,7 @@ func init() {
 
 var certCmd = &cobra.Command{
 	Use:   "cert",
-	Short: "Generate certificates for mutual TLS",
+	Short: "generate certificates for mutual TLS",
 	Run: func(cmd *cobra.Command, args []string) {
 		_, err := util.GenerateCertificate(host, true)
 		if err != nil {
