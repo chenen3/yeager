@@ -1,0 +1,14 @@
+{
+    "inbounds": {
+        "yeager": {
+            "listen": "0.0.0.0:9000",
+            "transport": "tcp",
+            "security": "tls-mutual",
+            "mtls": {
+                "certFile": "/usr/local/etc/yeager/server-cert.pem",
+                "keyFile": "/usr/local/etc/yeager/server-key.pem",
+                "clientCAFile": "/usr/local/etc/yeager/ca-cert.pem"
+            }
+        }
+    }
+}
