@@ -12,7 +12,7 @@ var host string
 
 func init() {
 	rootCmd.AddCommand(certCmd)
-	certCmd.Flags().StringVar(&host, "host", "", "Comma-separated hostnames and IPs to generate a certificate for")
+	certCmd.Flags().StringVar(&host, "host", "", "comma-separated hostnames and IPs to generate a certificate for")
 	certCmd.MarkFlagRequired("host")
 }
 

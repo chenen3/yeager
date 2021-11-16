@@ -50,7 +50,7 @@ func (d *dialer) DialContext(ctx context.Context, _ string, addr string) (net.Co
 		return nil, err
 	}
 
-	return newConn(stream, cancel), nil
+	return &streamConn{stream: stream, onClose: cancel}, nil
 }
 
 func (d *dialer) grpcDial(ctx context.Context, addr string) (*grpc.ClientConn, error) {

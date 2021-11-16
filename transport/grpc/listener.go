@@ -37,7 +37,7 @@ func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 
 	ctx, cancel := context.WithCancel(stream.Context())
-	l.connCh <- newConn(stream, cancel)
+	l.connCh <- &streamConn{stream: stream, onClose: cancel}
 	<-ctx.Done()
 	return nil
 }
