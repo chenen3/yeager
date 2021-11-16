@@ -23,7 +23,7 @@ var confFile string
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
-	serveCmd.Flags().StringVarP(&confFile, "config", "c", "/usr/local/etc/yeager/config.json", "Configuration file to read from")
+	serveCmd.Flags().StringVarP(&confFile, "config", "c", "/usr/local/etc/yeager/config.json", "configuration file to read from")
 }
 
 var serveCmd = &cobra.Command{
