@@ -1,6 +1,7 @@
 /*
  * refer to gRPC performance best practices:
  *     - reuse gRPC channels (grpc.ClientConn)
+ *     - use a pool of gRPC channels
  *     - use keepalive pings
  *
  * https://grpc.io/docs/guides/performance/
@@ -16,18 +17,20 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/transport/grpc/pb"
 )
 
 type dialer struct {
-	tlsConf *tls.Config
-	conn    *grpc.ClientConn
-	connMu  sync.Mutex
+	tlsConf     *tls.Config
+	channelPool *channelPool
+	once        sync.Once
 }
 
 func NewDialer(config *tls.Config) *dialer {
@@ -35,61 +38,53 @@ func NewDialer(config *tls.Config) *dialer {
 }
 
 func (d *dialer) DialContext(ctx context.Context, _ string, addr string) (net.Conn, error) {
-	conn, err := d.grpcDial(ctx, addr)
-	if err != nil {
-		return nil, err
-	}
+	d.once.Do(func() {
+		channelFactory := func() (*grpc.ClientConn, error) {
+			opts := []grpc.DialOption{
+				grpc.WithKeepaliveParams(keepalive.ClientParameters{
+					Time:    60 * time.Second,
+					Timeout: 1 * time.Second,
+				}),
+			}
+			if d.tlsConf == nil {
+				opts = append(opts, grpc.WithInsecure())
+			} else {
+				opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)))
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+			defer cancel()
+			return grpc.DialContext(ctx, addr, opts...)
+		}
+		d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, channelFactory)
+	})
 
-	client := pb.NewTunnelClient(conn)
-	// 用来发起连接的参数ctx通常时间很短，而双向流可能会存在一段时间，
-	// 因此使用新的context来控制双向流
+	// DialContext 的参数 ctx 时效通常很短，不能用来控制双向流生命周期
 	ctx2, cancel := context.WithCancel(context.Background())
-	stream, err := client.Stream(ctx2)
-	if err != nil {
+	ch := make(chan *streamConn, 1)
+	go func(ctx context.Context, cancel context.CancelFunc, ch chan<- *streamConn) {
+		channel := d.channelPool.get()
+		client := pb.NewTunnelClient(channel)
+		stream, err := client.Stream(ctx)
+		if err != nil {
+			zap.S().Errorf("create grpc stream: %s", err)
+			cancel()
+			return
+		}
+		ch <- &streamConn{stream: stream, onClose: cancel}
+	}(ctx2, cancel, ch)
+
+	select {
+	case <-ctx.Done():
 		cancel()
-		return nil, err
+		return nil, ctx.Err()
+	case sc := <-ch:
+		return sc, nil
 	}
-
-	return &streamConn{stream: stream, onClose: cancel}, nil
-}
-
-func (d *dialer) grpcDial(ctx context.Context, addr string) (*grpc.ClientConn, error) {
-	// optimized
-	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
-		return d.conn, nil
-	}
-
-	d.connMu.Lock()
-	defer d.connMu.Unlock()
-	if d.conn != nil && d.conn.GetState() != connectivity.Shutdown {
-		// meanwhile other goroutine already dial a new ClientConn
-		return d.conn, nil
-	}
-
-	opts := []grpc.DialOption{
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    60 * time.Second,
-			Timeout: 1 * time.Second,
-		}),
-	}
-	if d.tlsConf == nil {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)))
-	}
-
-	conn, err := grpc.DialContext(ctx, addr, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	d.conn = conn
-	return conn, nil
 }
 
 func (d *dialer) Close() error {
-	if d.conn == nil {
-		return nil
+	if d.channelPool != nil {
+		return d.channelPool.Close()
 	}
-	return d.conn.Close()
+	return nil
 }
