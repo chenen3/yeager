@@ -7,11 +7,22 @@ import (
 	"os"
 )
 
+var c Config
+
+func C() Config {
+	return c
+}
+
 // LoadJSON load config from bytes in JSON format
 func LoadJSON(bs []byte) (*Config, error) {
-	conf := new(Config)
-	err := json.Unmarshal(bs, conf)
-	return conf, err
+	var conf Config
+	err := json.Unmarshal(bs, &conf)
+	if err != nil {
+		return nil, err
+	}
+
+	c = conf
+	return &conf, nil
 }
 
 // LoadFile load config from JSON file
@@ -28,6 +39,9 @@ type Config struct {
 	Outbounds []*YeagerClient `json:"outbounds,omitempty"` // 出站代理
 	Rules     []string        `json:"rules,omitempty"`     // 路由规则
 	Develop   bool            `json:"develop,omitempty"`   // developer only
+
+	// 参考 transport/grpc/pool.go 如何预估连接池大小
+	GrpcChannelPoolSize int `json:"grpcChannelPoolSize,omitempty"`
 }
 
 type Inbounds struct {
