@@ -1,7 +1,8 @@
 package grpc
 
 import (
-	"go.uber.org/atomic"
+	"sync/atomic"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -18,7 +19,7 @@ const defaultPoolSize = 2
 // gRPC 连接池，实现多个 channel 循环发送请求
 type channelPool struct {
 	size       int
-	index      atomic.Int32
+	i          uint32
 	channels   []*grpc.ClientConn
 	factory    channelFactoryFunc
 	chRecreate chan int // inside this chan is channels' element index
@@ -77,7 +78,7 @@ func (p *channelPool) recreateLoop() {
 }
 
 func (p *channelPool) get() *grpc.ClientConn {
-	i := int(p.index.Inc()) % p.size
+	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	channel := p.channels[i]
 	if isShutdown(channel) {
 		p.chRecreate <- i
