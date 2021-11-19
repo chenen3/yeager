@@ -58,7 +58,7 @@ func (d *dialer) DialContext(ctx context.Context, _ string, addr string) (net.Co
 		d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, channelFactory)
 	})
 
-	// DialContext 的参数 ctx 时效通常很短，不能用来控制双向流生命周期
+	// DialContext 的参数 ctx 时效通常很短，不适合控制 stream 的生命周期，因此新建一个
 	ctx2, cancel := context.WithCancel(context.Background())
 	ch := make(chan *streamConn, 1)
 	go func(ctx context.Context, cancel context.CancelFunc, ch chan<- *streamConn) {
