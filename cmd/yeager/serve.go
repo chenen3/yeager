@@ -88,7 +88,7 @@ func serve() {
 		}
 	}()
 
-	zap.S().Info("starting ...")
+	zap.S().Infof("yeager %s starting ...", Version)
 	p.Serve()
 	zap.S().Info("closed")
 }

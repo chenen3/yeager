@@ -18,12 +18,12 @@ const defaultPoolSize = 2
 
 // gRPC 连接池，实现多个 channel 循环发送请求
 type channelPool struct {
-	size       int
-	i          uint32
-	channels   []*grpc.ClientConn
-	factory    channelFactoryFunc
-	chRecreate chan int // inside this chan is channels' element index
-	done       chan struct{}
+	size      int
+	i         uint32
+	channels  []*grpc.ClientConn
+	factory   channelFactoryFunc
+	reconnect chan int // inside is the index of the gRPC channel which need to reconnect
+	done      chan struct{}
 }
 
 type channelFactoryFunc func() (*grpc.ClientConn, error)
@@ -34,13 +34,13 @@ func newChannelPool(size int, factory channelFactoryFunc) *channelPool {
 	}
 
 	p := &channelPool{
-		size:       size,
-		channels:   make([]*grpc.ClientConn, size),
-		factory:    factory,
-		chRecreate: make(chan int, size),
-		done:       make(chan struct{}),
+		size:      size,
+		channels:  make([]*grpc.ClientConn, size),
+		factory:   factory,
+		reconnect: make(chan int, size),
+		done:      make(chan struct{}),
 	}
-	go p.recreateLoop()
+	go p.reconnectLoop()
 
 	for i := 0; i < size; i++ {
 		c, err := factory()
@@ -53,18 +53,18 @@ func newChannelPool(size int, factory channelFactoryFunc) *channelPool {
 	return p
 }
 
-func isShutdown(c *grpc.ClientConn) bool {
-	return c == nil || c.GetState() == connectivity.Shutdown
+func isAvailable(c *grpc.ClientConn) bool {
+	return c != nil && c.GetState() != connectivity.Shutdown
 }
 
-func (p *channelPool) recreateLoop() {
+func (p *channelPool) reconnectLoop() {
 	for {
 		select {
 		case <-p.done:
 			return
-		case i := <-p.chRecreate:
-			if !isShutdown(p.channels[i]) {
-				// gRPC channel will recover automatically
+		case i := <-p.reconnect:
+			if isAvailable(p.channels[i]) {
+				// another Get has found it unavailable and command to reconnect
 				continue
 			}
 			channel, err := p.factory()
@@ -77,12 +77,14 @@ func (p *channelPool) recreateLoop() {
 	}
 }
 
-func (p *channelPool) get() *grpc.ClientConn {
+func (p *channelPool) Get() *grpc.ClientConn {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	channel := p.channels[i]
-	if isShutdown(channel) {
-		p.chRecreate <- i
-		return nil
+	if !isAvailable(channel) {
+		p.reconnect <- i
+		// try to get another one
+		i = int(atomic.AddUint32(&p.i, 1)) % p.size
+		channel = p.channels[i]
 	}
 	return channel
 }
