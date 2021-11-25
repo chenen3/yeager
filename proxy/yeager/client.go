@@ -46,7 +46,7 @@ func NewClient(conf *config.YeagerClient) (*Client, error) {
 			c.dialer = &tls.Dialer{Config: tlsConf}
 		}
 	case config.TransGRPC:
-		c.dialer = grpc.NewDialer(tlsConf)
+		c.dialer = grpc.NewDialer(tlsConf, conf.Address)
 	case config.TransQUIC:
 		c.dialer = quic.NewDialer(tlsConf)
 	default:

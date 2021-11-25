@@ -21,7 +21,7 @@ func NewDialer(tlsConf *tls.Config) *dialer {
 	return &dialer{tlsConf: tlsConf}
 }
 
-func isValidSession(session quic.Session) bool {
+func isAvailable(session quic.Session) bool {
 	if session == nil {
 		return false
 	}
@@ -37,14 +37,14 @@ func isValidSession(session quic.Session) bool {
 // TODO: consider saving more sessions for better throughput
 // dial a new session if no session yet or session closed
 func (d *dialer) quicDial(ctx context.Context, addr string) (quic.Session, error) {
-	if isValidSession(d.session) {
+	if isAvailable(d.session) {
 		return d.session, nil
 	}
 
 	d.sessionMu.Lock()
 	defer d.sessionMu.Unlock()
 	// other goroutine has set the session
-	if isValidSession(d.session) {
+	if isAvailable(d.session) {
 		return d.session, nil
 	}
 
@@ -82,7 +82,7 @@ func (d *dialer) DialContext(ctx context.Context, network string, addr string) (
 }
 
 func (d *dialer) Close() error {
-	if !isValidSession(d.session) {
+	if !isAvailable(d.session) {
 		return nil
 	}
 	return d.session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "session closed")
