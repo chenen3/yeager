@@ -21,20 +21,20 @@ import (
 	"github.com/chenen3/yeager/route"
 )
 
-type inbounder interface {
+type Inbounder interface {
 	// ListenAndServe start the proxy server and block until closed or encounter error
 	ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error
 	Close() error
 }
 
-type outbounder interface {
+type Outbounder interface {
 	DialContext(ctx context.Context, addr string) (net.Conn, error)
 }
 
 type Proxy struct {
 	conf      *config.Config
-	inbounds  []inbounder
-	outbounds map[string]outbounder
+	inbounds  []Inbounder
+	outbounds map[string]Outbounder
 	router    *route.Router
 	done      chan struct{}
 }
@@ -42,7 +42,7 @@ type Proxy struct {
 func NewProxy(conf *config.Config) (*Proxy, error) {
 	p := &Proxy{
 		conf:      conf,
-		outbounds: make(map[string]outbounder, 2+len(conf.Outbounds)),
+		outbounds: make(map[string]Outbounder, 2+len(conf.Outbounds)),
 		done:      make(chan struct{}),
 	}
 
@@ -102,7 +102,7 @@ func (p *Proxy) Serve() error {
 	var once sync.Once
 	for _, inbound := range p.inbounds {
 		wg.Add(1)
-		go func(ib inbounder) {
+		go func(ib Inbounder) {
 			defer wg.Done()
 			err := ib.ListenAndServe(p.handle)
 			if err != nil {
@@ -164,11 +164,7 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 		zap.S().Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	zap.L().Info("proxy request",
-		zap.String("addr", addr),
-		zap.String("src", inConn.RemoteAddr().String()),
-		zap.String("dst", tag),
-	)
+	zap.S().Infof("dispatch %s from %s to [%s]", addr, inConn.RemoteAddr(), tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, common.DialTimeout)
 	defer cancel()
