@@ -1,5 +1,4 @@
 {
-    "develop": true,
     "inbounds": {
         "yeager": {
             "listen": ":10812",

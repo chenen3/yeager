@@ -1,5 +1,4 @@
 {
-    "develop": false,
     "inbounds": {
         "socks": {
             "listen": ":1081"
