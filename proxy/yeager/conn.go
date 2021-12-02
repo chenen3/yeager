@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/chenen3/yeager/log"
 )
 
 type Conn struct {
@@ -21,7 +21,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		c.once.Do(func() {
 			err = c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
 			if err != nil {
-				zap.S().Error(err)
+				log.L().Error(err)
 			}
 		})
 	}
@@ -41,7 +41,7 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 		c.once.Do(func() {
 			err = c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
 			if err != nil {
-				zap.S().Error(err)
+				log.L().Error(err)
 			}
 		})
 	}

@@ -7,7 +7,8 @@ import (
 	"net"
 
 	quic "github.com/lucas-clemente/quic-go"
-	"go.uber.org/zap"
+
+	"github.com/chenen3/yeager/log"
 )
 
 type Listener struct {
@@ -25,7 +26,7 @@ func (l *Listener) acceptLoop() {
 			case <-l.ctx.Done():
 				return
 			default:
-				zap.S().Error(err)
+				log.L().Error(err)
 				continue
 			}
 		}
@@ -45,7 +46,7 @@ func (l *Listener) acceptStream(session quic.Session) {
 			case <-session.Context().Done():
 				return
 			default:
-				zap.S().Warn(err)
+				log.L().Warnf(err.Error())
 				continue
 			}
 		}

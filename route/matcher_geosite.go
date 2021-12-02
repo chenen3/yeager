@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/v2fly/v2ray-core/v4/app/router"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -37,7 +37,7 @@ func loadGeoSiteFile() (*router.GeoSiteList, error) {
 		}
 	}
 	if err != nil {
-		zap.S().Warnf("By default, yeager loads geosite.dat from %v (and honors %s if set)",
+		log.L().Warnf("By default, yeager loads geosite.dat from %v (and honors %s if set)",
 			assetDirs, envAssetDir)
 		return nil, err
 	}
