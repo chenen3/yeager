@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	_ "expvar"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -12,10 +11,9 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy"
 )
 
@@ -38,34 +36,19 @@ func serve() {
 	// load config from environment variables or file
 	conf, err, foundEnv := config.LoadEnv()
 	if !foundEnv {
-		log.Printf("loading config from %s\n", confFile)
+		log.L().Infof("loading config from %s", confFile)
 		conf, err = config.LoadFile(confFile)
 	}
 	if err != nil {
-		zap.S().Error(err)
+		log.L().Errorf("load config: %s", err)
 		return
 	}
 	bs, _ := json.MarshalIndent(conf, "", "  ")
-	log.Printf("loaded config: \n%s\n", bs)
-
-	var zc zap.Config
-	if conf.Develop {
-		zc = zap.NewDevelopmentConfig()
-	} else {
-		zc = zap.NewProductionConfig()
-	}
-	zc.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
-	logger, err := zc.Build()
-	if err != nil {
-		panic(err)
-	}
-	defer logger.Sync()
-	undo := zap.ReplaceGlobals(logger)
-	defer undo()
+	log.L().Infof("loaded config: \n%s", bs)
 
 	p, err := proxy.NewProxy(conf)
 	if err != nil {
-		zap.S().Error(err)
+		log.L().Errorf("init proxy: %s", err)
 		return
 	}
 	// trigger GC to release memory usage. (especially routing rule parsing)
@@ -74,7 +57,7 @@ func serve() {
 	// http server for profiling
 	if conf.Develop {
 		go func() {
-			zap.S().Error(http.ListenAndServe("localhost:6060", nil))
+			http.ListenAndServe("localhost:6060", nil)
 		}()
 	}
 
@@ -84,11 +67,11 @@ func serve() {
 		signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
 		<-terminate
 		if err := p.Close(); err != nil {
-			zap.S().Error(err)
+			log.L().Errorf("close proxy: %s", err)
 		}
 	}()
 
-	zap.S().Infof("yeager %s starting ...", Version)
+	log.L().Infof("yeager %s starting ...", Version)
 	p.Serve()
-	zap.S().Info("closed")
+	log.L().Infof("closed")
 }

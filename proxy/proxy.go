@@ -9,9 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/zap"
-
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/direct"
 	"github.com/chenen3/yeager/proxy/http"
@@ -106,11 +105,11 @@ func (p *Proxy) Serve() error {
 			defer wg.Done()
 			err := ib.ListenAndServe(p.handle)
 			if err != nil {
-				zap.S().Error(err)
+				log.L().Error(err)
 				// clean up before exit
 				once.Do(func() {
 					if err := p.Close(); err != nil {
-						zap.S().Error(err)
+						log.L().Error(err)
 					}
 				})
 				return
@@ -156,40 +155,44 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 
 	tag, err := p.router.Dispatch(addr)
 	if err != nil {
-		zap.S().Error(err)
+		log.L().Errorf("dispatch %s: %s", addr, err)
 		return
 	}
 	outbound, ok := p.outbounds[tag]
 	if !ok {
-		zap.S().Errorf("unknown outbound tag: %s", tag)
+		log.L().Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	zap.S().Infof("dispatch %s from %s to [%s]", addr, inConn.RemoteAddr(), tag)
+	log.L().Infof("receive %s from %s, dispatch to [%s]", addr, inConn.RemoteAddr(), tag)
 
 	dialCtx, cancel := context.WithTimeout(ctx, common.DialTimeout)
 	defer cancel()
 	outConn, err := outbound.DialContext(dialCtx, addr)
 	if err != nil {
-		zap.S().Error(err)
+		log.L().Errorf("dial %s: %s", addr, err)
 		return
 	}
 	defer outConn.Close()
 
-	errCh := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(outConn, inConn)
-		errCh <- err
-	}()
-	go func() {
-		_, err := io.Copy(inConn, outConn)
-		errCh <- err
-	}()
-
+	errCh := relay(inConn, outConn)
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
 		if err != nil {
-			zap.S().Warnf("%s, dst %s", err, addr)
+			log.L().Warnf("relay %s: %s", addr, err)
 		}
 	}
+}
+
+func relay(a, b io.ReadWriter) <-chan error {
+	errCh := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(a, b)
+		errCh <- err
+	}()
+	go func() {
+		_, err := io.Copy(b, a)
+		errCh <- err
+	}()
+	return errCh
 }

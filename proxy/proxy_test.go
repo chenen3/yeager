@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
 )
@@ -20,14 +18,6 @@ import (
 var httpProxyURL string
 
 func TestMain(m *testing.M) {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
-	defer logger.Sync()
-	undo := zap.ReplaceGlobals(logger)
-	defer undo()
-
 	// setup proxy server
 	yeagerProxyPort, err := util.ChoosePort()
 	if err != nil {

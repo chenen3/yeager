@@ -3,9 +3,10 @@ package grpc
 import (
 	"sync/atomic"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+
+	"github.com/chenen3/yeager/log"
 )
 
 // 如何预估连接池大小：
@@ -45,7 +46,7 @@ func newChannelPool(size int, factory channelFactoryFunc) *channelPool {
 	for i := 0; i < size; i++ {
 		c, err := factory()
 		if err != nil {
-			zap.S().Error(err)
+			log.L().Error(err)
 			continue
 		}
 		p.channels[i] = c
@@ -69,7 +70,7 @@ func (p *channelPool) reconnectLoop() {
 			}
 			channel, err := p.factory()
 			if err != nil {
-				zap.S().Error(err)
+				log.L().Error(err)
 				continue
 			}
 			p.channels[i] = channel
@@ -96,7 +97,7 @@ func (p *channelPool) Close() error {
 		if e := c.Close(); e != nil {
 			// also need to close other channels, so do not return
 			err = e
-			zap.S().Warnf("close grpc channel: %s", e)
+			log.L().Warnf("close grpc channel: %s", e)
 		}
 	}
 	return err

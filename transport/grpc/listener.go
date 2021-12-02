@@ -7,11 +7,11 @@ import (
 	"net"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/transport/grpc/pb"
 )
 
@@ -32,7 +32,7 @@ func newListener() *listener {
 func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
-		zap.S().Warn(err)
+		log.L().Warnf(err.Error())
 		return err
 	}
 
@@ -83,7 +83,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	go func() {
 		err := grpcServer.Serve(tcpListener)
 		if err != nil {
-			zap.S().Error(err)
+			log.L().Error(err)
 		}
 	}()
 

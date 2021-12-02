@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -69,7 +68,7 @@ func TestServer(t *testing.T) {
 	}
 	res, err := client.Get("http://fake.domain.com:1234")
 	if err != nil {
-		zap.S().Error(err)
+		log.L().Error(err)
 		return
 	}
 	defer res.Body.Close()

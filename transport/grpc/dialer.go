@@ -16,12 +16,12 @@ import (
 	"net"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/transport/grpc/pb"
 )
@@ -60,14 +60,14 @@ func (d *dialer) DialContext(ctx context.Context, _ string, _ string) (net.Conn,
 	go func(ctxS context.Context, cancelS context.CancelFunc, pool *channelPool, ch chan<- *streamConn) {
 		channel := pool.Get()
 		if !isAvailable(channel) {
-			zap.S().Error("unavailable grpc channel")
+			log.L().Error("unavailable grpc channel")
 			cancelS()
 			return
 		}
 		client := pb.NewTunnelClient(channel)
 		stream, err := client.Stream(ctxS)
 		if err != nil {
-			zap.S().Errorf("create grpc stream: %s", err)
+			log.L().Errorf("create grpc stream: %s", err)
 			cancelS()
 			return
 		}
