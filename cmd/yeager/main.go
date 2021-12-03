@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/chenen3/yeager/cmd"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "yeager",
-	Short: "Yeager is a tool for bypass network restriction",
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+var rootCmd = &cmd.Command{
+	Name: "yeager",
+	Desc: "Yeager is a tool for bypass network restriction",
+	Do: func(self *cmd.Command) {
+		self.Help()
 	},
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	err := rootCmd.Execute()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
