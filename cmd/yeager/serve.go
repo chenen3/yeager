@@ -10,8 +10,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/spf13/cobra"
-
+	"github.com/chenen3/yeager/cmd"
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy"
@@ -21,18 +20,16 @@ var confFile string
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
-	serveCmd.Flags().StringVarP(&confFile, "config", "c", "/usr/local/etc/yeager/config.json", "configuration file to read from")
+	serveCmd.Flags().StringVar(&confFile, "config", "/usr/local/etc/yeager/config.json", "config file path")
 }
 
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "serve client-side or server-side proxy",
-	Run: func(cmd *cobra.Command, args []string) {
-		serve()
-	},
+var serveCmd = &cmd.Command{
+	Name: "serve",
+	Desc: "serve client-side or server-side proxy",
+	Do:   serveDo,
 }
 
-func serve() {
+func serveDo(_ *cmd.Command) {
 	// load config from environment variables or file
 	conf, err, foundEnv := config.LoadEnv()
 	if !foundEnv {

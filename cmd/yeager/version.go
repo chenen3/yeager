@@ -3,18 +3,21 @@ package main
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
+	"github.com/chenen3/yeager/cmd"
 )
+
+// Version is set at compile time, for example:
+// go build -ldflags="-X main.Version=v0.1"
+var Version string
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-var Version string
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "print yeager version",
-	Run: func(cmd *cobra.Command, args []string) {
+var versionCmd = &cmd.Command{
+	Name: "version",
+	Desc: "print yeager version",
+	Do: func(_ *cmd.Command) {
 		fmt.Printf("yeager version %s\n", Version)
 	},
 }
