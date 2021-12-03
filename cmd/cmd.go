@@ -68,7 +68,7 @@ func (c *Command) Execute() error {
 	}
 	subCmdName, subCmdArgs := extractSubCmd(c.args)
 	if subCmdName == "" {
-		// no sub command
+		// no sub command in args
 		var needHelp bool
 		if f := c.Flags().Lookup("help"); f == nil {
 			c.Flags().BoolVar(&needHelp, "help", false, "help for "+c.Name)
@@ -86,7 +86,6 @@ func (c *Command) Execute() error {
 		return nil
 	}
 
-	// found sub command
 	for _, cmd := range c.commands {
 		if cmd.Name == subCmdName {
 			cmd.SetArgs(subCmdArgs)
