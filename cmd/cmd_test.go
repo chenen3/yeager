@@ -3,10 +3,11 @@ package cmd
 import "testing"
 
 func TestCommand_Execute(t *testing.T) {
-	var rootCmd Command
-	rootCmd.SetArgs([]string{"a", "-b"})
-
-	var b, c bool
+	var (
+		rootCmd Command
+		b       bool
+		c       bool
+	)
 	cmdA := &Command{
 		Name: "a",
 		Do: func(_ *Command) {
@@ -15,6 +16,7 @@ func TestCommand_Execute(t *testing.T) {
 	}
 	cmdA.Flags().BoolVar(&b, "b", false, "fake flag b")
 	rootCmd.AddCommand(cmdA)
+	rootCmd.SetArgs([]string{"a", "-b"})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Error(err)
