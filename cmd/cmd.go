@@ -50,10 +50,21 @@ func extractSubCmd(args []string) (subCmdName string, subCmdArgs []string) {
 	return subCmdName, subCmdArgs
 }
 
+// SetArgs set the args for command.
+// If not set, os.Args[1:] by default
+func (c *Command) SetArgs(args []string) {
+	if args == nil {
+		args = []string{}
+	}
+	c.args = args
+	c.argsInit = true
+}
+
+// Execute use args (default is os.Args[1:])
+// to find the matching sub-command and run it.
 func (c *Command) Execute() error {
-	if !c.argsInit {
-		c.args = os.Args[1:]
-		c.argsInit = true
+	if c.args == nil {
+		c.SetArgs(os.Args[1:])
 	}
 	subCmdName, subCmdArgs := extractSubCmd(c.args)
 	if subCmdName == "" {
@@ -78,8 +89,7 @@ func (c *Command) Execute() error {
 	// found sub command
 	for _, cmd := range c.commands {
 		if cmd.Name == subCmdName {
-			cmd.args = subCmdArgs
-			cmd.argsInit = true
+			cmd.SetArgs(subCmdArgs)
 			return cmd.Execute()
 		}
 	}

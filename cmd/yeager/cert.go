@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/chenen3/yeager/cmd"
 	"github.com/chenen3/yeager/util"
@@ -19,14 +20,14 @@ var certCmd = &cmd.Command{
 	Desc: "generate certificates for mutual TLS",
 	Do: func(self *cmd.Command) {
 		if host == "" {
-			fmt.Println(`ERROR: required flag(s) "host" not set`)
+			fmt.Fprint(os.Stderr, "ERROR: required flag \"-host\" not set\n\n")
 			self.PrintUsage()
 			return
 		}
 
 		_, err := util.GenerateCertificate(host, true)
 		if err != nil {
-			fmt.Println("failed to generate certificate, err: ", err)
+			fmt.Fprintf(os.Stderr, "failed to generate certificate: %s\n", err)
 			return
 		}
 

@@ -26,10 +26,10 @@ func init() {
 var serveCmd = &cmd.Command{
 	Name: "serve",
 	Desc: "serve client-side or server-side proxy",
-	Do:   serveDo,
+	Do:   serve,
 }
 
-func serveDo(_ *cmd.Command) {
+func serve(_ *cmd.Command) {
 	// load config from environment variables or file
 	conf, err, foundEnv := config.LoadEnv()
 	if !foundEnv {
