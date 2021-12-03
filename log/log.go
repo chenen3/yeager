@@ -24,6 +24,7 @@ func init() {
 	l.Infof = log.New(os.Stderr, "INFO ", log.LstdFlags|log.Lshortfile).Printf
 }
 
+// L return a global logger
 func L() *logger {
 	return l
 }
