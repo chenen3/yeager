@@ -2,7 +2,7 @@ FROM golang:1.17.1-alpine AS builder
 WORKDIR /yeager
 COPY . .
 RUN mkdir build &&\
-    CGO_ENABLED=0 go build -o build/yeager ./cmd/yeager &&\
+    CGO_ENABLED=0 go build -o build/yeager . &&\
     wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O build/geosite.dat
 
 FROM alpine:latest
