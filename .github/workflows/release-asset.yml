@@ -24,15 +24,15 @@ jobs:
           wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O geosite.dat
           ldflags="-X main.Version=${GITHUB_REF#refs/tags/}"
 
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager ./cmd/yeager
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat README.md
           shasum -a 256 yeager-linux-amd64.tar.gz >> shasums
 
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager ./cmd/yeager
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-macos-amd64.tar.gz yeager geosite.dat README.md
           shasum -a 256 yeager-macos-amd64.tar.gz >> shasums
 
-          CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager ./cmd/yeager
+          CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-freebsd-amd64.tar.gz yeager geosite.dat README.md
           shasum -a 256 yeager-freebsd-amd64.tar.gz >> shasums
 
