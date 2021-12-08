@@ -14,7 +14,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17.1
+          go-version: 1.17.3
 
       - name: Test
         run: go test -v ./...
@@ -22,7 +22,7 @@ jobs:
       - name: Build
         run: |
           wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O geosite.dat
-          ldflags="-X main.Version=${GITHUB_REF#refs/tags/}"
+          ldflags="-X github.com/chenen3/yeager/cmd.Version=${GITHUB_REF#refs/tags/}"
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat README.md

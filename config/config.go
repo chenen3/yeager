@@ -144,6 +144,7 @@ const (
 	EnvYeagerSecurity  = "YEAGER_SECURITY"
 )
 
+// Deprecated
 // LoadEnv generate configuration from environment variables,
 // suitable for server side plaintext or TLS with ACME
 func LoadEnv() (conf *Config, err error, foundEnv bool) {

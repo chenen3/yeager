@@ -1,10 +1,10 @@
 /*
-	Package cmd provide simple API to create modern command-line interface.
+	Package command provide simple API to create modern command-line interface.
 	The package is similar to https://github.com/spf13/cobra, cobra is very
 	powerful but maybe a little bit too much for this small project.
 	杀鸡焉用牛刀
 */
-package cmd
+package command
 
 import (
 	"flag"
@@ -21,7 +21,6 @@ type Command struct {
 	flags    *flag.FlagSet
 	commands []*Command
 	args     []string
-	argsInit bool
 }
 
 func (c *Command) AddCommand(cmd *Command) {
@@ -57,7 +56,6 @@ func (c *Command) SetArgs(args []string) {
 		args = []string{}
 	}
 	c.args = args
-	c.argsInit = true
 }
 
 // Execute use args (default is os.Args[1:])
@@ -69,16 +67,16 @@ func (c *Command) Execute() error {
 	subCmdName, subCmdArgs := extractSubCmd(c.args)
 	if subCmdName == "" {
 		// no sub command in args
-		var needHelp bool
+		var help bool
 		if f := c.Flags().Lookup("help"); f == nil {
-			c.Flags().BoolVar(&needHelp, "help", false, "help for "+c.Name)
+			c.Flags().BoolVar(&help, "help", false, "help for "+c.Name)
 		}
 		err := c.Flags().Parse(c.args)
 		if err != nil {
 			return err
 		}
 
-		if needHelp {
+		if help {
 			c.Help()
 		} else {
 			c.Do(c)

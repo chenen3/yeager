@@ -1,24 +1,24 @@
-package main
+package cmd
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/chenen3/yeager/cmd"
+	"github.com/chenen3/yeager/cmd/command"
 	"github.com/chenen3/yeager/util"
 )
 
 var host string
 
 func init() {
-	rootCmd.AddCommand(certCmd)
+	Root.AddCommand(certCmd)
 	certCmd.Flags().StringVar(&host, "host", "", "comma-separated hostnames and IPs to generate a certificate for")
 }
 
-var certCmd = &cmd.Command{
+var certCmd = &command.Command{
 	Name: "cert",
 	Desc: "generate certificates for mutual TLS",
-	Do: func(self *cmd.Command) {
+	Do: func(self *command.Command) {
 		if host == "" {
 			fmt.Fprint(os.Stderr, "ERROR: required flag \"-host\" not set\n\n")
 			self.PrintUsage()
