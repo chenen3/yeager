@@ -52,7 +52,7 @@ func newRule(type_ string, value string, outboundTag string) (*rule, error) {
 func (r *rule) Match(addr *util.Address) bool {
 	switch r.type_ {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
-		if addr.Type != util.AddrDomainName {
+		if addr.Type != util.AddrDomain {
 			return false
 		}
 	case ruleIPCIDR:

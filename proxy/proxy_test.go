@@ -15,7 +15,10 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-var httpProxyURL string
+var (
+	httpProxyURL   string
+	socks5ProxyURL string
+)
 
 func TestMain(m *testing.M) {
 	// setup proxy server
@@ -39,8 +42,13 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
+	socks5ProxyPort, err := util.ChoosePort()
+	if err != nil {
+		panic(err)
+	}
+	socks5ProxyURL = fmt.Sprintf("socks5://127.0.0.1:%d", socks5ProxyPort)
 
-	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort)
+	cliConf, err := makeClientProxyConf(httpProxyPort, socks5ProxyPort, yeagerProxyPort)
 	if err != nil {
 		panic(err)
 	}
@@ -63,37 +71,56 @@ func TestProxy(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse(httpProxyURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	client := http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyURL(pu),
+	var tests = []struct {
+		name         string
+		inboundProxyUrl string
+	}{
+		{
+			name: "httpProxy", inboundProxyUrl: httpProxyURL,
 		},
-		Timeout: time.Second,
+		{
+			name: "socks5Proxy", inboundProxyUrl: socks5ProxyURL,
+		},
 	}
-	// traffic direction: client request -> inbound http proxy -> outbound yeager proxy -> inbound yeager proxy -> http test server
-	resp, err := client.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	bs, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(bs) != "1" {
-		t.Fatalf("want 1, got %s", bs)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pu, err := url.Parse(test.inboundProxyUrl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := http.Client{
+				Transport: &http.Transport{
+					Proxy: http.ProxyURL(pu),
+				},
+				Timeout: time.Second,
+			}
+			// traffic direction: client request -> inbound proxy -> outbound yeager proxy -> inbound yeager proxy -> http test server
+			resp, err := client.Get(ts.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			bs, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(bs) != "1" {
+				t.Fatalf("want 1, got %s", bs)
+			}
+
+		})
 	}
 }
 
-func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) {
+func makeClientProxyConf(httpProxyPort, socksProxyPort, outboundPort int) (*config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
 		"http": {
             "listen": "127.0.0.1:%d"
-        }
+        },
+		"socks": {
+			"listen": "127.0.0.1:%d"
+		}
 	},
     "outbounds": [
         {
@@ -110,7 +137,7 @@ func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) 
     "rules": [
         "FINAL,PROXY"
     ]
-}`, inboundPort, outboundPort)
+}`, httpProxyPort, socksProxyPort, outboundPort)
 	return config.LoadJSON([]byte(s))
 }
 

@@ -14,21 +14,21 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-func TestServer(t *testing.T) {
+func TestTCPServer(t *testing.T) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	server, err := NewServer(&config.SOCKSProxy{
-		Listen: fmt.Sprintf("127.0.0.1:%d", port),
+	server, err := NewTCPServer(&config.SOCKSProxy{
+		Listen: fmt.Sprintf(":%d", port),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer server.Close()
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, network, addr string) {
 			defer conn.Close()
 			if addr != "fake.domain.com:1234" {
 				t.Errorf("received unexpected dst addr: %s", addr)
@@ -55,13 +55,14 @@ func TestServer(t *testing.T) {
 	defer conn.Close()
 
 	want := []byte("1")
-	_, err = conn.Write(want)
-	if err != nil {
+	if _, err = conn.Write(want); err != nil {
 		t.Fatal(err)
 	}
 	got := make([]byte, 1)
-	io.ReadFull(conn, got)
+	if _, err = io.ReadFull(conn, got); err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Equal(want, got) {
-		t.Fatalf("want %v, got %v", want, got)
+		t.Fatalf("want %s, got %s", want, got)
 	}
 }

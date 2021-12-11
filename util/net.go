@@ -16,12 +16,13 @@ func ChoosePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-type AddrType int
+type AddrType byte
 
+// compatible with SOCKS5 protocol address type
 const (
-	AddrIPv4 = iota
-	AddrIPv6
-	AddrDomainName
+	AddrIPv4   AddrType = 0x01
+	AddrDomain AddrType = 0x03
+	AddrIPv6   AddrType = 0x04
 )
 
 type Address struct {
@@ -37,6 +38,10 @@ func ParseAddress(addr string) (*Address, error) {
 	if err != nil {
 		return nil, err
 	}
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
 	uintPort, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
 		return nil, errors.New("failed to parse port: " + err.Error())
@@ -46,7 +51,7 @@ func ParseAddress(addr string) (*Address, error) {
 	var typ AddrType
 	ip := net.ParseIP(host)
 	if ip == nil {
-		typ = AddrDomainName
+		typ = AddrDomain
 	} else if ipv4 := ip.To4(); ipv4 != nil {
 		typ = AddrIPv4
 		ip = ipv4

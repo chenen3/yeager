@@ -41,7 +41,11 @@ func NewServer(conf *config.HTTPProxy) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
+func (s *Server) Name() string {
+	return "httpProxyServer"
+}
+
+func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, network, addr string)) error {
 	lis, err := net.Listen("tcp", s.conf.Listen)
 	if err != nil {
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
@@ -72,7 +76,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 				return
 			}
 
-			handle(s.ctx, newConn, addr)
+			handle(s.ctx, newConn, "tcp", addr)
 		}()
 	}
 }

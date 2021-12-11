@@ -101,13 +101,13 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	return tlsConf, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, "tcp", c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	metadata, err := c.makeMetaData(addr)
+	metadata, err := c.makeMetaData(network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -130,15 +130,15 @@ const (
 var uuidPlaceholder [36]byte
 
 // makeMetaData 构造元数据，包含目的地址
-func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
+func (c *Client) makeMetaData(network, addr string) (buf bytes.Buffer, err error) {
 	dstAddr, err := util.ParseAddress(addr)
 	if err != nil {
 		return buf, err
 	}
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		VER UUID ATYP DST.ADDR DST.PORT
-		1   36   1    动态     2
+		VER UUID ATYP DST.ADDR DST.PORT ISUDP
+		1   36   1    动态     2         1
 	*/
 
 	// keep version number for backward compatibility
@@ -159,7 +159,7 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	case util.AddrIPv4:
 		buf.WriteByte(addressIPv4)
 		buf.Write(dstAddr.IP)
-	case util.AddrDomainName:
+	case util.AddrDomain:
 		buf.WriteByte(addressDomain)
 		buf.WriteByte(byte(len(dstAddr.Host)))
 		buf.WriteString(dstAddr.Host)
@@ -171,6 +171,12 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	var b [2]byte
 	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
 	buf.Write(b[:])
+
+	var isUDP int
+	if network == "udp" {
+		isUDP = 1
+	}
+	buf.WriteByte(byte(isUDP))
 	return buf, nil
 }
 

@@ -200,7 +200,11 @@ func (s *Server) listen() (net.Listener, error) {
 	return lis, nil
 }
 
-func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
+func (s *Server) Name() string {
+	return "yeagerProxyServer"
+}
+
+func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, network, addr string)) error {
 	lis, err := s.listen()
 	if err != nil {
 		return err
@@ -223,7 +227,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			dstAddr, err := s.parseMetaData(conn)
+			network, dstAddr, err := s.parseMetaData(conn)
 			if err != nil {
 				log.L().Warnf("failed to parse metadata: %s", err)
 				conn.Close()
@@ -234,7 +238,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 				Conn:    conn,
 				maxIdle: common.MaxConnectionIdle, // FIXME
 			}
-			handle(s.ctx, newConn, dstAddr)
+			handle(s.ctx, newConn, network, dstAddr)
 		}()
 	}
 }
@@ -249,7 +253,7 @@ func (s *Server) Close() error {
 }
 
 // parseMetaData 解析元数据，若凭证有效则返回其目的地址
-func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
+func (s *Server) parseMetaData(conn net.Conn) (network, addr string, err error) {
 	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
 	if err != nil {
 		return
@@ -263,13 +267,13 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		VER UUID ATYP DST.ADDR DST.PORT
-		1   36   1    动态     2
+		VER UUID ATYP DST.ADDR DST.PORT ISUDP
+		1   36   1    动态     2         1
 	*/
 	var buf [1 + 36 + 1]byte
 	_, err = io.ReadFull(conn, buf[:])
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
@@ -280,14 +284,14 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 	if s.conf.Security != config.TLSMutual {
 		gotUUID, err := uuid.ParseBytes(uuidBytes)
 		if err != nil {
-			return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
+			return "", "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
 		}
 		wantUUID, err := uuid.Parse(s.conf.UUID)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if gotUUID != wantUUID {
-			return "", errors.New("mismatch UUID: " + gotUUID.String())
+			return "", "", errors.New("mismatch UUID: " + gotUUID.String())
 		}
 	}
 
@@ -297,34 +301,45 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 		var buf [4]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case addressDomain:
 		var buf [1]byte
 		_, err = io.ReadFull(conn, buf[:])
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		length := buf[0]
 
 		bs := make([]byte, length)
 		_, err := io.ReadFull(conn, bs)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		host = string(bs)
 	default:
-		return "", fmt.Errorf("unsupported address type: %x", atyp)
+		return "", "", fmt.Errorf("unsupported address type: %x", atyp)
 	}
 
 	var bs [2]byte
 	_, err = io.ReadFull(conn, bs[:])
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	port := binary.BigEndian.Uint16(bs[:])
 	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
-	return addr, nil
+
+	network = "tcp"
+	isUDP := make([]byte, 1)
+	_, err = io.ReadFull(conn, isUDP)
+	if err != nil {
+		return "", "", err
+	}
+	if isUDP[0] == 1 {
+		network = "udp"
+	}
+
+	return network, addr, nil
 }

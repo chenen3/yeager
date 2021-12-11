@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/chenen3/yeager/cmd/command"
 	"github.com/chenen3/yeager/config"
@@ -57,6 +58,10 @@ var serveCmd = &command.Command{
 			terminate := make(chan os.Signal, 1)
 			signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
 			<-terminate
+			time.AfterFunc(5*time.Second, func() {
+				log.L().Error("abnormal exit")
+				os.Exit(1)
+			})
 			if err := p.Close(); err != nil {
 				log.L().Errorf("close proxy: %s", err)
 			}

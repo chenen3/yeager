@@ -61,7 +61,7 @@ func (d *dialer) quicDial(ctx context.Context, addr string) (quic.Session, error
 	return newSession, nil
 }
 
-func (d *dialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (d *dialer) DialContext(ctx context.Context, _ string, addr string) (net.Conn, error) {
 	session, err := d.quicDial(ctx, addr)
 	if err != nil {
 		err = errors.New("dial quic: " + err.Error())
