@@ -44,10 +44,6 @@ var pool = sync.Pool{
 	},
 }
 
-func (us *UDPServer) Name() string {
-	return "udpSOCKS5Server"
-}
-
 func (us *UDPServer) ListenAndServe(handle func(ctx context.Context, conn net.Conn, network, addr string)) error {
 	pc, err := net.ListenPacket("udp", us.conf.Listen)
 	if err != nil {

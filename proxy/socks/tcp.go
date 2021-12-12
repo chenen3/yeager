@@ -40,10 +40,6 @@ func NewTCPServer(conf *config.SOCKSProxy) (*TCPServer, error) {
 	}, nil
 }
 
-func (s *TCPServer) Name() string {
-	return "tcpSOCKS5Server"
-}
-
 func (s *TCPServer) ListenAndServe(handle func(ctx context.Context, conn net.Conn, network, addr string)) error {
 	lis, err := net.Listen("tcp", s.conf.Listen)
 	if err != nil {

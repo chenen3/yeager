@@ -198,10 +198,6 @@ func (s *Server) listen() (net.Listener, error) {
 	return lis, nil
 }
 
-func (s *Server) Name() string {
-	return "yeagerProxyServer"
-}
-
 func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, network, addr string)) error {
 	lis, err := s.listen()
 	if err != nil {

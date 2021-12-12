@@ -41,10 +41,6 @@ func NewServer(conf *config.HTTPProxy) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Name() string {
-	return "httpProxyServer"
-}
-
 func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, network, addr string)) error {
 	lis, err := net.Listen("tcp", s.conf.Listen)
 	if err != nil {
