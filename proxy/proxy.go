@@ -36,7 +36,7 @@ type Proxy struct {
 	outbounds map[string]Outbounder
 	router    *route.Router
 	done      chan struct{}
-	nat       *natTable // for UDP
+	nat       *nat // for UDP
 }
 
 func NewProxy(conf *config.Config) (*Proxy, error) {
@@ -44,7 +44,7 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 		conf:      conf,
 		outbounds: make(map[string]Outbounder, 2+len(conf.Outbounds)),
 		done:      make(chan struct{}),
-		nat:       newNATtable(),
+		nat:       newNAT(),
 	}
 
 	if conf.Inbounds.SOCKS != nil {
@@ -273,32 +273,32 @@ func (p *Proxy) handleUDP(ctx context.Context, inConn net.Conn, addr string) {
 	}
 }
 
-type natTable struct {
+type nat struct {
 	m  map[string]net.Conn
 	mu sync.RWMutex
 }
 
-func newNATtable() *natTable {
-	return &natTable{
+func newNAT() *nat {
+	return &nat{
 		m: make(map[string]net.Conn),
 	}
 }
 
-func (us *natTable) Put(key string, conn net.Conn) {
-	us.mu.Lock()
-	defer us.mu.Unlock()
-	us.m[key] = conn
+func (n *nat) Put(key string, conn net.Conn) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.m[key] = conn
 }
 
-func (us *natTable) Get(key string) (net.Conn, bool) {
-	us.mu.RLock()
-	defer us.mu.RUnlock()
-	conn, ok := us.m[key]
+func (n *nat) Get(key string) (net.Conn, bool) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	conn, ok := n.m[key]
 	return conn, ok
 }
 
-func (us *natTable) Delete(key string) {
-	us.mu.Lock()
-	defer us.mu.Unlock()
-	delete(us.m, key)
+func (n *nat) Delete(key string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	delete(n.m, key)
 }

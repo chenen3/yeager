@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -17,24 +18,15 @@ const (
 	noAuth = 0x00
 )
 
-type command byte
-
 const (
-	cmdConnect command = 0x01
-	cmdUDP     command = 0x03
+	cmdConnect      = 0x01
+	cmdUDPAssociate = 0x03
 )
 
-type addressType byte
-
 const (
-	atypIPv4   addressType = 0x01
-	atypDomain addressType = 0x03
-	atypIPv6   addressType = 0x04
-)
-
-// reply code
-const (
-	success = 0x00
+	atypIPv4   = 0x01
+	atypDomain = 0x03
+	atypIPv6   = 0x04
 )
 
 /*
@@ -82,27 +74,27 @@ func (r *AuthReply) Unmarshal(b []byte) error {
 */
 type CmdRequest struct {
 	version byte
-	cmd     command
-	*util.Address
+	cmd     int
+	*util.Addr
 }
 
 func (r *CmdRequest) Marshal() ([]byte, error) {
-	if r.Address == nil {
+	if r.Addr == nil {
 		return nil, errors.New("empty address")
 	}
 
 	var reverse byte = 0x00
 	b := []byte{r.version, byte(r.cmd), reverse}
 	switch r.Type {
-	case util.AddrIPv4:
+	case util.AtypIPv4:
 		b = append(b, byte(atypIPv4))
 		b = append(b, r.IP...)
-	case util.AddrDomain:
+	case util.AtypDomain:
 		b = append(b, byte(atypDomain))
 		b = append(b, byte(len(r.Host)))
 		b = append(b, r.Host...)
 	default:
-		return nil, fmt.Errorf("unsupported address type: %x", r.Address.Type)
+		return nil, fmt.Errorf("unsupported address type: %x", r.Addr.Type)
 	}
 
 	portBs := make([]byte, 2)
@@ -124,20 +116,20 @@ type CmdReply struct {
 	version byte
 	code    byte
 	reserve byte
-	*util.Address
+	*util.Addr
 }
 
 func NewCmdReply(bindAddr string) (*CmdReply, error) {
-	addr, err := util.ParseAddress(bindAddr)
+	addr, err := util.ParseAddr("tcp", bindAddr)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &CmdReply{
 		version: ver5,
-		code:    success,
+		code:    0x00,
 		reserve: 0x00,
-		Address: addr,
+		Addr:    addr,
 	}
 	return r, nil
 }
@@ -155,12 +147,12 @@ func parseCmdReply(conn net.Conn) (*CmdReply, error) {
 	if cmdReply.version != ver5 {
 		return nil, fmt.Errorf("unsupported socks version: %x", cmdReply.version)
 	}
-	if cmdReply.code != success {
+	if cmdReply.code != 0x00 {
 		return cmdReply, nil
 	}
 
 	var host string
-	atyp := addressType(b[3])
+	atyp := b[3]
 	switch atyp {
 	case atypIPv4:
 		var buf [4]byte
@@ -194,12 +186,12 @@ func parseCmdReply(conn net.Conn) (*CmdReply, error) {
 	}
 	port := binary.BigEndian.Uint16(portBuf[:])
 
-	addr, err := util.ParseAddress(net.JoinHostPort(host, strconv.Itoa(int(port))))
+	addr, err := util.ParseAddr("tcp", net.JoinHostPort(host, strconv.Itoa(int(port))))
 	if err != nil {
 		return nil, err
 	}
 
-	cmdReply.Address = addr
+	cmdReply.Addr = addr
 	return cmdReply, nil
 }
 
@@ -213,8 +205,8 @@ func parseCmdReply(conn net.Conn) (*CmdReply, error) {
 */
 func (rep *CmdReply) Marshal() []byte {
 	var buf bytes.Buffer
-	buf.Write([]byte{rep.version, rep.code, rep.reserve, byte(rep.Address.Type)})
-	switch addressType(rep.Address.Type) {
+	buf.Write([]byte{rep.version, rep.code, rep.reserve, byte(rep.Addr.Type)})
+	switch rep.Addr.Type {
 	case atypIPv4, atypIPv6:
 		buf.Write(rep.IP)
 	case atypDomain:
@@ -236,7 +228,7 @@ func (rep *CmdReply) Marshal() []byte {
     +----+------+------+----------+----------+----------+
 */
 type datagram struct {
-	dst  *util.Address
+	dst  *util.Addr
 	data []byte
 }
 
@@ -245,19 +237,19 @@ func (dg *datagram) Unmarshal(b []byte) error {
 		return errors.New("invalid SOCKS5 UDP data")
 	}
 
-	dg.dst = new(util.Address)
-	dg.dst.Type = util.AddrType(b[3])
+	dg.dst = new(util.Addr)
+	dg.dst.Type = int(b[3])
 	offset := 4 // the offset of DST.ADDR
 	var host string
 	switch dg.dst.Type {
-	case util.AddrIPv4:
+	case util.AtypIPv4:
 		if len(b) < offset+4 {
 			return errors.New("invalid SOCKS5 UDP data with bad ipv4")
 		}
 		hostBs := b[offset : offset+4]
 		host = net.IPv4(hostBs[0], hostBs[1], hostBs[2], hostBs[3]).String()
 		offset += 4
-	case util.AddrDomain:
+	case util.AtypDomain:
 		domainLen := int(b[offset])
 		domainStart := offset + 1
 		if len(b) < domainStart+domainLen {
@@ -275,7 +267,7 @@ func (dg *datagram) Unmarshal(b []byte) error {
 	}
 	port := binary.BigEndian.Uint16(b[offset : offset+2])
 
-	dst, err := util.ParseAddress(fmt.Sprintf("%s:%d", host, port))
+	dst, err := util.ParseAddr("udp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return err
 	}
@@ -292,10 +284,10 @@ func (dg *datagram) Marshal() ([]byte, error) {
 	buf.WriteByte(0x00)           // FRAG
 
 	switch dg.dst.Type {
-	case util.AddrIPv4:
+	case util.AtypIPv4:
 		buf.WriteByte(byte(atypIPv4))
 		buf.Write(dg.dst.IP)
-	case util.AddrDomain:
+	case util.AtypDomain:
 		buf.WriteByte(byte(atypDomain))
 		buf.WriteByte(byte(len(dg.dst.Host)))
 		buf.WriteString(dg.dst.Host)
@@ -306,4 +298,58 @@ func (dg *datagram) Marshal() ([]byte, error) {
 	buf.Write(portBs[:])
 	buf.Write(dg.data)
 	return buf.Bytes(), nil
+}
+
+// Refer to https://datatracker.ietf.org/doc/html/rfc1928
+func handshake(rw io.ReadWriter) (*util.Addr, error) {
+	buf := make([]byte, common.MaxAddrLen)
+	// read VER, NMETHODS, METHODS
+	if _, err := io.ReadFull(rw, buf[:2]); err != nil {
+		return nil, err
+	}
+	nmethods := buf[1]
+	if _, err := io.ReadFull(rw, buf[:nmethods]); err != nil {
+		return nil, err
+	}
+
+	// socks5服务在此仅作为入站代理，使用场景应该是本地内网，无需认证
+	// write VER METHOD
+	if _, err := rw.Write([]byte{5, 0}); err != nil {
+		return nil, err
+	}
+	// read VER CMD RSV ATYP DST.ADDR DST.PORT
+	if _, err := io.ReadFull(rw, buf[:3]); err != nil {
+		return nil, err
+	}
+
+	cmd := buf[1]
+	var network string
+	switch cmd {
+	case cmdConnect:
+		network = "tcp"
+	case cmdUDPAssociate:
+		network = "udp"
+	default:
+		return nil, fmt.Errorf("unsupported cmd: %x", cmd)
+	}
+
+	addrS, err := common.ReadAddr(rw)
+	if err != nil {
+		return nil, err
+	}
+	addr, err := util.ParseAddr(network, addrS)
+	if err != nil {
+		return nil, err
+	}
+
+	listenAddr, err := util.ParseAddr("tcp", rw.(net.Conn).LocalAddr().String())
+	if err != nil {
+		return nil, err
+	}
+	// write VER REP RSV ATYP BND.ADDR BND.PORT
+	if _, err = rw.Write(append([]byte{5, 0, 0}, common.MarshalAddr(listenAddr)...)); err != nil {
+		return nil, err
+	}
+
+	return addr, nil
 }

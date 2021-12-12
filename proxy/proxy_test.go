@@ -72,7 +72,7 @@ func TestProxy(t *testing.T) {
 	defer ts.Close()
 
 	var tests = []struct {
-		name         string
+		name            string
 		inboundProxyUrl string
 	}{
 		{

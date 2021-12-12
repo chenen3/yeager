@@ -74,7 +74,7 @@ func TestUDPServer(t *testing.T) {
 }
 
 func TestDatagram(t *testing.T) {
-	dst, err := util.ParseAddress("127.0.0.1:80")
+	dst, err := util.ParseAddr("udp", "127.0.0.1:80")
 	if err != nil {
 		t.Fatal(err)
 	}

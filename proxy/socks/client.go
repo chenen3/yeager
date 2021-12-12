@@ -15,12 +15,12 @@ type dialer struct {
 }
 
 func (d *dialer) Dial(network, addr string) (net.Conn, error) {
-	var cmd command
+	var cmd int
 	switch network {
 	case "tcp":
 		cmd = cmdConnect
 	case "udp":
-		cmd = cmdUDP
+		cmd = cmdUDPAssociate
 	default:
 		return nil, errors.New("unsupported network: " + network)
 	}
@@ -52,11 +52,11 @@ func (d *dialer) Dial(network, addr string) (net.Conn, error) {
 	}
 
 	// send cmd request and receive reply
-	a, err := util.ParseAddress(addr)
+	a, err := util.ParseAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	cmdReq := CmdRequest{version: ver5, cmd: cmd, Address: a}
+	cmdReq := CmdRequest{version: ver5, cmd: cmd, Addr: a}
 	bs, err := cmdReq.Marshal()
 	if err != nil {
 		return nil, err
@@ -70,11 +70,11 @@ func (d *dialer) Dial(network, addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cmdReply.code != success {
+	if cmdReply.code != 0x00 {
 		return nil, fmt.Errorf("receive failed reply code: %x", cmdReply.code)
 	}
 
-	if cmd == cmdUDP {
+	if cmd == cmdUDPAssociate {
 		c.Close() // TODO: close this tcp connection when udp connection end
 		uc, err := net.Dial("udp", d.ServerAddr)
 		if err != nil {
@@ -87,7 +87,7 @@ func (d *dialer) Dial(network, addr string) (net.Conn, error) {
 
 type ClientUDPConn struct {
 	*net.UDPConn
-	Dst  *util.Address
+	Dst  *util.Addr
 	data []byte
 	off  int
 }

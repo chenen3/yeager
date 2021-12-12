@@ -4,14 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -267,19 +265,15 @@ func (s *Server) parseMetaData(conn net.Conn) (network, addr string, err error) 
 
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		VER UUID ATYP DST.ADDR DST.PORT ISUDP
-		1   36   1    动态     2         1
+		VER UUID NETWORK ATYP DST.ADDR DST.PORT
+		1   36   1       1    动态     2
 	*/
-	var buf [1 + 36 + 1]byte
-	_, err = io.ReadFull(conn, buf[:])
-	if err != nil {
+	buf := make([]byte, 1+36+1)
+	if _, err = io.ReadFull(conn, buf); err != nil {
 		return "", "", err
 	}
 
-	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
-	// keep version number for backward compatibility
-	_ = version
-
+	uuidBytes, networkFlag := buf[1:1+36], buf[1+36]
 	// when use mutual authentication, UUID is no longer needed
 	if s.conf.Security != config.TLSMutual {
 		gotUUID, err := uuid.ParseBytes(uuidBytes)
@@ -295,51 +289,16 @@ func (s *Server) parseMetaData(conn net.Conn) (network, addr string, err error) 
 		}
 	}
 
-	var host string
-	switch atyp {
-	case addressIPv4:
-		var buf [4]byte
-		_, err = io.ReadFull(conn, buf[:])
-		if err != nil {
-			return "", "", err
-		}
-		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
-	case addressDomain:
-		var buf [1]byte
-		_, err = io.ReadFull(conn, buf[:])
-		if err != nil {
-			return "", "", err
-		}
-		length := buf[0]
-
-		bs := make([]byte, length)
-		_, err := io.ReadFull(conn, bs)
-		if err != nil {
-			return "", "", err
-		}
-		host = string(bs)
-	default:
-		return "", "", fmt.Errorf("unsupported address type: %x", atyp)
-	}
-
-	var bs [2]byte
-	_, err = io.ReadFull(conn, bs[:])
-	if err != nil {
-		return "", "", err
-	}
-
-	port := binary.BigEndian.Uint16(bs[:])
-	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
-
-	network = "tcp"
-	isUDP := make([]byte, 1)
-	_, err = io.ReadFull(conn, isUDP)
-	if err != nil {
-		return "", "", err
-	}
-	if isUDP[0] == 1 {
+	switch networkFlag {
+	case networkTCP:
+		network = "tcp"
+	case networkUDP:
 		network = "udp"
 	}
 
+	addr, err = common.ReadAddr(conn)
+	if err != nil {
+		return "", "", err
+	}
 	return network, addr, nil
 }

@@ -49,14 +49,14 @@ func newRule(type_ string, value string, outboundTag string) (*rule, error) {
 	return ru, err
 }
 
-func (r *rule) Match(addr *util.Address) bool {
+func (r *rule) Match(addr *util.Addr) bool {
 	switch r.type_ {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
-		if addr.Type != util.AddrDomain {
+		if addr.Type != util.AtypDomain {
 			return false
 		}
 	case ruleIPCIDR:
-		if addr.Type != util.AddrIPv4 {
+		if addr.Type != util.AtypIPv4 {
 			// ipv6 not supported yet
 			return false
 		}
@@ -122,8 +122,9 @@ func parseRule(rule string) (*rule, error) {
 }
 
 func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
-	var dst *util.Address
-	dst, err = util.ParseAddress(addr)
+	// router does not care the network of address,
+	// so empty network is fine
+	dst, err := util.ParseAddr("", addr)
 	if err != nil {
 		return "", err
 	}

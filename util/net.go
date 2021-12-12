@@ -16,24 +16,23 @@ func ChoosePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-type AddrType byte
-
 // compatible with SOCKS5 protocol address type
 const (
-	AddrIPv4   AddrType = 0x01
-	AddrDomain AddrType = 0x03
-	AddrIPv6   AddrType = 0x04
+	AtypIPv4   = 0x01
+	AtypDomain = 0x03
+	AtypIPv6   = 0x04
 )
 
-type Address struct {
-	Type AddrType
-	Host string
-	Port int
-	IP   net.IP
+type Addr struct {
+	network string
+	Type    int
+	Host    string
+	Port    int
+	IP      net.IP
 }
 
-// ParseAddress parse a network address to domain, ip
-func ParseAddress(addr string) (*Address, error) {
+// ParseAddr parse a network address to domain, ip
+func ParseAddr(network, addr string) (*Addr, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -48,31 +47,32 @@ func ParseAddress(addr string) (*Address, error) {
 	}
 	portnum := int(uintPort)
 
-	var typ AddrType
+	var typ int
 	ip := net.ParseIP(host)
 	if ip == nil {
-		typ = AddrDomain
+		typ = AtypDomain
 	} else if ipv4 := ip.To4(); ipv4 != nil {
-		typ = AddrIPv4
+		typ = AtypIPv4
 		ip = ipv4
 	} else {
-		typ = AddrIPv6
+		typ = AtypIPv6
 		ip = ip.To16()
 	}
 
-	a := &Address{
-		Type: typ,
-		Host: host,
-		Port: portnum,
-		IP:   ip,
+	a := &Addr{
+		network: network,
+		Type:    typ,
+		Host:    host,
+		Port:    portnum,
+		IP:      ip,
 	}
 	return a, nil
 }
 
-func (a *Address) Network() string {
-	return "tcp"
+func (a *Addr) Network() string {
+	return a.network
 }
 
-func (a *Address) String() string {
+func (a *Addr) String() string {
 	return net.JoinHostPort(a.Host, strconv.Itoa(a.Port))
 }
