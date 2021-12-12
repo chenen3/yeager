@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -25,71 +26,73 @@ func (d *dialer) Dial(network, addr string) (net.Conn, error) {
 		return nil, errors.New("unsupported network: " + network)
 	}
 
-	c, err := net.Dial("tcp", d.ServerAddr)
+	tc, err := net.Dial("tcp", d.ServerAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// send auth request and receive reply
-	authReq := AuthRequest{version: ver5, nMethods: 0x01, methods: []byte{0x00}}
-	_, err = c.Write(authReq.Marshal())
-	if err != nil {
+	// write VER NMETHODS METHODS
+	if _, err = tc.Write([]byte{0x05, 0x01, 0x00}); err != nil {
 		return nil, err
 	}
 
+	// read VER METHOD
 	var b [2]byte
-	_, err = io.ReadFull(c, b[:])
-	if err != nil {
+	if _, err = io.ReadFull(tc, b[:]); err != nil {
 		return nil, err
 	}
-	var authReply AuthReply
-	err = authReply.Unmarshal(b[:])
-	if err != nil {
-		return nil, err
-	}
-	if authReply.method != noAuth {
-		return nil, fmt.Errorf("unsupported auth method: %x", authReply.method)
+	method := b[1]
+	if method != noAuth {
+		return nil, fmt.Errorf("unsupported method %x", method)
 	}
 
-	// send cmd request and receive reply
-	a, err := util.ParseAddr("tcp", addr)
+	// write VER REP RSV ATYP BND.ADDR BND.PORT
+	dst, err := util.ParseAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	cmdReq := CmdRequest{version: ver5, cmd: cmd, Addr: a}
-	bs, err := cmdReq.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	_, err = c.Write(bs)
-	if err != nil {
+	cmdReq := append([]byte{0x05, byte(cmd), 0x00}, common.MarshalAddr(dst)...)
+	if _, err = tc.Write(cmdReq); err != nil {
 		return nil, err
 	}
 
-	cmdReply, err := parseCmdReply(c)
-	if err != nil {
+	// read RSV FRAG ATYP DST.ADDR DST.PORT DATA
+	var bs [3]byte
+	if _, err = io.ReadFull(tc, bs[:]); err != nil {
 		return nil, err
 	}
-	if cmdReply.code != 0x00 {
-		return nil, fmt.Errorf("receive failed reply code: %x", cmdReply.code)
+
+	if reply := bs[1]; reply != 0x00 {
+		return nil, fmt.Errorf("receive failed reply code: %x", reply)
+	}
+	boundAddr, err := common.ReadAddr(tc)
+	if err != nil {
+		return nil, err
 	}
 
 	if cmd == cmdUDPAssociate {
-		c.Close() // TODO: close this tcp connection when udp connection end
-		uc, err := net.Dial("udp", d.ServerAddr)
+		uc, err := net.Dial("udp", boundAddr)
 		if err != nil {
 			return nil, err
 		}
-		return &ClientUDPConn{UDPConn: uc.(*net.UDPConn), Dst: a}, nil
+		return &ClientUDPConn{
+			UDPConn: uc.(*net.UDPConn),
+			Dst:     dst,
+			onClose: func() {
+				tc.Close()
+			},
+		}, nil
 	}
-	return c, nil
+
+	return tc, nil
 }
 
 type ClientUDPConn struct {
 	*net.UDPConn
-	Dst  *util.Addr
-	data []byte
-	off  int
+	Dst     *util.Addr
+	data    []byte
+	off     int
+	onClose func()
 }
 
 func (c *ClientUDPConn) Read(b []byte) (int, error) {
@@ -125,4 +128,11 @@ func (c *ClientUDPConn) Write(b []byte) (int, error) {
 		return 0, err
 	}
 	return c.UDPConn.Write(bs)
+}
+
+func (c *ClientUDPConn) Close() error {
+	if c.onClose != nil {
+		c.onClose()
+	}
+	return c.UDPConn.Close()
 }

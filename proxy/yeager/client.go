@@ -119,14 +119,10 @@ func (c *Client) DialContext(ctx context.Context, network, addr string) (net.Con
 	return newConn, nil
 }
 
+// the value defined for NETWORK in yeager protocol
 const (
 	networkTCP = 0x01
 	networkUDP = 0x02
-)
-
-const (
-	atypIPv4   = 0x01
-	atypDomain = 0x03
 )
 
 // while using mutual TLS, uuid is ignored,
