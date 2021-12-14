@@ -41,8 +41,8 @@ func (d *dialer) Dial(network, addr string) (net.Conn, error) {
 	if _, err = io.ReadFull(tc, b[:]); err != nil {
 		return nil, err
 	}
-	method := b[1]
-	if method != noAuth {
+
+	if method := b[1]; method != noAuth {
 		return nil, fmt.Errorf("unsupported method %x", method)
 	}
 

@@ -35,7 +35,6 @@ type Proxy struct {
 	inbounds  []Inbounder
 	outbounds map[string]Outbounder
 	router    *route.Router
-	done      chan struct{}
 	nat       *nat // for UDP
 }
 
@@ -43,7 +42,6 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	p := &Proxy{
 		conf:      conf,
 		outbounds: make(map[string]Outbounder, 2+len(conf.Outbounds)),
-		done:      make(chan struct{}),
 		nat:       newNAT(),
 	}
 
@@ -102,10 +100,8 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 }
 
 // Serve launch inbound server and register handler for incoming connection.
-// Serve returns when one of the inbounds stop.
 func (p *Proxy) Serve() error {
 	var wg sync.WaitGroup
-	var once sync.Once
 	for _, inbound := range p.inbounds {
 		wg.Add(1)
 		go func(ib Inbounder) {
@@ -113,41 +109,29 @@ func (p *Proxy) Serve() error {
 			err := ib.ListenAndServe(p.handle)
 			if err != nil {
 				log.L().Error(err)
-				// clean up before exit
-				once.Do(func() {
-					if err := p.Close(); err != nil {
-						log.L().Error(err)
-					}
-				})
 				return
 			}
 		}(inbound)
 	}
-
 	wg.Wait()
-	<-p.done
 	return nil
 }
 
 func (p *Proxy) Close() error {
 	var err error
-	defer close(p.done)
 	for _, ib := range p.inbounds {
-		e := ib.Close()
-		if e != nil {
+		if e := ib.Close(); e != nil {
 			err = e
 		}
 	}
 
 	for _, outbound := range p.outbounds {
 		if c, ok := outbound.(io.Closer); ok {
-			e := c.Close()
-			if e != nil {
+			if e := c.Close(); e != nil {
 				err = e
 			}
 		}
 	}
-
 	return err
 }
 
@@ -172,7 +156,6 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, network, addr strin
 
 func (p *Proxy) handleTCP(ctx context.Context, inConn net.Conn, addr string) {
 	defer inConn.Close()
-
 	tag, err := p.router.Dispatch(addr)
 	if err != nil {
 		log.L().Errorf("dispatch %s: %s", addr, err)
@@ -199,7 +182,7 @@ func (p *Proxy) handleTCP(ctx context.Context, inConn net.Conn, addr string) {
 	case <-ctx.Done():
 	case err := <-errCh:
 		if err != nil {
-			log.L().Warnf("relayTCP %s: %s", addr, err)
+			log.L().Warnf("relay tcp %s: %s", addr, err)
 		}
 	}
 }
@@ -219,21 +202,20 @@ func relayTCP(a, b io.ReadWriter) <-chan error {
 
 func (p *Proxy) handleUDP(ctx context.Context, inConn net.Conn, addr string) {
 	defer inConn.Close()
-
-	tag, err := p.router.Dispatch(addr)
-	if err != nil {
-		log.L().Errorf("dispatch %s: %s", addr, err)
-		return
-	}
-	outbound, ok := p.outbounds[tag]
-	if !ok {
-		log.L().Errorf("unknown outbound tag: %s", tag)
-		return
-	}
-	log.L().Infof("receive %s %s from %s, dispatch to [%s]", "udp", addr, inConn.RemoteAddr(), tag)
-
 	outConn, ok := p.nat.Get(inConn.RemoteAddr().String())
 	if !ok {
+		tag, err := p.router.Dispatch(addr)
+		if err != nil {
+			log.L().Errorf("dispatch %s: %s", addr, err)
+			return
+		}
+		outbound, ok := p.outbounds[tag]
+		if !ok {
+			log.L().Errorf("unknown outbound tag: %s", tag)
+			return
+		}
+		log.L().Infof("receive %s %s from %s, dispatch to [%s]", "udp", addr, inConn.RemoteAddr(), tag)
+
 		dialCtx, cancel := context.WithTimeout(ctx, common.DialTimeout)
 		defer cancel()
 		outConn, err = outbound.DialContext(dialCtx, "udp", addr)
@@ -259,7 +241,7 @@ func (p *Proxy) handleUDP(ctx context.Context, inConn net.Conn, addr string) {
 	errCh := func() <-chan error {
 		ch := make(chan error, 1)
 		go func() {
-			_, err = io.Copy(outConn, inConn)
+			_, err := io.Copy(outConn, inConn)
 			ch <- err
 		}()
 		return ch
@@ -268,7 +250,7 @@ func (p *Proxy) handleUDP(ctx context.Context, inConn net.Conn, addr string) {
 	case <-ctx.Done():
 	case err := <-errCh:
 		if err != nil {
-			log.L().Warnf("relayTCP %s: %s", addr, err)
+			log.L().Warnf("relay udp %s: %s", addr, err)
 		}
 	}
 }
@@ -279,9 +261,7 @@ type nat struct {
 }
 
 func newNAT() *nat {
-	return &nat{
-		m: make(map[string]net.Conn),
-	}
+	return &nat{m: make(map[string]net.Conn)}
 }
 
 func (n *nat) Put(key string, conn net.Conn) {

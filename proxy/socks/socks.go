@@ -12,10 +12,7 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-const (
-	ver5   = 0x05 // socks5
-	noAuth = 0x00
-)
+const noAuth = 0x00
 
 const (
 	cmdConnect      = 0x01
