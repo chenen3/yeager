@@ -13,6 +13,6 @@ var Reject = reject{}
 
 type reject struct{}
 
-func (reject) DialContext(_ context.Context, _ string) (net.Conn, error) {
+func (reject) DialContext(_ context.Context, _, _ string) (net.Conn, error) {
 	return nil, errors.New("traffic rejected")
 }

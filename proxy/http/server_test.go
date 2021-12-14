@@ -30,7 +30,7 @@ func TestServer(t *testing.T) {
 	}
 	defer server.Close()
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
+		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, network, addr string) {
 			defer conn.Close()
 			if addr != "fake.domain.com:1234" {
 				t.Errorf("received unexpected dst addr: %s", addr)

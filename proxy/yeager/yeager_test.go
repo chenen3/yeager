@@ -139,7 +139,7 @@ func TestYeager(t *testing.T) {
 			defer server.Close()
 
 			go func() {
-				err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
+				err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, network, addr string) {
 					defer conn.Close()
 					if addr != "fake.domain.com:1234" {
 						t.Errorf("received unexpected dst addr: %s", addr)
@@ -162,7 +162,7 @@ func TestYeager(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			conn, err := client.DialContext(ctx, "fake.domain.com:1234")
+			conn, err := client.DialContext(ctx, "tcp", "fake.domain.com:1234")
 			if err != nil {
 				t.Error("dial err: " + err.Error())
 				return

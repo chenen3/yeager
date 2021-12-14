@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -101,13 +100,13 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	return tlsConf, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, "tcp", c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	metadata, err := c.makeMetaData(addr)
+	metadata, err := c.makeMetaData(network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +119,10 @@ func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	return newConn, nil
 }
 
+// the value defined for NETWORK in yeager protocol
 const (
-	addressIPv4   = 0x01
-	addressDomain = 0x03
+	networkTCP = 0x01
+	networkUDP = 0x02
 )
 
 // while using mutual TLS, uuid is ignored,
@@ -130,15 +130,15 @@ const (
 var uuidPlaceholder [36]byte
 
 // makeMetaData 构造元数据，包含目的地址
-func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
-	dstAddr, err := util.ParseAddress(addr)
+func (c *Client) makeMetaData(network, addr string) (buf bytes.Buffer, err error) {
+	dstAddr, err := util.ParseAddr(network, addr)
 	if err != nil {
 		return buf, err
 	}
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		VER UUID ATYP DST.ADDR DST.PORT
-		1   36   1    动态     2
+		VER UUID NETWORK ATYP DST.ADDR DST.PORT
+		1   36   1       1    动态     2
 	*/
 
 	// keep version number for backward compatibility
@@ -155,22 +155,14 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 		buf.WriteString(sendUUID.String())
 	}
 
-	switch dstAddr.Type {
-	case util.AddrIPv4:
-		buf.WriteByte(addressIPv4)
-		buf.Write(dstAddr.IP)
-	case util.AddrDomainName:
-		buf.WriteByte(addressDomain)
-		buf.WriteByte(byte(len(dstAddr.Host)))
-		buf.WriteString(dstAddr.Host)
-	default:
-		err = errors.New("unsupported address type: " + dstAddr.String())
-		return
+	switch network {
+	case "tcp":
+		buf.WriteByte(networkTCP)
+	case "udp":
+		buf.WriteByte(networkUDP)
 	}
 
-	var b [2]byte
-	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
-	buf.Write(b[:])
+	buf.Write(common.MarshalAddr(dstAddr))
 	return buf, nil
 }
 
