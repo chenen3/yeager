@@ -233,11 +233,7 @@ func (s *Server) ListenAndServe() error {
 				return
 			}
 
-			newConn := &Conn{
-				Conn:    conn,
-				maxIdle: common.MaxConnectionIdle, // FIXME
-			}
-			s.handler(newConn, dstAddr)
+			s.handler(connWithIdleTimeout(conn, common.MaxConnectionIdle), dstAddr)
 		}()
 	}
 }

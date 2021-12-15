@@ -111,13 +111,11 @@ func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	if err != nil {
 		return nil, err
 	}
-
-	newConn := &Conn{
-		Conn:     conn,
-		metadata: metadata,
-		maxIdle:  common.MaxConnectionIdle,
+	if _, err = conn.Write(metadata.Bytes()); err != nil {
+		return nil, err
 	}
-	return newConn, nil
+
+	return connWithIdleTimeout(conn, common.MaxConnectionIdle), nil
 }
 
 const (
