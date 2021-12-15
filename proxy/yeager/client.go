@@ -127,11 +127,11 @@ const (
 
 // while using mutual TLS, uuid is ignored,
 // for backward compatibility, left it blank
-var uuidPlaceholder [36]byte
+var blankUUID [36]byte
 
 // makeMetaData 构造元数据，包含目的地址
 func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
-	dstAddr, err := util.ParseAddress(addr)
+	dstAddr, err := util.ParseAddr("tcp", addr)
 	if err != nil {
 		return buf, err
 	}
@@ -146,7 +146,7 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 
 	if c.conf.Security == config.ClientTLSMutual {
 		// when use mutual authentication, UUID is no longer needed
-		buf.Write(uuidPlaceholder[:])
+		buf.Write(blankUUID[:])
 	} else {
 		sendUUID, err := uuid.Parse(c.conf.UUID)
 		if err != nil {

@@ -2,7 +2,6 @@ package socks
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -10,7 +9,6 @@ import (
 
 	gproxy "golang.org/x/net/proxy"
 
-	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -20,29 +18,28 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server, err := NewServer(&config.SOCKSProxy{
-		Listen: fmt.Sprintf("127.0.0.1:%d", port),
-	})
+	srv, err := NewServer(fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
+	defer srv.Close()
+	srv.Handle(func(conn net.Conn, addr string) {
+		defer conn.Close()
+		if addr != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", addr)
+			return
+		}
+		io.Copy(conn, conn)
+	})
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
-			defer conn.Close()
-			if addr != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", addr)
-				return
-			}
-			io.Copy(conn, conn)
-		})
+		err := srv.ListenAndServe()
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	<-server.ready
-	client, err := gproxy.SOCKS5("tcp", server.conf.Listen, nil, nil)
+	<-srv.ready
+	client, err := gproxy.SOCKS5("tcp", srv.addr, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 		return

@@ -16,58 +16,68 @@ func ChoosePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-type AddrType int
 
+// Addr type
 const (
 	AddrIPv4 = iota
 	AddrIPv6
 	AddrDomainName
 )
 
-type Address struct {
-	Type AddrType
-	Host string
-	Port int
-	IP   net.IP
+type Addr struct {
+	network string
+	Type    int
+	Host    string
+	Port    int
+	IP      net.IP
 }
 
-// ParseAddress parse a network address to domain, ip
-func ParseAddress(addr string) (*Address, error) {
+// ParseAddr parse a network address to domain, ip
+func ParseAddr(network, addr string) (*Addr, error) {
+	if network != "tcp" {
+		return nil, errors.New("unsupported network: " + network)
+	}
+
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
 	uintPort, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
 		return nil, errors.New("failed to parse port: " + err.Error())
 	}
 	portnum := int(uintPort)
 
-	var typ AddrType
+	var atyp int
 	ip := net.ParseIP(host)
 	if ip == nil {
-		typ = AddrDomainName
+		atyp = AddrDomainName
 	} else if ipv4 := ip.To4(); ipv4 != nil {
-		typ = AddrIPv4
+		atyp = AddrIPv4
 		ip = ipv4
 	} else {
-		typ = AddrIPv6
+		atyp = AddrIPv6
 		ip = ip.To16()
 	}
 
-	a := &Address{
-		Type: typ,
-		Host: host,
-		Port: portnum,
-		IP:   ip,
+	a := &Addr{
+		network: network,
+		Type:    atyp,
+		Host:    host,
+		Port:    portnum,
+		IP:      ip,
 	}
 	return a, nil
 }
 
-func (a *Address) Network() string {
-	return "tcp"
+func (a *Addr) Network() string {
+	return a.network
 }
 
-func (a *Address) String() string {
+func (a *Addr) String() string {
 	return net.JoinHostPort(a.Host, strconv.Itoa(a.Port))
 }

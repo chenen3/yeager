@@ -21,8 +21,13 @@ import (
 )
 
 type Inbounder interface {
-	// ListenAndServe start the proxy server and block until closed or encounter error
-	ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error
+	// Handle register handler for the incomming connection,
+	// handler is responsible for closing connection
+	// when finish reading and writing
+	Handle(common.Handler)
+	// ListenAndServe start the proxy server,
+	// block until closed or encounter error
+	ListenAndServe() error
 	Close() error
 }
 
@@ -35,34 +40,32 @@ type Proxy struct {
 	inbounds  []Inbounder
 	outbounds map[string]Outbounder
 	router    *route.Router
-	done      chan struct{}
 }
 
 func NewProxy(conf *config.Config) (*Proxy, error) {
 	p := &Proxy{
 		conf:      conf,
 		outbounds: make(map[string]Outbounder, 2+len(conf.Outbounds)),
-		done:      make(chan struct{}),
 	}
 
 	if conf.Inbounds.SOCKS != nil {
-		srv, err := socks.NewServer(conf.Inbounds.SOCKS)
+		srv, err := socks.NewServer(conf.Inbounds.SOCKS.Listen)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("init socks5 server: " + err.Error())
 		}
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if conf.Inbounds.HTTP != nil {
-		srv, err := http.NewServer(conf.Inbounds.HTTP)
+		srv, err := http.NewServer(conf.Inbounds.HTTP.Listen)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("init http proxy server: " + err.Error())
 		}
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if conf.Inbounds.Yeager != nil {
 		srv, err := yeager.NewServer(conf.Inbounds.Yeager)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("init yeager proxy server: " + err.Error())
 		}
 		p.inbounds = append(p.inbounds, srv)
 	}
@@ -98,33 +101,23 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 // Serve returns when one of the inbounds stop.
 func (p *Proxy) Serve() error {
 	var wg sync.WaitGroup
-	var once sync.Once
 	for _, inbound := range p.inbounds {
 		wg.Add(1)
 		go func(ib Inbounder) {
 			defer wg.Done()
-			err := ib.ListenAndServe(p.handle)
-			if err != nil {
+			ib.Handle(p.handle)
+			if err := ib.ListenAndServe(); err != nil {
 				log.L().Error(err)
-				// clean up before exit
-				once.Do(func() {
-					if err := p.Close(); err != nil {
-						log.L().Error(err)
-					}
-				})
 				return
 			}
 		}(inbound)
 	}
-
 	wg.Wait()
-	<-p.done
 	return nil
 }
 
 func (p *Proxy) Close() error {
 	var err error
-	defer close(p.done)
 	for _, ib := range p.inbounds {
 		e := ib.Close()
 		if e != nil {
@@ -144,12 +137,12 @@ func (p *Proxy) Close() error {
 	return err
 }
 
-var activeConn = expvar.NewInt("activeConn")
+var activeConnCnt = expvar.NewInt("activeConn")
 
-func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
-	if p.conf.Develop {
-		activeConn.Add(1)
-		defer activeConn.Add(-1)
+func (p *Proxy) handle(inConn net.Conn, addr string) {
+	if p.conf.Debug {
+		activeConnCnt.Add(1)
+		defer activeConnCnt.Add(-1)
 	}
 	defer inConn.Close()
 
@@ -165,26 +158,21 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	}
 	log.L().Infof("receive %s from %s, dispatch to [%s]", addr, inConn.RemoteAddr(), tag)
 
-	dialCtx, cancel := context.WithTimeout(ctx, common.DialTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
-	outConn, err := outbound.DialContext(dialCtx, addr)
+	outConn, err := outbound.DialContext(ctx, addr)
 	if err != nil {
 		log.L().Errorf("dial %s: %s", addr, err)
 		return
 	}
 	defer outConn.Close()
 
-	errCh := relay(inConn, outConn)
-	select {
-	case <-ctx.Done():
-	case err := <-errCh:
-		if err != nil {
-			log.L().Warnf("relay %s: %s", addr, err)
-		}
+	if err := relay(inConn, outConn); err != nil {
+		log.L().Warnf("relay %s: %s", addr, err)
 	}
 }
 
-func relay(a, b io.ReadWriter) <-chan error {
+func relay(a, b io.ReadWriter) error {
 	errCh := make(chan error, 2)
 	go func() {
 		_, err := io.Copy(a, b)
@@ -194,5 +182,5 @@ func relay(a, b io.ReadWriter) <-chan error {
 		_, err := io.Copy(b, a)
 		errCh <- err
 	}()
-	return errCh
+	return <-errCh
 }

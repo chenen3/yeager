@@ -49,7 +49,7 @@ func newRule(type_ string, value string, outboundTag string) (*rule, error) {
 	return ru, err
 }
 
-func (r *rule) Match(addr *util.Address) bool {
+func (r *rule) Match(addr *util.Addr) bool {
 	switch r.type_ {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
 		if addr.Type != util.AddrDomainName {
@@ -122,8 +122,8 @@ func parseRule(rule string) (*rule, error) {
 }
 
 func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
-	var dst *util.Address
-	dst, err = util.ParseAddress(addr)
+	var dst *util.Addr
+	dst, err = util.ParseAddr("tcp", addr)
 	if err != nil {
 		return "", err
 	}
