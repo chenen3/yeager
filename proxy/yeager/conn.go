@@ -1,64 +1,46 @@
 package yeager
 
 import (
-	"bytes"
 	"net"
-	"sync"
 	"time"
-
-	"github.com/chenen3/yeager/log"
 )
 
+// Conn wraps net.Conn, implement idle timeout by repeatedly
+// extending the deadline after successful Read or Write calls.
 type Conn struct {
 	net.Conn
-	metadata bytes.Buffer
-	once     sync.Once
-	maxIdle  time.Duration
+	maxIdle time.Duration
+}
+
+// given zero value for maxIdle means no idle timeout
+func connWithIdleTimeout(conn net.Conn, maxIdle time.Duration) *Conn {
+	c := &Conn{
+		Conn:    conn,
+		maxIdle: maxIdle,
+	}
+	c.extendDeadline()
+	return c
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
-	if c.maxIdle > 0 {
-		c.once.Do(func() {
-			err = c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
-			if err != nil {
-				log.L().Error(err)
-			}
-		})
-	}
-
 	n, err = c.Conn.Read(b)
-	if c.maxIdle > 0 && n > 0 && err == nil {
-		err = c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
-		if err != nil {
-			return 0, err
-		}
+	if n > 0 && err == nil {
+		err = c.extendDeadline()
 	}
 	return n, err
 }
 
 func (c *Conn) Write(p []byte) (n int, err error) {
-	if c.maxIdle > 0 {
-		c.once.Do(func() {
-			err = c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
-			if err != nil {
-				log.L().Error(err)
-			}
-		})
-	}
-
-	if c.metadata.Len() > 0 {
-		_, err = c.metadata.WriteTo(c.Conn)
-		if err != nil {
-			return 0, err
-		}
-	}
-
 	n, err = c.Conn.Write(p)
-	if c.maxIdle > 0 && n > 0 && err == nil {
-		err = c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
-		if err != nil {
-			return 0, err
-		}
+	if n > 0 && err == nil {
+		err = c.extendDeadline()
 	}
 	return n, err
+}
+
+func (c *Conn) extendDeadline() error {
+	if c.maxIdle <= 0 {
+		return nil
+	}
+	return c.Conn.SetDeadline(time.Now().Add(c.maxIdle))
 }

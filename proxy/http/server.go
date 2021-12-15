@@ -130,12 +130,12 @@ func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr string, err er
 		}
 		newConn = conn
 	} else {
-		var buf bytes.Buffer
-		addr, buf, err = s.handshakeHTTP(conn, req)
+		var reqcopy bytes.Buffer
+		addr, reqcopy, err = s.handshakeHTTP(conn, req)
 		if err != nil {
 			return
 		}
-		newConn = &Conn{Conn: conn, earlyRead: buf}
+		newConn = &Conn{Conn: conn, earlyRead: reqcopy}
 	}
 
 	return newConn, addr, nil
@@ -156,7 +156,7 @@ func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (addr string, 
 	return addr, nil
 }
 
-func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, buf bytes.Buffer, err error) {
+func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, reqcopy bytes.Buffer, err error) {
 	port := req.URL.Port()
 	if port == "" {
 		port = "80"
@@ -164,12 +164,12 @@ func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, b
 	addr = net.JoinHostPort(req.URL.Hostname(), port)
 
 	// 对于HTTP代理请求，需要先行把请求转发一遍
-	if err = req.Write(&buf); err != nil {
+	if err = req.Write(&reqcopy); err != nil {
 		err = errors.New("request write err: " + err.Error())
 		return
 	}
 
-	return addr, buf, nil
+	return addr, reqcopy, nil
 }
 
 type Conn struct {

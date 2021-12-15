@@ -119,16 +119,14 @@ func (p *Proxy) Serve() error {
 func (p *Proxy) Close() error {
 	var err error
 	for _, ib := range p.inbounds {
-		e := ib.Close()
-		if e != nil {
+		if e := ib.Close(); e != nil {
 			err = e
 		}
 	}
 
 	for _, outbound := range p.outbounds {
 		if c, ok := outbound.(io.Closer); ok {
-			e := c.Close()
-			if e != nil {
+			if e := c.Close(); e != nil {
 				err = e
 			}
 		}
