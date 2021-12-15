@@ -1,7 +1,6 @@
 package yeager
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -28,13 +27,14 @@ import (
 const certDir = "/usr/local/etc/yeager/golang-autocert"
 
 type Server struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	conf   *config.YeagerServer
-	lis    net.Listener
-	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
+	conf    *config.YeagerServer
+	lis     net.Listener
+	handler common.Handler
 
-	ready chan struct{} // imply that server is ready to accept connection, testing only
+	mu         sync.Mutex
+	activeConn map[net.Conn]struct{}
+	done       chan struct{}
+	ready      chan struct{} // imply that server is ready to accept connection, testing only
 }
 
 func NewServer(conf *config.YeagerServer) (*Server, error) {
@@ -42,13 +42,16 @@ func NewServer(conf *config.YeagerServer) (*Server, error) {
 		return nil, errors.New("config missing listening address")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		conf:   conf,
-		ready:  make(chan struct{}),
-		ctx:    ctx,
-		cancel: cancel,
+		conf:       conf,
+		ready:      make(chan struct{}),
+		done:       make(chan struct{}),
+		activeConn: make(map[net.Conn]struct{}),
 	}, nil
+}
+
+func (s *Server) Handle(handler common.Handler) {
+	s.handler = handler
 }
 
 func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
@@ -200,7 +203,7 @@ func (s *Server) listen() (net.Listener, error) {
 	return lis, nil
 }
 
-func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
+func (s *Server) ListenAndServe() error {
 	lis, err := s.listen()
 	if err != nil {
 		return err
@@ -212,7 +215,7 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 		conn, err := lis.Accept()
 		if err != nil {
 			select {
-			case <-s.ctx.Done():
+			case <-s.done:
 				return nil
 			default:
 			}
@@ -220,9 +223,9 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 			continue
 		}
 
-		s.wg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			s.trackConn(conn, true)
+			defer s.trackConn(conn, false)
 			dstAddr, err := s.parseMetaData(conn)
 			if err != nil {
 				log.L().Warnf("failed to parse metadata: %s", err)
@@ -234,18 +237,34 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 				Conn:    conn,
 				maxIdle: common.MaxConnectionIdle, // FIXME
 			}
-			handle(s.ctx, newConn, dstAddr)
+			s.handler(newConn, dstAddr)
 		}()
 	}
 }
 
-func (s *Server) Close() error {
-	defer s.wg.Wait()
-	s.cancel()
-	if s.lis != nil {
-		return s.lis.Close()
+func (s *Server) trackConn(c net.Conn, add bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		s.activeConn[c] = struct{}{}
+	} else {
+		delete(s.activeConn, c)
 	}
-	return nil
+}
+
+func (s *Server) Close() error {
+	close(s.done)
+	var err error
+	if s.lis != nil {
+		err = s.lis.Close()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for c := range s.activeConn {
+		c.Close()
+		delete(s.activeConn, c)
+	}
+	return err
 }
 
 // parseMetaData 解析元数据，若凭证有效则返回其目的地址

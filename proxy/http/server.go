@@ -3,7 +3,6 @@ package http
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,49 +11,52 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 )
 
 type Server struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	conf   *config.HTTPProxy
-	wg     sync.WaitGroup // counts active Serve goroutines for graceful close
-	lis    net.Listener
+	addr    string
+	handler common.Handler
+	lis     net.Listener
 
-	ready chan struct{} // imply that server is ready to accept connection, testing only
+	mu         sync.Mutex
+	activeConn map[net.Conn]struct{}
+	done       chan struct{}
+	ready      chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(conf *config.HTTPProxy) (*Server, error) {
-	if conf == nil || conf.Listen == "" {
-		return nil, errors.New("config missing listening address")
+func NewServer(addr string) (*Server, error) {
+	if addr == "" {
+		return nil, errors.New("empty address")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		conf:   conf,
-		ready:  make(chan struct{}),
-		ctx:    ctx,
-		cancel: cancel,
+		addr:       addr,
+		ready:      make(chan struct{}),
+		done:       make(chan struct{}),
+		activeConn: make(map[net.Conn]struct{}),
 	}, nil
 }
 
-func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, addr string)) error {
-	lis, err := net.Listen("tcp", s.conf.Listen)
+func (s *Server) Handle(handler common.Handler) {
+	s.handler = handler
+}
+
+func (s *Server) ListenAndServe() error {
+	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.L().Infof("http proxy listening %s", s.conf.Listen)
+	log.L().Infof("http proxy listening %s", s.addr)
 
 	close(s.ready)
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
 			select {
-			case <-s.ctx.Done():
+			case <-s.done:
 				return nil
 			default:
 			}
@@ -62,28 +64,43 @@ func (s *Server) ListenAndServe(handle func(ctx context.Context, conn net.Conn, 
 			continue
 		}
 
-		s.wg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			s.trackConn(conn, true)
+			defer s.trackConn(conn, false)
 			newConn, addr, err := s.handshake(conn)
 			if err != nil {
 				log.L().Errorf("handshake: %s", err.Error())
 				conn.Close()
 				return
 			}
-
-			handle(s.ctx, newConn, addr)
+			s.handler(newConn, addr)
 		}()
 	}
 }
 
-func (s *Server) Close() error {
-	defer s.wg.Wait()
-	s.cancel()
-	if s.lis != nil {
-		s.lis.Close()
+func (s *Server) trackConn(c net.Conn, add bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		s.activeConn[c] = struct{}{}
+	} else {
+		delete(s.activeConn, c)
 	}
-	return nil
+}
+
+func (s *Server) Close() error {
+	close(s.done)
+	var err error
+	if s.lis != nil {
+		err = s.lis.Close()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for c := range s.activeConn {
+		c.Close()
+		delete(s.activeConn, c)
+	}
+	return err
 }
 
 // HTTP代理服务器接收到请求时：

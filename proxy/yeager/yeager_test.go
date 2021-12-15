@@ -131,27 +131,28 @@ func TestYeager(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server, err := NewServer(test.serverConf)
+			srv, err := NewServer(test.serverConf)
 			if err != nil {
 				t.Error(err)
 				return
 			}
-			defer server.Close()
+			defer srv.Close()
 
+			srv.Handle(func(conn net.Conn, addr string) {
+				defer conn.Close()
+				if addr != "fake.domain.com:1234" {
+					t.Errorf("received unexpected dst addr: %s", addr)
+					return
+				}
+				io.Copy(conn, conn)
+			})
 			go func() {
-				err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
-					defer conn.Close()
-					if addr != "fake.domain.com:1234" {
-						t.Errorf("received unexpected dst addr: %s", addr)
-						return
-					}
-					io.Copy(conn, conn)
-				})
+				err := srv.ListenAndServe()
 				if err != nil {
 					t.Error(err)
 				}
 			}()
-			<-server.ready
+			<-srv.ready
 
 			client, err := NewClient(test.clientConf)
 			if err != nil {

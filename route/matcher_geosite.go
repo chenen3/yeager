@@ -111,7 +111,7 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 	return g, nil
 }
 
-func (g geoSiteMatcher) Match(addr *util.Address) bool {
+func (g geoSiteMatcher) Match(addr *util.Addr) bool {
 	for _, m := range g {
 		if m.Match(addr) {
 			return true

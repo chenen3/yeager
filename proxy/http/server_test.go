@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -11,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
@@ -22,41 +20,40 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server, err := NewServer(&config.HTTPProxy{
-		Listen: fmt.Sprintf("127.0.0.1:%d", port),
-	})
+	srv, err := NewServer(fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
+	defer srv.Close()
+	srv.Handle(func(conn net.Conn, addr string) {
+		defer conn.Close()
+		if addr != "fake.domain.com:1234" {
+			t.Errorf("received unexpected dst addr: %s", addr)
+			return
+		}
+
+		rec := httptest.NewRecorder()
+		_, err = rec.WriteString("1")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		err = rec.Result().Write(conn)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	})
 	go func() {
-		err := server.ListenAndServe(func(ctx context.Context, conn net.Conn, addr string) {
-			defer conn.Close()
-			if addr != "fake.domain.com:1234" {
-				t.Errorf("received unexpected dst addr: %s", addr)
-				return
-			}
-
-			rec := httptest.NewRecorder()
-			_, err = rec.WriteString("1")
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			err = rec.Result().Write(conn)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-		})
+		err := srv.ListenAndServe()
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	<-server.ready
-	proxyUrl, _ := url.Parse("http://" + server.conf.Listen)
+	<-srv.ready
+	proxyUrl, _ := url.Parse("http://" + srv.addr)
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(proxyUrl),
