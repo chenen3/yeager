@@ -22,8 +22,7 @@ import (
 
 type Inbounder interface {
 	// Handle register handler for the incomming connection,
-	// handler is responsible for closing connection
-	// when finish reading and writing
+	// handler is responsible for closing connection which Read and Write done
 	Handle(common.Handler)
 	// ListenAndServe start the proxy server,
 	// block until closed or encounter error
