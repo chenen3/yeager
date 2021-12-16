@@ -8,7 +8,7 @@ import (
 const Tag = "direct"
 
 // Direct implements proxy.Outbound by making network connections directly using net.DialContext
-var Direct = new(direct)
+var Direct = direct{}
 
 type direct struct{}
 
