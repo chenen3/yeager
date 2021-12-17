@@ -3,10 +3,8 @@ module github.com/chenen3/yeager
 go 1.17
 
 require (
-	github.com/google/uuid v1.3.0
 	github.com/lucas-clemente/quic-go v0.24.0
 	github.com/v2fly/v2ray-core/v4 v4.43.0
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
 	golang.org/x/net v0.0.0-20211201190559-0a0e4e1bb54c
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
@@ -25,6 +23,7 @@ require (
 	go.starlark.net v0.0.0-20210901212718-87f333178d59 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/sys v0.0.0-20210903071746-97244b99971b // indirect
 	golang.org/x/text v0.3.6 // indirect

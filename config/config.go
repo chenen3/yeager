@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 )
 
@@ -47,146 +46,69 @@ type Config struct {
 }
 
 type Inbounds struct {
-	SOCKS  *SOCKSProxy   `json:"socks,omitempty"`
-	HTTP   *HTTPProxy    `json:"http,omitempty"`
+	SOCKS *struct {
+		Listen string `json:"listen"`
+	} `json:"socks,omitempty"`
+
+	HTTP *struct {
+		Listen string `json:"listen"`
+	} `json:"http,omitempty"`
+
 	Yeager *YeagerServer `json:"yeager,omitempty"`
-}
-
-type SOCKSProxy struct {
-	Listen string `json:"listen"`
-}
-
-type HTTPProxy struct {
-	Listen string `json:"listen"`
 }
 
 type Transport string
 
 const (
-	TransTCP  Transport = "tcp"
+	TransTCP  Transport = "tcp" // plain text, be caution
+	TransTLS  Transport = "tls"
 	TransGRPC Transport = "grpc"
 	TransQUIC Transport = "quic"
 )
 
-type ServerSecurityType string
-
-const (
-	NoSecurity ServerSecurityType = ""           // no security, means plaintext
-	TLS        ServerSecurityType = "tls"        // security by TLS, manage certificate manually
-	TLSAcme    ServerSecurityType = "tls-acme"   // security by TLS, manage certificate automatically
-	TLSMutual  ServerSecurityType = "tls-mutual" // security by mutual TLS
-)
-
-type Tls struct {
+type MutualTLS struct {
 	CertFile string `json:"certFile"`
 	CertPEM  []byte `json:"-"`
 	KeyFile  string `json:"keyFile"`
 	KeyPEM   []byte `json:"-"`
-}
-
-type Acme struct {
-	Domain string `json:"domain"`
-}
-
-type Mtls struct {
-	CertFile     string `json:"certFile"`
-	CertPEM      []byte `json:"-"`
-	KeyFile      string `json:"keyFile"`
-	KeyPEM       []byte `json:"-"`
-	ClientCAFile string `json:"clientCAFile"`
-	ClientCA     []byte `json:"-"`
+	CAFile   string `json:"caFile"`
+	CAPEM    []byte `json:"-"`
 }
 
 type YeagerServer struct {
-	Listen    string             `json:"listen"`
-	UUID      string             `json:"uuid"` // ignored when Security is TLSMutual
-	Transport Transport          `json:"transport"`
-	Security  ServerSecurityType `json:"security"`
-	TLS       Tls                `json:"tls,omitempty"`  // available when Security is TLS
-	ACME      Acme               `json:"acme,omitempty"` // available when Security is TLSAcme
-	MTLS      Mtls               `json:"mtls,omitempty"` // available when Security is TLSMutual
-}
-
-type ClientSecurityType string
-
-const (
-	ClientNoSecurity ClientSecurityType = ""           // no security, means plaintext
-	ClientTLS        ClientSecurityType = "tls"        // security by TLS, manage certificate manually
-	ClientTLSMutual  ClientSecurityType = "tls-mutual" // security by mutual TLS
-)
-
-type ClientTls struct {
-	Insecure bool `json:"insecure,omitempty"` // allow insecure
-}
-
-type ClientMTLS struct {
-	CertFile   string `json:"certFile"`
-	CertPEM    []byte `json:"-"`
-	KeyFile    string `json:"keyFile"`
-	KeyPEM     []byte `json:"-"`
-	RootCAFile string `json:"rootCAFile"`
-	RootCA     []byte `json:"-"`
+	Listen    string    `json:"listen"`
+	Transport Transport `json:"transport"`
+	MutualTLS MutualTLS `json:"mutualTLS,omitempty"` // available when transport is tls, grpc or quic
 }
 
 type YeagerClient struct {
-	Tag       string             `json:"tag"` // 出站标记，用于路由规则指定出站代理
-	Address   string             `json:"address"`
-	UUID      string             `json:"uuid"` // ignored when Security is TLSMutual
-	Transport Transport          `json:"transport"`
-	Security  ClientSecurityType `json:"security"`
-	TLS       ClientTls          `json:"tls,omitempty"`  // available when Security is ClientTLS
-	MTLS      ClientMTLS         `json:"mtls,omitempty"` // available when Security is ClientTLSMutual
+	Tag       string    `json:"tag"`     // 出站标记，用于路由规则指定出站代理
+	Address   string    `json:"address"` // server address to be connected
+	Transport Transport `json:"transport"`
+	MutualTLS MutualTLS `json:"mutualTLS,omitempty"` // available when transport is tls, grpc or quic
 }
 
 const (
 	EnvYeagerAddress   = "YEAGER_ADDRESS"
-	EnvYeagerUUID      = "YEAGER_UUID"
 	EnvYeagerTransport = "YEAGER_TRANSPORT"
-	EnvYeagerDomain    = "YEAGER_DOMAIN"
-	EnvYeagerSecurity  = "YEAGER_SECURITY"
 )
 
 // Deprecated
 // LoadEnv generate configuration from environment variables,
-// suitable for server side plaintext or TLS with ACME
-func LoadEnv() (conf *Config, err error, foundEnv bool) {
-	address, foundAddr := os.LookupEnv(EnvYeagerAddress)
-	uuid, foundUUID := os.LookupEnv(EnvYeagerUUID)
-	transport, foundTransport := os.LookupEnv(EnvYeagerTransport)
-	domain, foundDomain := os.LookupEnv(EnvYeagerDomain)
-	if foundAddr || foundUUID || foundTransport || foundDomain == false {
-		return nil, nil, false
+// suitable for server side plaintext
+func LoadEnv() (conf *Config, err error) {
+	address, ok := os.LookupEnv(EnvYeagerAddress)
+	if !ok {
+		return nil, errors.New("missing " + EnvYeagerAddress)
 	}
-
-	foundEnv = true
-	if address == "" {
-		return nil, fmt.Errorf("required env %s", EnvYeagerAddress), foundEnv
+	transport, ok := os.LookupEnv(EnvYeagerTransport)
+	if !ok {
+		return nil, errors.New("missing " + EnvYeagerTransport)
 	}
-	if uuid == "" {
-		return nil, fmt.Errorf("required env %s", EnvYeagerUUID), foundEnv
-	}
-	if transport == "" {
-		return nil, fmt.Errorf("required env %s", EnvYeagerTransport), foundEnv
-	}
-	if domain == "" {
-		return nil, fmt.Errorf("required env %s", EnvYeagerDomain), foundEnv
-	}
-
-	security := os.Getenv(EnvYeagerSecurity)
 
 	sc := &YeagerServer{
 		Listen:    address,
-		UUID:      uuid,
 		Transport: Transport(transport),
-		Security:  ServerSecurityType(security),
 	}
-	switch sc.Security {
-	case NoSecurity:
-	case TLSAcme:
-		sc.ACME = Acme{Domain: domain}
-	default:
-		return nil, errors.New("LoadEnv does not support security: " + security), foundEnv
-	}
-
-	return &Config{Inbounds: Inbounds{Yeager: sc}}, nil, foundEnv
+	return &Config{Inbounds: Inbounds{Yeager: sc}}, nil
 }

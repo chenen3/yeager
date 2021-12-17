@@ -18,12 +18,17 @@ import (
 var httpProxyURL string
 
 func TestMain(m *testing.M) {
+	cert, err := util.GenerateCertificate("127.0.0.1", false)
+	if err != nil {
+		panic(err)
+	}
+
 	// setup proxy server
 	yeagerProxyPort, err := util.ChoosePort()
 	if err != nil {
 		panic(err)
 	}
-	srvConf, err := makeServerProxyConf(yeagerProxyPort)
+	srvConf, err := makeServerProxyConf(yeagerProxyPort, cert)
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +45,7 @@ func TestMain(m *testing.M) {
 	}
 	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
 
-	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort)
+	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort, cert)
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +93,7 @@ func TestProxy(t *testing.T) {
 	}
 }
 
-func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) {
+func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
 		"http": {
@@ -99,29 +104,32 @@ func makeClientProxyConf(inboundPort, outboundPort int) (*config.Config, error) 
         {
             "tag": "PROXY",
             "address": "127.0.0.1:%d",
-            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "tcp",
-			"security": "tls",
-			"tls": {
-				"insecure": true
-			}
+            "transport": "tls"
         }
     ],
     "rules": [
         "FINAL,PROXY"
     ]
 }`, inboundPort, outboundPort)
-	return config.LoadJSON([]byte(s))
+	conf, err := config.LoadJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+
+	conf.Outbounds[0].MutualTLS = config.MutualTLS{
+		CertPEM: cert.ClientCert,
+		KeyPEM:  cert.ClientKey,
+		CAPEM:   cert.RootCert,
+	}
+	return conf, nil
 }
 
-func makeServerProxyConf(inboundPort int) (*config.Config, error) {
+func makeServerProxyConf(inboundPort int, cert *util.Cert) (*config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
         "yeager": {
             "listen": "127.0.0.1:%d",
-            "uuid": "51aef373-e1f7-4257-a45d-e75e65d712c4",
-            "transport": "tcp",
-			"security": "tls"
+            "transport": "tls"
         }
     }
 }`, inboundPort)
@@ -131,11 +139,10 @@ func makeServerProxyConf(inboundPort int) (*config.Config, error) {
 		return nil, err
 	}
 
-	certPEM, keyPEM, err := util.SelfSignedCertificate()
-	if err != nil {
-		return nil, err
+	conf.Inbounds.Yeager.MutualTLS = config.MutualTLS{
+		CertPEM: cert.ServerCert,
+		KeyPEM:  cert.ServerKey,
+		CAPEM:   cert.RootCert,
 	}
-	conf.Inbounds.Yeager.TLS.CertPEM = certPEM
-	conf.Inbounds.Yeager.TLS.KeyPEM = keyPEM
 	return conf, nil
 }
