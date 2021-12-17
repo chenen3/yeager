@@ -33,23 +33,19 @@ type dialer struct {
 // NewDialer return a dialer which dials a fixed address
 func NewDialer(tlsConf *tls.Config, addr string) *dialer {
 	var d dialer
-	channelFactory := func() (*grpc.ClientConn, error) {
+	factory := func() (*grpc.ClientConn, error) {
 		opts := []grpc.DialOption{
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:    60 * time.Second,
 				Timeout: 1 * time.Second,
 			}),
 		}
-		if tlsConf == nil {
-			opts = append(opts, grpc.WithInsecure())
-		} else {
-			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)))
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 		defer cancel()
 		return grpc.DialContext(ctx, addr, opts...)
 	}
-	d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, channelFactory)
+	d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, factory)
 	return &d
 }
 

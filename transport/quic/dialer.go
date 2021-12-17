@@ -43,7 +43,7 @@ func (d *dialer) quicDial(ctx context.Context, addr string) (quic.Session, error
 
 	d.sessionMu.Lock()
 	defer d.sessionMu.Unlock()
-	// other goroutine has set the session
+	// maybe other goroutine has set the session
 	if isAvailable(d.session) {
 		return d.session, nil
 	}

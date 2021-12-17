@@ -12,8 +12,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/google/uuid"
-
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/transport"
@@ -28,27 +26,28 @@ type Client struct {
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
-	var tlsConf *tls.Config
-	if conf.Security != config.ClientNoSecurity {
-		var err error
-		tlsConf, err = makeClientTLSConfig(conf)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
-		if conf.Security == config.ClientNoSecurity {
-			c.dialer = new(net.Dialer)
-		} else {
-			c.dialer = &tls.Dialer{Config: tlsConf}
+		c.dialer = new(net.Dialer)
+	case config.TransTLS:
+		tc, err := makeClientTLSConfig(conf)
+		if err != nil {
+			return nil, err
 		}
+		c.dialer = &tls.Dialer{Config: tc}
 	case config.TransGRPC:
-		c.dialer = grpc.NewDialer(tlsConf, conf.Address)
+		tc, err := makeClientTLSConfig(conf)
+		if err != nil {
+			return nil, err
+		}
+		c.dialer = grpc.NewDialer(tc, conf.Address)
 	case config.TransQUIC:
-		c.dialer = quic.NewDialer(tlsConf)
+		tc, err := makeClientTLSConfig(conf)
+		if err != nil {
+			return nil, err
+		}
+		c.dialer = quic.NewDialer(tc)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
@@ -56,46 +55,40 @@ func NewClient(conf *config.YeagerClient) (*Client, error) {
 	return &c, nil
 }
 
+// return mutual tls config
 func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	tlsConf := &tls.Config{
 		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 	}
 
-	switch conf.Security {
-	case config.ClientTLS:
-		tlsConf.InsecureSkipVerify = conf.TLS.Insecure
-	case config.ClientTLSMutual:
-		if conf.MTLS.CertFile != "" {
-			cert, err := tls.LoadX509KeyPair(conf.MTLS.CertFile, conf.MTLS.KeyFile)
-			if err != nil {
-				return nil, err
-			}
-			tlsConf.Certificates = []tls.Certificate{cert}
-			ca, err := os.ReadFile(conf.MTLS.RootCAFile)
-			if err != nil {
-				return nil, err
-			}
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(ca)
-			if !ok {
-				return nil, errors.New("failed to parse root certificate")
-			}
-			tlsConf.RootCAs = pool
-		} else if len(conf.MTLS.CertPEM) != 0 {
-			cert, err := tls.X509KeyPair(conf.MTLS.CertPEM, conf.MTLS.KeyPEM)
-			if err != nil {
-				return nil, err
-			}
-			tlsConf.Certificates = []tls.Certificate{cert}
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(conf.MTLS.RootCA)
-			if !ok {
-				return nil, errors.New("failed to parse root certificate")
-			}
-			tlsConf.RootCAs = pool
-		} else {
-			return nil, errors.New("required client side certificate")
+	if conf.MutualTLS.CertFile != "" {
+		cert, err := tls.LoadX509KeyPair(conf.MutualTLS.CertFile, conf.MutualTLS.KeyFile)
+		if err != nil {
+			return nil, err
 		}
+		tlsConf.Certificates = []tls.Certificate{cert}
+		ca, err := os.ReadFile(conf.MutualTLS.CAFile)
+		if err != nil {
+			return nil, err
+		}
+		pool := x509.NewCertPool()
+		if ok := pool.AppendCertsFromPEM(ca); !ok {
+			return nil, errors.New("failed to parse root certificate")
+		}
+		tlsConf.RootCAs = pool
+	} else if len(conf.MutualTLS.CertPEM) != 0 {
+		cert, err := tls.X509KeyPair(conf.MutualTLS.CertPEM, conf.MutualTLS.KeyPEM)
+		if err != nil {
+			return nil, err
+		}
+		tlsConf.Certificates = []tls.Certificate{cert}
+		pool := x509.NewCertPool()
+		if ok := pool.AppendCertsFromPEM(conf.MutualTLS.CAPEM); !ok {
+			return nil, errors.New("failed to parse root certificate")
+		}
+		tlsConf.RootCAs = pool
+	} else {
+		return nil, errors.New("required client side certificate")
 	}
 
 	return tlsConf, nil
@@ -123,10 +116,6 @@ const (
 	addressDomain = 0x03
 )
 
-// while using mutual TLS, uuid is ignored,
-// for backward compatibility, left it blank
-var blankUUID [36]byte
-
 // makeMetaData 构造元数据，包含目的地址
 func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	dstAddr, err := util.ParseAddr("tcp", addr)
@@ -135,23 +124,12 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 	}
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		VER UUID ATYP DST.ADDR DST.PORT
-		1   36   1    动态     2
+		VER ATYP DST.ADDR DST.PORT
+		1   1    动态     2
 	*/
 
 	// keep version number for backward compatibility
 	buf.WriteByte(1)
-
-	if c.conf.Security == config.ClientTLSMutual {
-		// when use mutual authentication, UUID is no longer needed
-		buf.Write(blankUUID[:])
-	} else {
-		sendUUID, err := uuid.Parse(c.conf.UUID)
-		if err != nil {
-			return buf, err
-		}
-		buf.WriteString(sendUUID.String())
-	}
 
 	switch dstAddr.Type {
 	case util.AddrIPv4:

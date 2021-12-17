@@ -19,7 +19,6 @@ func TestYeager(t *testing.T) {
 		t.Fatal(err)
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	uuid := "ce9f7ded-027c-e7b3-9369-308b7208d498"
 
 	certInfo, err := util.GenerateCertificate("127.0.0.1", false)
 	if err != nil {
@@ -32,58 +31,35 @@ func TestYeager(t *testing.T) {
 		clientConf *config.YeagerClient
 	}{
 		{
-			name: "tcp-tls",
+			name: "tcp-plaintext",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
-				UUID:      uuid,
 				Transport: config.TransTCP,
-				Security:  config.TLS,
-				TLS:       config.Tls{CertPEM: certInfo.ServerCert, KeyPEM: certInfo.ServerKey},
 			},
 			clientConf: &config.YeagerClient{
 				Address:   addr,
-				UUID:      uuid,
 				Transport: config.TransTCP,
-				Security:  config.ClientTLS,
-				TLS:       config.ClientTls{Insecure: true},
 			},
 		},
 		{
-			name: "tcp-mtls",
+			name: "tls-mutual",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
-				Transport: config.TransTCP,
-				Security:  config.TLSMutual,
-				MTLS: config.Mtls{
-					CertPEM:  certInfo.ServerCert,
-					KeyPEM:   certInfo.ServerKey,
-					ClientCA: certInfo.RootCert,
+				Transport: config.TransTLS,
+				MutualTLS: config.MutualTLS{
+					CertPEM: certInfo.ServerCert,
+					KeyPEM:  certInfo.ServerKey,
+					CAPEM:   certInfo.RootCert,
 				},
 			},
 			clientConf: &config.YeagerClient{
 				Address:   addr,
-				Transport: config.TransTCP,
-				Security:  config.ClientTLSMutual,
-				MTLS: config.ClientMTLS{
+				Transport: config.TransTLS,
+				MutualTLS: config.MutualTLS{
 					CertPEM: certInfo.ClientCert,
 					KeyPEM:  certInfo.ClientKey,
-					RootCA:  certInfo.RootCert,
+					CAPEM:   certInfo.RootCert,
 				},
-			},
-		},
-		{
-			name: "grpc-plaintext",
-			serverConf: &config.YeagerServer{
-				Listen:    addr,
-				UUID:      uuid,
-				Transport: config.TransGRPC,
-				Security:  config.NoSecurity,
-			},
-			clientConf: &config.YeagerClient{
-				Address:   addr,
-				UUID:      uuid,
-				Transport: config.TransGRPC,
-				Security:  config.ClientNoSecurity,
 			},
 		},
 		{
@@ -91,40 +67,41 @@ func TestYeager(t *testing.T) {
 			serverConf: &config.YeagerServer{
 				Listen:    fmt.Sprintf("127.0.0.1:%d", port),
 				Transport: config.TransGRPC,
-				Security:  config.TLSMutual,
-				MTLS: config.Mtls{
-					CertPEM:  certInfo.ServerCert,
-					KeyPEM:   certInfo.ServerKey,
-					ClientCA: certInfo.RootCert,
+				MutualTLS: config.MutualTLS{
+					CertPEM: certInfo.ServerCert,
+					KeyPEM:  certInfo.ServerKey,
+					CAPEM:   certInfo.RootCert,
 				},
 			},
 			clientConf: &config.YeagerClient{
 				Address:   addr,
-				UUID:      uuid,
 				Transport: config.TransGRPC,
-				Security:  config.ClientTLSMutual,
-				MTLS: config.ClientMTLS{
+				MutualTLS: config.MutualTLS{
 					CertPEM: certInfo.ClientCert,
 					KeyPEM:  certInfo.ClientKey,
-					RootCA:  certInfo.RootCert,
+					CAPEM:   certInfo.RootCert,
 				},
 			},
 		},
 		{
-			name: "quic",
+			name: "quic-mtls",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
-				UUID:      uuid,
 				Transport: config.TransQUIC,
-				Security:  config.TLS,
-				TLS:       config.Tls{CertPEM: certInfo.ServerCert, KeyPEM: certInfo.ServerKey},
+				MutualTLS: config.MutualTLS{
+					CertPEM: certInfo.ServerCert,
+					KeyPEM:  certInfo.ServerKey,
+					CAPEM:   certInfo.RootCert,
+				},
 			},
 			clientConf: &config.YeagerClient{
 				Address:   addr,
-				UUID:      uuid,
 				Transport: config.TransQUIC,
-				Security:  config.ClientTLS,
-				TLS:       config.ClientTls{Insecure: true},
+				MutualTLS: config.MutualTLS{
+					CertPEM: certInfo.ClientCert,
+					KeyPEM:  certInfo.ClientKey,
+					CAPEM:   certInfo.RootCert,
+				},
 			},
 		},
 	}

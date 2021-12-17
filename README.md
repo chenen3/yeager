@@ -3,9 +3,9 @@
 Yeager is a tool for bypassing network restrictions, supports the following features:
 
 - SOCKS5 and HTTP/HTTPS proxy
-- Self-implement lightweight proxy
-  - security via TLS
-  - transport over TCP, gRPC or QUIC
+- lightweight tunnel proxy
+  - transport over TLS, gRPC, QUIC or TCP (plaintext)
+  - security via mutual TLS
 - Rule-based routing
 
 ## Prerequisites
@@ -19,7 +19,7 @@ Yeager is a tool for bypassing network restrictions, supports the following feat
 
 Generate certificate files:
 
-```bash
+```sh
 mkdir -p /usr/local/etc/yeager
 cd /usr/local/etc/yeager
 docker run --rm \
@@ -36,12 +36,11 @@ Create config file `/usr/local/etc/yeager/config.json`
     "inbounds": {
         "yeager": {
             "listen": "0.0.0.0:9000",
-            "transport": "tcp",
-            "security": "tls-mutual",
-            "mtls": {
+            "transport": "tls",
+            "mutualTLS": {
                 "certFile": "/usr/local/etc/yeager/server-cert.pem",
                 "keyFile": "/usr/local/etc/yeager/server-key.pem",
-                "clientCAFile": "/usr/local/etc/yeager/ca-cert.pem"
+                "caFile": "/usr/local/etc/yeager/ca-cert.pem"
             }
         }
     }
@@ -50,7 +49,7 @@ Create config file `/usr/local/etc/yeager/config.json`
 
 Launch:
 
-```bash
+```sh
 docker run -d \
     --name yeager \
     --restart=always \
@@ -65,7 +64,7 @@ docker run -d \
 
 - Via homebrew (macOS only)
 
-```bash
+```sh
 brew tap chenen3/yeager
 brew install yeager
 ```
@@ -94,12 +93,11 @@ create config file `/usr/local/etc/yeager/config.json`
         {
             "tag": "PROXY",
             "address": "server-ip:9000", // replace server-ip
-            "transport": "tcp",
-            "security": "tls-mutual",
-            "mtls": {
+            "transport": "tls",
+            "mutualTLS": {
                 "certFile": "/usr/local/etc/yeager/client-cert.pem",
                 "keyFile": "/usr/local/etc/yeager/client-key.pem",
-                "rootCAFile": "/usr/local/etc/yeager/ca-cert.pem"
+                "caFile": "/usr/local/etc/yeager/ca-cert.pem"
             }
         }
     ],
@@ -120,11 +118,13 @@ create config file `/usr/local/etc/yeager/config.json`
 
 - Via homebrew on MacOS
 
-`brew services start yeager`
+```sh
+brew services start yeager
+```
 
 - Via docker
 
-```bash
+```sh
 docker run -d \
     --name yeager \
     --restart=always \
@@ -158,7 +158,7 @@ rule example:
 
 Via homebrew on macOS
 
-```bash
+```sh
 brew update
 brew upgrade yeager
 brew services restart yeager
@@ -166,7 +166,7 @@ brew services restart yeager
 
 Via docker
 
-```bash
+```sh
 docker pull ghcr.io/chenen3/yeager
 docker stop yeager
 docker rm yeager
@@ -177,14 +177,14 @@ docker rm yeager
 
 via homebrew:
 
-```bash
+```sh
 brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
 via docker:
 
-```bash
+```sh
 docker stop yeager
 docker rm yeager
 docker image rm ghcr.io/chenen3/yeager

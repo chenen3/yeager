@@ -8,14 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
-	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
@@ -54,89 +50,51 @@ func (s *Server) Handle(handler common.Handler) {
 	s.handler = handler
 }
 
+// return tls.Config for mutual TLS usage
 func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
-	tlsConf := new(tls.Config)
-	switch conf.Security {
-	case config.TLS:
-		var cert tls.Certificate
-		var err error
-		if len(conf.TLS.CertPEM) != 0 && len(conf.TLS.KeyPEM) != 0 {
-			cert, err = tls.X509KeyPair(conf.TLS.CertPEM, conf.TLS.KeyPEM)
-			if err != nil {
-				return nil, errors.New("failed to make TLS config: " + err.Error())
-			}
-		} else {
-			cert, err = tls.LoadX509KeyPair(conf.TLS.CertFile, conf.TLS.KeyFile)
-			if err != nil {
-				return nil, errors.New("failed to make TLS config: " + err.Error())
-			}
+	tlsConf := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+	}
+	if len(conf.MutualTLS.CertPEM) != 0 && len(conf.MutualTLS.KeyPEM) != 0 {
+		cert, err := tls.X509KeyPair(conf.MutualTLS.CertPEM, conf.MutualTLS.KeyPEM)
+		if err != nil {
+			return nil, errors.New("parse cert pem: " + err.Error())
 		}
-		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
-
-	case config.TLSAcme:
-		if conf.ACME.Domain == "" {
-			return nil, errors.New("domain required")
+		tlsConf.Certificates = []tls.Certificate{cert}
+	} else if conf.MutualTLS.CertFile != "" && conf.MutualTLS.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(conf.MutualTLS.CertFile, conf.MutualTLS.KeyFile)
+		if err != nil {
+			return nil, errors.New("parse cert file: " + err.Error())
 		}
-		m := &autocert.Manager{
-			Cache:      autocert.DirCache(certDir),
-			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(conf.ACME.Domain),
-		}
-		s := &http.Server{
-			Addr:      ":https",
-			TLSConfig: m.TLSConfig(),
-		}
-		go func() {
-			log.L().Error(s.ListenAndServeTLS("", ""))
-		}()
-		tlsConf = m.TLSConfig()
-
-	case config.TLSMutual:
-		var cert tls.Certificate
-		var err error
-		if len(conf.MTLS.CertPEM) != 0 && len(conf.MTLS.KeyPEM) != 0 {
-			cert, err = tls.X509KeyPair(conf.MTLS.CertPEM, conf.MTLS.KeyPEM)
-			if err != nil {
-				return nil, errors.New("failed to make TLS config: " + err.Error())
-			}
-		} else if conf.MTLS.CertFile != "" && conf.MTLS.KeyFile != "" {
-			cert, err = tls.LoadX509KeyPair(conf.MTLS.CertFile, conf.MTLS.KeyFile)
-			if err != nil {
-				return nil, errors.New("failed to make TLS config: " + err.Error())
-			}
-		} else {
-			return nil, errors.New("certificate and key required")
-		}
-
-		tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}}
-		if len(conf.MTLS.ClientCA) != 0 {
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(conf.MTLS.ClientCA)
-			if !ok {
-				return nil, errors.New("failed to parse root certificate")
-			}
-			tlsConf.ClientCAs = pool
-			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-		} else if conf.MTLS.ClientCAFile != "" {
-			ca, err := os.ReadFile(conf.MTLS.ClientCAFile)
-			if err != nil {
-				return nil, err
-			}
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(ca)
-			if !ok {
-				return nil, errors.New("failed to parse root certificate")
-			}
-			tlsConf.ClientCAs = pool
-			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-		} else {
-			return nil, errors.New("certificate and key required")
-		}
-	default:
-		return nil, fmt.Errorf("unsupported security: %s", conf.Security)
+		tlsConf.Certificates = []tls.Certificate{cert}
+	} else {
+		return nil, errors.New("certificate and key required")
 	}
 
-	tlsConf.MinVersion = tls.VersionTLS13
+	if len(conf.MutualTLS.CAPEM) != 0 {
+		pool := x509.NewCertPool()
+		ok := pool.AppendCertsFromPEM(conf.MutualTLS.CAPEM)
+		if !ok {
+			return nil, errors.New("failed to parse root cert pem")
+		}
+		tlsConf.ClientCAs = pool
+		tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+	} else if conf.MutualTLS.CAFile != "" {
+		ca, err := os.ReadFile(conf.MutualTLS.CAFile)
+		if err != nil {
+			return nil, err
+		}
+		pool := x509.NewCertPool()
+		ok := pool.AppendCertsFromPEM(ca)
+		if !ok {
+			return nil, errors.New("failed to parse root cert file")
+		}
+		tlsConf.ClientCAs = pool
+		tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+	} else {
+		return nil, errors.New("certificate and key required")
+	}
+
 	return tlsConf, nil
 }
 
@@ -145,55 +103,32 @@ func (s *Server) listen() (net.Listener, error) {
 	var err error
 	switch s.conf.Transport {
 	case config.TransTCP:
-		if s.conf.Security == config.NoSecurity {
-			lis, err = net.Listen("tcp", s.conf.Listen)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			var tlsConf *tls.Config
-			tlsConf, err = makeServerTLSConfig(s.conf)
-			if err != nil {
-				return nil, err
-			}
-			lis, err = tls.Listen("tcp", s.conf.Listen, tlsConf)
-			if err != nil {
-				return nil, err
-			}
+		if lis, err = net.Listen("tcp", s.conf.Listen); err != nil {
+			return nil, err
+		}
+	case config.TransTLS:
+		tlsConf, err := makeServerTLSConfig(s.conf)
+		if err != nil {
+			return nil, err
+		}
+		if lis, err = tls.Listen("tcp", s.conf.Listen, tlsConf); err != nil {
+			return nil, err
 		}
 	case config.TransGRPC:
-		if s.conf.Security == config.NoSecurity {
-			lis, err = grpc.Listen(s.conf.Listen, nil)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			var tlsConf *tls.Config
-			tlsConf, err = makeServerTLSConfig(s.conf)
-			if err != nil {
-				return nil, err
-			}
-			lis, err = grpc.Listen(s.conf.Listen, tlsConf)
-			if err != nil {
-				return nil, err
-			}
+		tlsConf, err := makeServerTLSConfig(s.conf)
+		if err != nil {
+			return nil, err
+		}
+		if lis, err = grpc.Listen(s.conf.Listen, tlsConf); err != nil {
+			return nil, err
 		}
 	case config.TransQUIC:
-		if s.conf.Security == config.NoSecurity {
-			lis, err = quic.Listen(s.conf.Listen, nil)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			var tlsConf *tls.Config
-			tlsConf, err = makeServerTLSConfig(s.conf)
-			if err != nil {
-				return nil, err
-			}
-			lis, err = quic.Listen(s.conf.Listen, tlsConf)
-			if err != nil {
-				return nil, err
-			}
+		tlsConf, err := makeServerTLSConfig(s.conf)
+		if err != nil {
+			return nil, err
+		}
+		if lis, err = quic.Listen(s.conf.Listen, tlsConf); err != nil {
+			return nil, err
 		}
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
@@ -278,54 +213,32 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
-		VER UUID ATYP DST.ADDR DST.PORT
-		1   36   1    动态     2
+		VER ATYP DST.ADDR DST.PORT
+		1   1    动态     2
 	*/
-	var buf [1 + 36 + 1]byte
-	_, err = io.ReadFull(conn, buf[:])
-	if err != nil {
+	var buf [2]byte
+	if _, err = io.ReadFull(conn, buf[:]); err != nil {
 		return "", err
 	}
 
-	version, uuidBytes, atyp := buf[0], buf[1:37], buf[37]
-	// keep version number for backward compatibility
-	_ = version
-
-	// when use mutual authentication, UUID is no longer needed
-	if s.conf.Security != config.TLSMutual {
-		gotUUID, err := uuid.ParseBytes(uuidBytes)
-		if err != nil {
-			return "", fmt.Errorf("%s, UUID: %q", err, uuidBytes)
-		}
-		wantUUID, err := uuid.Parse(s.conf.UUID)
-		if err != nil {
-			return "", err
-		}
-		if gotUUID != wantUUID {
-			return "", errors.New("mismatch UUID: " + gotUUID.String())
-		}
-	}
-
+	atyp := buf[1]
 	var host string
 	switch atyp {
 	case addressIPv4:
 		var buf [4]byte
-		_, err = io.ReadFull(conn, buf[:])
-		if err != nil {
+		if _, err = io.ReadFull(conn, buf[:]); err != nil {
 			return "", err
 		}
 		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case addressDomain:
 		var buf [1]byte
-		_, err = io.ReadFull(conn, buf[:])
-		if err != nil {
+		if _, err = io.ReadFull(conn, buf[:]); err != nil {
 			return "", err
 		}
 		length := buf[0]
 
 		bs := make([]byte, length)
-		_, err := io.ReadFull(conn, bs)
-		if err != nil {
+		if _, err := io.ReadFull(conn, bs); err != nil {
 			return "", err
 		}
 		host = string(bs)
@@ -334,8 +247,7 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 	}
 
 	var bs [2]byte
-	_, err = io.ReadFull(conn, bs[:])
-	if err != nil {
+	if _, err = io.ReadFull(conn, bs[:]); err != nil {
 		return "", err
 	}
 

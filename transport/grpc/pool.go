@@ -95,7 +95,7 @@ func (p *channelPool) Close() error {
 	var err error
 	for _, c := range p.channels {
 		if e := c.Close(); e != nil {
-			// also need to close other channels, so do not return
+			// still need to close other channels, do not return here
 			err = e
 			log.L().Warnf("close grpc channel: %s", e)
 		}
