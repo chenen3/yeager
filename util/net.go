@@ -16,7 +16,6 @@ func ChoosePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-
 // Addr type
 const (
 	AddrIPv4 = iota

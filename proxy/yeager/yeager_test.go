@@ -140,7 +140,7 @@ func TestYeager(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			conn, err := client.DialContext(ctx, "fake.domain.com:1234")
+			conn, err := client.DialContext(ctx, "tcp", "fake.domain.com:1234")
 			if err != nil {
 				t.Error("dial err: " + err.Error())
 				return

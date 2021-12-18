@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/log"
-	"github.com/chenen3/yeager/transport/grpc/pb"
+	"github.com/chenen3/yeager/proxy/yeager/grpc/pb"
 )
 
 // listener implement net.Listener and pb.TransportServer

@@ -14,40 +14,44 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/transport"
-	"github.com/chenen3/yeager/transport/grpc"
-	"github.com/chenen3/yeager/transport/quic"
+	"github.com/chenen3/yeager/proxy/yeager/grpc"
+	"github.com/chenen3/yeager/proxy/yeager/quic"
 	"github.com/chenen3/yeager/util"
 )
 
+type transporter interface {
+	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+}
+
+// Client implement interface Outbounder
 type Client struct {
-	conf   *config.YeagerClient
-	dialer transport.Dialer
+	conf      *config.YeagerClient
+	transport transporter
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
-		c.dialer = new(net.Dialer)
+		c.transport = new(net.Dialer)
 	case config.TransTLS:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = &tls.Dialer{Config: tc}
+		c.transport = &tls.Dialer{Config: tc}
 	case config.TransGRPC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = grpc.NewDialer(tc, conf.Address)
+		c.transport = grpc.NewDialer(tc, conf.Address)
 	case config.TransQUIC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = quic.NewDialer(tc)
+		c.transport = quic.NewDialer(tc)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
@@ -94,8 +98,8 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	return tlsConf, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	conn, err := c.dialer.DialContext(ctx, "tcp", c.conf.Address)
+func (c *Client) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+	conn, err := c.transport.DialContext(ctx, "tcp", c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +155,7 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 }
 
 func (c *Client) Close() error {
-	if closer, ok := c.dialer.(io.Closer); ok {
+	if closer, ok := c.transport.(io.Closer); ok {
 		return closer.Close()
 	}
 	return nil

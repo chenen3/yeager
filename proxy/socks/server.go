@@ -116,4 +116,3 @@ func (s *Server) handshake(conn net.Conn) (addr string, err error) {
 
 	return handshake(conn)
 }
-

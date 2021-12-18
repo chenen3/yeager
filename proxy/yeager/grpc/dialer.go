@@ -23,7 +23,7 @@ import (
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/transport/grpc/pb"
+	"github.com/chenen3/yeager/proxy/yeager/grpc/pb"
 )
 
 type dialer struct {

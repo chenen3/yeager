@@ -31,7 +31,7 @@ type Inbounder interface {
 }
 
 type Outbounder interface {
-	DialContext(ctx context.Context, addr string) (net.Conn, error)
+	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 }
 
 type Proxy struct {
@@ -157,7 +157,7 @@ func (p *Proxy) handle(inConn net.Conn, addr string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
-	outConn, err := outbound.DialContext(ctx, addr)
+	outConn, err := outbound.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		log.L().Errorf("dial %s: %s", addr, err)
 		return

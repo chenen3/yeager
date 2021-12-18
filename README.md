@@ -116,7 +116,7 @@ create config file `/usr/local/etc/yeager/config.json`
 
 #### Run
 
-- Via homebrew on MacOS
+- Via homebrew on macOS
 
 ```sh
 brew services start yeager
