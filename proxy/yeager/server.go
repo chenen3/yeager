@@ -20,8 +20,7 @@ import (
 	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
 )
 
-const certDir = "/usr/local/etc/yeager/golang-autocert"
-
+// Server implements the proxy.Inbounder interface
 type Server struct {
 	conf    *config.YeagerServer
 	lis     net.Listener

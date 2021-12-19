@@ -15,6 +15,7 @@ import (
 	"github.com/chenen3/yeager/proxy/common"
 )
 
+// Server implements the proxy.Inbounder interface
 type Server struct {
 	addr    string
 	handler common.Handler

@@ -8,7 +8,8 @@ import (
 
 const Tag = "reject"
 
-// Reject implements proxy.Outbound, always reject connection and return error
+// Reject implements the proxy.Outbounder interface,
+// always reject connection and return error
 var Reject = reject{}
 
 type reject struct{}

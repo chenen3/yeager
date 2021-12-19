@@ -4,5 +4,5 @@ import "net"
 
 const Tag = "direct"
 
-// Direct implements proxy.Outbound by making network connections directly using net.DialContext
+// Direct implements the proxy.Outbounder
 var Direct = new(net.Dialer)

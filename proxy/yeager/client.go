@@ -20,7 +20,7 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-// Client implement interface Outbounder
+// Client implement the proxy.Outbounder interface
 type Client struct {
 	conf   *config.YeagerClient
 	dialer transport.Dialer
@@ -95,7 +95,7 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	return tlsConf, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, _ string, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
 	if err != nil {
 		return nil, err

@@ -7,8 +7,8 @@ import (
 )
 
 type Dialer interface {
-	// DialContext does not require a network argument,
-	// because the network depends on actual implementation,
+	// DialContext does not require a network argument
+	// which is determined by actual implementation,
 	// such as gRPC use TCP network, QUIC use UDP network.
 	DialContext(ctx context.Context, addr string) (net.Conn, error)
 }
