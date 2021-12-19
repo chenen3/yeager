@@ -4,7 +4,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/chenen3/yeager/proxy/yeager/grpc/pb"
+	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
 
 type streamer interface {

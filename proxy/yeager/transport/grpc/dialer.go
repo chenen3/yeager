@@ -14,6 +14,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -23,19 +24,35 @@ import (
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/grpc/pb"
+	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
 
 type dialer struct {
+	tlsConf     *tls.Config
 	channelPool *channelPool
+	mu          sync.Mutex
 }
 
-// NewDialer return a dialer which dials a fixed address
-func NewDialer(tlsConf *tls.Config, addr string) *dialer {
-	var d dialer
+// NewDialer return a gRPC dialer that implements the transport.Dialer interface
+func NewDialer(tlsConf *tls.Config) *dialer {
+	return &dialer{tlsConf: tlsConf}
+}
+
+func (d *dialer) ensureChannelPool(addr string) *channelPool {
+	if d.channelPool != nil {
+		return d.channelPool
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	// maybe another goroutine has setup the pool
+	if d.channelPool != nil {
+		return d.channelPool
+	}
+
 	factory := func() (*grpc.ClientConn, error) {
 		opts := []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)),
+			grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:    60 * time.Second,
 				Timeout: 1 * time.Second,
@@ -46,10 +63,11 @@ func NewDialer(tlsConf *tls.Config, addr string) *dialer {
 		return grpc.DialContext(ctx, addr, opts...)
 	}
 	d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, factory)
-	return &d
+	return d.channelPool
 }
 
-func (d *dialer) DialContext(ctx context.Context, _ string, _ string) (net.Conn, error) {
+func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+	pool := d.ensureChannelPool(addr)
 	// DialContext 的参数 ctx 时效通常很短，不适合控制 stream 的生命周期，因此新建一个
 	ctxS, cancelS := context.WithCancel(context.Background())
 	ch := make(chan *streamConn, 1)
@@ -68,7 +86,7 @@ func (d *dialer) DialContext(ctx context.Context, _ string, _ string) (net.Conn,
 			return
 		}
 		ch <- &streamConn{stream: stream, onClose: cancelS}
-	}(ctxS, cancelS, d.channelPool, ch)
+	}(ctxS, cancelS, pool, ch)
 
 	select {
 	case <-ctx.Done():

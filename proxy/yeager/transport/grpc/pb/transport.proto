@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/chenen3/yeager/proxy/yeager/grpc/pb";
+option go_package = "github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb";
 
 package pb;
 

@@ -16,8 +16,8 @@ import (
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/grpc"
-	"github.com/chenen3/yeager/proxy/yeager/quic"
+	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
+	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
 )
 
 const certDir = "/usr/local/etc/yeager/golang-autocert"

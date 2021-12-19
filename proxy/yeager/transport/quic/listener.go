@@ -11,14 +11,15 @@ import (
 	"github.com/chenen3/yeager/log"
 )
 
-type Listener struct {
+// listener implements the net.Listener interface
+type listener struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 	lis       quic.Listener
 	conns     chan net.Conn
 }
 
-func (l *Listener) acceptLoop() {
+func (l *listener) acceptLoop() {
 	for {
 		sess, err := l.lis.Accept(l.ctx)
 		if err != nil {
@@ -35,7 +36,7 @@ func (l *Listener) acceptLoop() {
 	}
 }
 
-func (l *Listener) acceptStream(session quic.Session) {
+func (l *listener) acceptStream(session quic.Session) {
 	defer session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "session closed")
 	for {
 		stream, err := session.AcceptStream(l.ctx)
@@ -65,7 +66,7 @@ func (l *Listener) acceptStream(session quic.Session) {
 	}
 }
 
-func (l *Listener) Accept() (net.Conn, error) {
+func (l *listener) Accept() (net.Conn, error) {
 	select {
 	case <-l.ctx.Done():
 		return nil, l.ctx.Err()
@@ -74,12 +75,12 @@ func (l *Listener) Accept() (net.Conn, error) {
 	}
 }
 
-func (l *Listener) Close() error {
+func (l *listener) Close() error {
 	l.cancelCtx()
 	return l.lis.Close()
 }
 
-func (l *Listener) Addr() net.Addr {
+func (l *listener) Addr() net.Addr {
 	return l.lis.Addr()
 }
 
@@ -95,7 +96,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	l := &Listener{
+	l := &listener{
 		ctx:       ctx,
 		cancelCtx: cancel,
 		lis:       lis,

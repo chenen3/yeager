@@ -14,44 +14,41 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/grpc"
-	"github.com/chenen3/yeager/proxy/yeager/quic"
+	"github.com/chenen3/yeager/proxy/yeager/transport"
+	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
+	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
 	"github.com/chenen3/yeager/util"
 )
 
-type transporter interface {
-	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
-}
-
 // Client implement interface Outbounder
 type Client struct {
-	conf      *config.YeagerClient
-	transport transporter
+	conf   *config.YeagerClient
+	dialer transport.Dialer
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
-		c.transport = new(net.Dialer)
+		c.dialer = transport.NewTCPDialer()
 	case config.TransTLS:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.transport = &tls.Dialer{Config: tc}
+		c.dialer = transport.NewTLSDialer(tc)
 	case config.TransGRPC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.transport = grpc.NewDialer(tc, conf.Address)
+		c.dialer = grpc.NewDialer(tc)
 	case config.TransQUIC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.transport = quic.NewDialer(tc)
+		c.dialer = quic.NewDialer(tc)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
@@ -99,7 +96,7 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 }
 
 func (c *Client) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
-	conn, err := c.transport.DialContext(ctx, "tcp", c.conf.Address)
+	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +152,7 @@ func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
 }
 
 func (c *Client) Close() error {
-	if closer, ok := c.transport.(io.Closer); ok {
+	if closer, ok := c.dialer.(io.Closer); ok {
 		return closer.Close()
 	}
 	return nil

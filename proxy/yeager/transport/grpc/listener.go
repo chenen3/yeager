@@ -12,10 +12,10 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/log"
-	"github.com/chenen3/yeager/proxy/yeager/grpc/pb"
+	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
 
-// listener implement net.Listener and pb.TransportServer
+// listener implements the net.Listener and pb.TransportServer interface
 type listener struct {
 	pb.UnimplementedTunnelServer
 	addr    net.Addr

@@ -17,6 +17,7 @@ type dialer struct {
 	sessionMu sync.Mutex
 }
 
+// NewDialer return a QUIC dialer that implements the transport.Dialer interface
 func NewDialer(tlsConf *tls.Config) *dialer {
 	return &dialer{tlsConf: tlsConf}
 }
@@ -36,7 +37,7 @@ func isAvailable(session quic.Session) bool {
 
 // TODO: consider saving more sessions for better throughput
 // dial a new session if no session yet or session closed
-func (d *dialer) quicDial(ctx context.Context, addr string) (quic.Session, error) {
+func (d *dialer) ensureSession(ctx context.Context, addr string) (quic.Session, error) {
 	if isAvailable(d.session) {
 		return d.session, nil
 	}
@@ -61,8 +62,8 @@ func (d *dialer) quicDial(ctx context.Context, addr string) (quic.Session, error
 	return newSession, nil
 }
 
-func (d *dialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
-	session, err := d.quicDial(ctx, addr)
+func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
+	session, err := d.ensureSession(ctx, addr)
 	if err != nil {
 		err = errors.New("dial quic: " + err.Error())
 		return nil, err

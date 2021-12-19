@@ -48,7 +48,7 @@ func TestQUIC(t *testing.T) {
 	dialer := NewDialer(cliTLSConf)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	clientConn, err := dialer.DialContext(ctx, "udp", lis.Addr().String())
+	clientConn, err := dialer.DialContext(ctx, lis.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
