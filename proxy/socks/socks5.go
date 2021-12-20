@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-// MaxAddrLen is the maximum size of SOCKS address in bytes.
-const MaxAddrLen = 1 + 1 + 255 + 2
+// maxAddrLen is the maximum size of SOCKS address in bytes.
+const maxAddrLen = 1 + 1 + 255 + 2
 
 const (
 	cmdConnect      = 0x01
@@ -24,7 +24,7 @@ const (
 
 // Refer to https://datatracker.ietf.org/doc/html/rfc1928
 func handshake(rw io.ReadWriter) (addr string, err error) {
-	buf := make([]byte, MaxAddrLen)
+	buf := make([]byte, maxAddrLen)
 	// read VER, NMETHODS, METHODS
 	if _, err = io.ReadFull(rw, buf[:2]); err != nil {
 		return "", err
@@ -65,7 +65,7 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 // bytes order:
 //     ATYP BND.ADDR BND.PORT
 func readAddr(r io.Reader) (addr string, err error) {
-	b := make([]byte, MaxAddrLen)
+	b := make([]byte, maxAddrLen)
 	if _, err = io.ReadFull(r, b[:1]); err != nil {
 		return "", err
 	}

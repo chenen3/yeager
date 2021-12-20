@@ -33,7 +33,7 @@ type dialer struct {
 	mu          sync.Mutex
 }
 
-// NewDialer return a gRPC dialer that implements the transport.Dialer interface
+// NewDialer return a gRPC dialer that implements the transport.ContextDialer interface
 func NewDialer(tlsConf *tls.Config) *dialer {
 	return &dialer{tlsConf: tlsConf}
 }
@@ -45,7 +45,7 @@ func (d *dialer) ensureChannelPool(addr string) *channelPool {
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	// maybe another goroutine has setup the pool
+	// check if another goroutine has setup the pool
 	if d.channelPool != nil {
 		return d.channelPool
 	}

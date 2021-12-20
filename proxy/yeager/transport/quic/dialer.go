@@ -17,7 +17,7 @@ type dialer struct {
 	sessionMu sync.Mutex
 }
 
-// NewDialer return a QUIC dialer that implements the transport.Dialer interface
+// NewDialer return a QUIC dialer that implements the transport.ContextDialer interface
 func NewDialer(tlsConf *tls.Config) *dialer {
 	return &dialer{tlsConf: tlsConf}
 }
@@ -44,7 +44,7 @@ func (d *dialer) ensureSession(ctx context.Context, addr string) (quic.Session, 
 
 	d.sessionMu.Lock()
 	defer d.sessionMu.Unlock()
-	// maybe other goroutine has set the session
+	// check if another goroutine has set the session
 	if isAvailable(d.session) {
 		return d.session, nil
 	}

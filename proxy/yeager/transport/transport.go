@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-type Dialer interface {
+type ContextDialer interface {
 	// DialContext does not require a network argument
 	// which is determined by actual implementation,
 	// such as gRPC use TCP network, QUIC use UDP network.
@@ -17,7 +17,7 @@ type tcpDialer struct {
 	dialer *net.Dialer
 }
 
-// NewTCPDialer return a TCP dialer that implements the Dialer interface
+// NewTCPDialer return a TCP dialer that implements the ContextDialer interface
 func NewTCPDialer() *tcpDialer {
 	return &tcpDialer{dialer: new(net.Dialer)}
 }
@@ -30,7 +30,7 @@ type tlsDialer struct {
 	dialer *tls.Dialer
 }
 
-// NewTLSDialer return a TLS dialer that implements the Dialer interface
+// NewTLSDialer return a TLS dialer that implements the ContextDialer interface
 func NewTLSDialer(c *tls.Config) *tlsDialer {
 	return &tlsDialer{
 		dialer: &tls.Dialer{

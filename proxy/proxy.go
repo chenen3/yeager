@@ -166,6 +166,7 @@ func (p *Proxy) handle(inConn net.Conn, addr string) {
 
 	if err := relay(inConn, outConn); err != nil {
 		log.L().Warnf("relay %s: %s", addr, err)
+		return
 	}
 }
 

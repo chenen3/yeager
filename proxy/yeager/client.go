@@ -1,7 +1,6 @@
 package yeager
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -23,7 +22,7 @@ import (
 // Client implement the proxy.Outbounder interface
 type Client struct {
 	conf   *config.YeagerClient
-	dialer transport.Dialer
+	dialer transport.ContextDialer
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
@@ -95,60 +94,66 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 	return tlsConf, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, _ string, addr string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, _, addr string) (net.Conn, error) {
 	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	metadata, err := c.makeMetaData(addr)
+	header, err := c.makeHeader(addr)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("make header: " + err.Error())
 	}
-	if _, err = conn.Write(metadata.Bytes()); err != nil {
+	if _, err = conn.Write(header); err != nil {
 		return nil, err
 	}
 
 	return connWithIdleTimeout(conn, common.MaxConnectionIdle), nil
 }
 
+const maxAddrLen = 1 + 1 + 255 + 2
+
 const (
-	addressIPv4   = 0x01
-	addressDomain = 0x03
+	addrIPv4   = 0x01
+	addrDomain = 0x03
+	addrIPv6   = 0x04
 )
 
-// makeMetaData 构造元数据，包含目的地址
-func (c *Client) makeMetaData(addr string) (buf bytes.Buffer, err error) {
+// makeHeader 构造 header，包含目的地址
+func (c *Client) makeHeader(addr string) ([]byte, error) {
 	dstAddr, err := util.ParseAddr("tcp", addr)
 	if err != nil {
-		return buf, err
+		return nil, err
 	}
+
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		VER ATYP DST.ADDR DST.PORT
 		1   1    动态     2
 	*/
-
+	b := make([]byte, 0, 1+maxAddrLen)
 	// keep version number for backward compatibility
-	buf.WriteByte(1)
+	b = append(b, 0x00)
 
 	switch dstAddr.Type {
 	case util.AddrIPv4:
-		buf.WriteByte(addressIPv4)
-		buf.Write(dstAddr.IP)
+		b = append(b, addrIPv4)
+		b = append(b, dstAddr.IP...)
 	case util.AddrDomainName:
-		buf.WriteByte(addressDomain)
-		buf.WriteByte(byte(len(dstAddr.Host)))
-		buf.WriteString(dstAddr.Host)
+		b = append(b, addrDomain)
+		b = append(b, byte(len(dstAddr.Host)))
+		b = append(b, []byte(dstAddr.Host)...)
+	case util.AddrIPv6:
+		b = append(b, addrIPv6)
+		b = append(b, dstAddr.IP...)
 	default:
-		err = errors.New("unsupported address type: " + dstAddr.String())
-		return
+		return nil, errors.New("unsupported address type: " + dstAddr.String())
 	}
 
-	var b [2]byte
-	binary.BigEndian.PutUint16(b[:], uint16(dstAddr.Port))
-	buf.Write(b[:])
-	return buf, nil
+	p := make([]byte, 2)
+	binary.BigEndian.PutUint16(p, uint16(dstAddr.Port))
+	b = append(b, p...)
+	return b, nil
 }
 
 func (c *Client) Close() error {

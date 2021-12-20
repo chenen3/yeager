@@ -160,9 +160,9 @@ func (s *Server) ListenAndServe() error {
 		go func() {
 			s.trackConn(conn, true)
 			defer s.trackConn(conn, false)
-			dstAddr, err := s.parseMetaData(conn)
+			dstAddr, err := s.parseHeader(conn)
 			if err != nil {
-				log.L().Warnf("failed to parse metadata: %s", err)
+				log.L().Warnf("parse header: %s", err)
 				conn.Close()
 				return
 			}
@@ -197,8 +197,8 @@ func (s *Server) Close() error {
 	return err
 }
 
-// parseMetaData 解析元数据，若凭证有效则返回其目的地址
-func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
+// parseHeader 读取 header, 解析其目的地址
+func (s *Server) parseHeader(conn net.Conn) (addr string, err error) {
 	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
 	if err != nil {
 		return
@@ -215,42 +215,43 @@ func (s *Server) parseMetaData(conn net.Conn) (addr string, err error) {
 		VER ATYP DST.ADDR DST.PORT
 		1   1    动态     2
 	*/
-	var buf [2]byte
-	if _, err = io.ReadFull(conn, buf[:]); err != nil {
+	b := make([]byte, 1+maxAddrLen)
+	if _, err = io.ReadFull(conn, b[:2]); err != nil {
 		return "", err
 	}
 
-	atyp := buf[1]
+	atyp := b[1]
 	var host string
 	switch atyp {
-	case addressIPv4:
-		var buf [4]byte
-		if _, err = io.ReadFull(conn, buf[:]); err != nil {
+	case addrIPv4:
+		if _, err = io.ReadFull(conn, b[:net.IPv4len]); err != nil {
 			return "", err
 		}
-		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
-	case addressDomain:
-		var buf [1]byte
-		if _, err = io.ReadFull(conn, buf[:]); err != nil {
+		host = net.IPv4(b[0], b[1], b[2], b[3]).String()
+	case addrDomain:
+		if _, err = io.ReadFull(conn, b[:1]); err != nil {
 			return "", err
 		}
-		length := buf[0]
-
-		bs := make([]byte, length)
-		if _, err := io.ReadFull(conn, bs); err != nil {
+		domainLen := b[0]
+		if _, err := io.ReadFull(conn, b[:domainLen]); err != nil {
 			return "", err
 		}
-		host = string(bs)
+		host = string(b[:domainLen])
+	case addrIPv6:
+		if _, err = io.ReadFull(conn, b[:net.IPv6len]); err != nil {
+			return "", err
+		}
+		ipv6 := make(net.IP, net.IPv6len)
+		copy(ipv6, b[:net.IPv6len])
+		host = ipv6.String()
 	default:
 		return "", fmt.Errorf("unsupported address type: %x", atyp)
 	}
 
-	var bs [2]byte
-	if _, err = io.ReadFull(conn, bs[:]); err != nil {
+	if _, err = io.ReadFull(conn, b[:2]); err != nil {
 		return "", err
 	}
-
-	port := binary.BigEndian.Uint16(bs[:])
+	port := binary.BigEndian.Uint16(b[:2])
 	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
 	return addr, nil
 }
