@@ -26,7 +26,7 @@ const (
 	ruleGeoIP = "geoip" // 预定义IP集合
 )
 
-var defaultFinalRule, _ = newRule(ruleFinal, "", direct.Tag)
+var defaultFinalRule, _ = newRule(ruleFinal, "", direct.Direct.String())
 
 type rule struct {
 	type_       string

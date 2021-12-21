@@ -30,7 +30,7 @@ import (
 type dialer struct {
 	tlsConf     *tls.Config
 	channelPool *channelPool
-	mu          sync.Mutex
+	once        sync.Once
 }
 
 // NewDialer return a gRPC dialer that implements the transport.ContextDialer interface
@@ -43,26 +43,21 @@ func (d *dialer) ensureChannelPool(addr string) *channelPool {
 		return d.channelPool
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	// check if another goroutine has setup the pool
-	if d.channelPool != nil {
-		return d.channelPool
-	}
-
-	factory := func() (*grpc.ClientConn, error) {
-		opts := []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:    60 * time.Second,
-				Timeout: 1 * time.Second,
-			}),
+	d.once.Do(func() {
+		factory := func() (*grpc.ClientConn, error) {
+			opts := []grpc.DialOption{
+				grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
+				grpc.WithKeepaliveParams(keepalive.ClientParameters{
+					Time:    60 * time.Second,
+					Timeout: 1 * time.Second,
+				}),
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+			defer cancel()
+			return grpc.DialContext(ctx, addr, opts...)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
-		defer cancel()
-		return grpc.DialContext(ctx, addr, opts...)
-	}
-	d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, factory)
+		d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, factory)
+	})
 	return d.channelPool
 }
 

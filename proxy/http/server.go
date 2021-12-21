@@ -18,7 +18,7 @@ import (
 // Server implements the proxy.Inbounder interface
 type Server struct {
 	addr    string
-	handler common.Handler
+	handler func(c net.Conn, addr string)
 	lis     net.Listener
 
 	mu         sync.Mutex
@@ -40,7 +40,7 @@ func NewServer(addr string) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Handle(handler common.Handler) {
+func (s *Server) Handle(handler func(c net.Conn, addr string)) {
 	s.handler = handler
 }
 
@@ -65,17 +65,22 @@ func (s *Server) ListenAndServe() error {
 			continue
 		}
 
-		go func() {
+		go func(conn net.Conn) {
 			s.trackConn(conn, true)
 			defer s.trackConn(conn, false)
-			newConn, addr, err := s.handshake(conn)
+			addr, reqcopy, err := s.handshake(conn)
 			if err != nil {
 				log.L().Errorf("handshake: %s", err.Error())
 				conn.Close()
 				return
 			}
-			s.handler(newConn, addr)
-		}()
+
+			// forward HTTP proxy request
+			if len(reqcopy) > 0 {
+				conn = &Conn{Conn: conn, readEarly: reqcopy}
+			}
+			s.handler(conn, addr)
+		}(conn)
 	}
 }
 
@@ -107,14 +112,12 @@ func (s *Server) Close() error {
 // HTTP代理服务器接收到请求时：
 // - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
 // - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
-func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
-	if err != nil {
+func (s *Server) handshake(conn net.Conn) (addr string, reqcopy []byte, err error) {
+	if err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout)); err != nil {
 		return
 	}
 	defer func() {
-		er := conn.SetDeadline(time.Time{})
-		if er != nil && err == nil {
+		if er := conn.SetDeadline(time.Time{}); er != nil && err == nil {
 			err = er
 		}
 	}()
@@ -129,17 +132,14 @@ func (s *Server) handshake(conn net.Conn) (newConn net.Conn, addr string, err er
 		if err != nil {
 			return
 		}
-		newConn = conn
 	} else {
-		var reqcopy bytes.Buffer
 		addr, reqcopy, err = s.handshakeHTTP(conn, req)
 		if err != nil {
 			return
 		}
-		newConn = &Conn{Conn: conn, earlyRead: reqcopy}
 	}
 
-	return newConn, addr, nil
+	return addr, reqcopy, nil
 }
 
 func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (addr string, err error) {
@@ -157,30 +157,35 @@ func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (addr string, 
 	return addr, nil
 }
 
-func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, reqcopy bytes.Buffer, err error) {
+func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, reqcopy []byte, err error) {
 	port := req.URL.Port()
 	if port == "" {
 		port = "80"
 	}
 	addr = net.JoinHostPort(req.URL.Hostname(), port)
 
+	var buf bytes.Buffer
 	// 对于HTTP代理请求，需要先行把请求转发一遍
-	if err = req.Write(&reqcopy); err != nil {
-		err = errors.New("request write err: " + err.Error())
-		return
+	if err = req.Write(&buf); err != nil {
+		return "", nil, errors.New("request write err: " + err.Error())
 	}
 
+	reqcopy = buf.Bytes()
 	return addr, reqcopy, nil
 }
 
+// Conn wraps net.Conn, implements early-read especially for HTTP proxy forwarding
 type Conn struct {
 	net.Conn
-	earlyRead bytes.Buffer // the buffer to be read early before Read
+	readEarly []byte // data to be read early before reading the underlying connection
+	off       int
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
-	if c.earlyRead.Len() > 0 {
-		return c.earlyRead.Read(b)
+	if c.off < len(c.readEarly) {
+		n := copy(b, c.readEarly[c.off:])
+		c.off += n
+		return n, nil
 	}
 
 	return c.Conn.Read(b)

@@ -15,7 +15,7 @@ import (
 // Server implements the proxy.Inbounder interface
 type Server struct {
 	addr    string
-	handler common.Handler
+	handler func(c net.Conn, addr string)
 	lis     net.Listener
 
 	mu         sync.Mutex
@@ -37,7 +37,7 @@ func NewServer(addr string) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Handle(handler common.Handler) {
+func (s *Server) Handle(handler func(c net.Conn, addr string)) {
 	s.handler = handler
 }
 
@@ -62,7 +62,7 @@ func (s *Server) ListenAndServe() error {
 			continue
 		}
 
-		go func() {
+		go func(conn net.Conn) {
 			s.trackConn(conn, true)
 			defer s.trackConn(conn, false)
 			addr, err := s.handshake(conn)
@@ -73,7 +73,7 @@ func (s *Server) ListenAndServe() error {
 			}
 
 			s.handler(conn, addr)
-		}()
+		}(conn)
 	}
 }
 

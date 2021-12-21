@@ -21,9 +21,9 @@ import (
 )
 
 type Inbounder interface {
-	// Handle register handler for the incomming connection,
-	// handler is responsible for closing connection which Read and Write done
-	Handle(common.Handler)
+	// Handle register handler function for incomming connection,
+	// handler is responsible for closing connection when Read and Write done
+	Handle(func(c net.Conn, addr string))
 	// ListenAndServe start the proxy server,
 	// block until closed or encounter error
 	ListenAndServe() error
@@ -73,8 +73,8 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	}
 
 	// built-in outbound
-	p.outbounds[direct.Tag] = direct.Direct
-	p.outbounds[reject.Tag] = reject.Reject
+	p.outbounds[direct.Direct.String()] = direct.Direct
+	p.outbounds[reject.Reject.String()] = reject.Reject
 
 	for _, oc := range conf.Outbounds {
 		outbound, err := yeager.NewClient(oc)

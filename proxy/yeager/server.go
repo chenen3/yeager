@@ -24,7 +24,7 @@ import (
 type Server struct {
 	conf    *config.YeagerServer
 	lis     net.Listener
-	handler common.Handler
+	handler func(c net.Conn, addr string)
 
 	mu         sync.Mutex
 	activeConn map[net.Conn]struct{}
@@ -45,7 +45,7 @@ func NewServer(conf *config.YeagerServer) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Handle(handler common.Handler) {
+func (s *Server) Handle(handler func(c net.Conn, addr string)) {
 	s.handler = handler
 }
 
@@ -157,7 +157,7 @@ func (s *Server) ListenAndServe() error {
 			continue
 		}
 
-		go func() {
+		go func(conn net.Conn) {
 			s.trackConn(conn, true)
 			defer s.trackConn(conn, false)
 			dstAddr, err := s.parseHeader(conn)
@@ -168,7 +168,7 @@ func (s *Server) ListenAndServe() error {
 			}
 
 			s.handler(connWithIdleTimeout(conn, common.MaxConnectionIdle), dstAddr)
-		}()
+		}(conn)
 	}
 }
 
