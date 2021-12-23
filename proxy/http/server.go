@@ -117,60 +117,38 @@ func (s *Server) handshake(conn net.Conn) (addr string, reqcopy []byte, err erro
 		return
 	}
 	defer func() {
-		if er := conn.SetDeadline(time.Time{}); er != nil && err == nil {
-			err = er
+		if e := conn.SetDeadline(time.Time{}); e != nil && err == nil {
+			err = e
 		}
 	}()
 
-	req, err := http.ReadRequest(bufio.NewReader(conn))
-	if err != nil {
-		return
+	var req *http.Request
+	if req, err = http.ReadRequest(bufio.NewReader(conn)); err != nil {
+		return "", nil, err
 	}
 
+	port := req.URL.Port()
 	if req.Method == "CONNECT" {
-		addr, err = s.handshakeHTTPS(conn, req)
-		if err != nil {
-			return
+		if port == "" {
+			port = "443"
+		}
+		// reply https proxy request
+		if _, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto); err != nil {
+			return "", nil, err
 		}
 	} else {
-		addr, reqcopy, err = s.handshakeHTTP(conn, req)
-		if err != nil {
-			return
+		if port == "" {
+			port = "80"
 		}
+		// forward http proxy request
+		var buf bytes.Buffer
+		if err = req.Write(&buf); err != nil {
+			return "", nil, err
+		}
+		reqcopy = buf.Bytes()
 	}
 
-	return addr, reqcopy, nil
-}
-
-func (s *Server) handshakeHTTPS(conn net.Conn, req *http.Request) (addr string, err error) {
-	port := req.URL.Port()
-	if port == "" {
-		port = "443"
-	}
 	addr = net.JoinHostPort(req.URL.Hostname(), port)
-
-	_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
-	if err != nil {
-		return "", err
-	}
-
-	return addr, nil
-}
-
-func (s *Server) handshakeHTTP(conn net.Conn, req *http.Request) (addr string, reqcopy []byte, err error) {
-	port := req.URL.Port()
-	if port == "" {
-		port = "80"
-	}
-	addr = net.JoinHostPort(req.URL.Hostname(), port)
-
-	var buf bytes.Buffer
-	// 对于HTTP代理请求，需要先行把请求转发一遍
-	if err = req.Write(&buf); err != nil {
-		return "", nil, errors.New("request write err: " + err.Error())
-	}
-
-	reqcopy = buf.Bytes()
 	return addr, reqcopy, nil
 }
 
