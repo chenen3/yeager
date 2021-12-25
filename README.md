@@ -91,7 +91,7 @@ create config file `/usr/local/etc/yeager/config.json`
     },
     "outbounds": [
         {
-            "tag": "PROXY",
+            "tag": "proxy",
             "address": "server-ip:9000", // replace server-ip
             "transport": "tls",
             "mutualTLS": {
@@ -102,14 +102,14 @@ create config file `/usr/local/etc/yeager/config.json`
         }
     ],
     "rules": [
-        "IP-CIDR,127.0.0.1/8,DIRECT",
-        "IP-CIDR,192.168.0.0/16,DIRECT",
-        "GEOSITE,private,DIRECT",
-        "GEOSITE,google,PROXY",
-        "GEOSITE,twitter,PROXY",
-        "GEOSITE,cn,DIRECT",
-        "GEOSITE,apple@cn,DIRECT",
-        "FINAL,PROXY"
+        "ip-cidr,127.0.0.1/8,direct",
+        "ip-cidr,192.168.0.0/16,direct",
+        "geosite,private,direct",
+        "geosite,google,proxy",
+        "geosite,twitter,proxy",
+        "geosite,cn,direct",
+        "geosite,apple@cn,direct",
+        "final,proxy"
     ]
 }
 ```
@@ -139,20 +139,23 @@ After running client side yeager, do not forget to **setup SOCKS5 or HTTP proxy 
 
 ### Routing rule
 
-Routing rule supports two forms:`ruleType,value,outboundTag` and `FINAL,outboundTag`.
-Outbound tag specified by the user, and yeager also comes with two built-in outbound tags:
+Routing rule specifies where the incomming request goes to. It supports two forms:
+- `ruleType,value,outboundTag`
+- `final,outboundTag`
 
-- `DIRECT` means sending traffic directly, do not pass by proxy
-- `REJECT` means rejecting traffic and close the connection
+The Outbound tag is specified by config, also yeager comes with two built-in outbound tags:
+
+- `direct` means sending traffic directly, do not pass through proxy
+- `reject` means rejecting traffic and close the connection
 
 rule example:
 
-- `IP-CIDR,127.0.0.1/8,DIRECT` matches if destination IP is in specified CIDR
-- `DOMAIN,www.apple.com,DIRECT` matches if destination domain is the given one
-- `DOMAIN-SUFFIX,apple.com,DIRECT` matches if destination domain has the suffix, AKA subdomain name
-- `DOMAIN-KEYWORD,apple,DIRECT` matches if destination domain has the keyword
-- `GEOSITE,cn,DIRECT` matches if destination domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
-- `FINAL,PROXY` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `FINAL,DIRECT`
+- `ip-cidr,127.0.0.1/8,direct` matches if destination IP is in specified CIDR
+- `domain,www.apple.com,direct` matches if destination domain is the given one
+- `domain-suffix,apple.com,direct` matches if destination domain has the suffix, AKA subdomain name
+- `domain-keyword,apple,direct` matches if destination domain has the keyword
+- `geosite,cn,direct` matches if destination domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
+- `final,proxy` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `final,direct`
 
 ### Upgrade
 
