@@ -105,3 +105,23 @@ func TestRouter_Dispatch(t *testing.T) {
 		})
 	}
 }
+
+// 基准测试表明，示例路由匹配耗时低于20微秒。
+// 即使引入LRU缓存降低路由耗时，对于动辄几十毫秒的网络延迟时间来说，
+// 缓存效果并不明显，更别说由此带来高并发时互斥锁竞争的问题，
+// 因此不用缓存。
+func Benchmark_Dispatch(b *testing.B) {
+	r, err := NewRouter([]string{
+		"geosite,cn,tag1",
+		"final,tag2",
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _ = r.Dispatch("github.com:443")
+		}
+	})
+}
