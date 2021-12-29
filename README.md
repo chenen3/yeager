@@ -4,7 +4,7 @@ Yeager is a tool for bypassing network restrictions, supports the following feat
 
 - SOCKS5 and HTTP/HTTPS proxy
 - lightweight tunnel proxy
-  - transport over TLS, gRPC, QUIC or TCP (plaintext)
+  - transport over TLS or TCP (plaintext)
   - security via mutual TLS
 - Rule-based routing
 
@@ -196,4 +196,3 @@ docker image rm ghcr.io/chenen3/yeager
 ## Credit
 
 - [v2ray](https://github.com/v2fly/v2ray-core)
-- [quic-go](https://github.com/lucas-clemente/quic-go)
