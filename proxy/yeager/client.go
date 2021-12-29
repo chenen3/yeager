@@ -7,46 +7,34 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/yeager/transport"
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
-	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
 	"github.com/chenen3/yeager/util"
 )
+
+type contextDialer interface {
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
 
 // Client implement the proxy.Outbounder interface
 type Client struct {
 	conf   *config.YeagerClient
-	dialer transport.ContextDialer
+	dialer contextDialer
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
-		c.dialer = transport.NewTCPDialer()
+		c.dialer = new(net.Dialer)
 	case config.TransTLS:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = transport.NewTLSDialer(tc)
-	case config.TransGRPC:
-		tc, err := makeClientTLSConfig(conf)
-		if err != nil {
-			return nil, err
-		}
-		c.dialer = grpc.NewDialer(tc)
-	case config.TransQUIC:
-		tc, err := makeClientTLSConfig(conf)
-		if err != nil {
-			return nil, err
-		}
-		c.dialer = quic.NewDialer(tc)
+		c.dialer = &tls.Dialer{Config: tc}
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
@@ -60,13 +48,13 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 	}
 
-	if conf.MutualTLS.CertFile != "" {
-		cert, err := tls.LoadX509KeyPair(conf.MutualTLS.CertFile, conf.MutualTLS.KeyFile)
+	if conf.TLS.CertFile != "" {
+		cert, err := tls.LoadX509KeyPair(conf.TLS.CertFile, conf.TLS.KeyFile)
 		if err != nil {
 			return nil, err
 		}
 		tlsConf.Certificates = []tls.Certificate{cert}
-		ca, err := os.ReadFile(conf.MutualTLS.CAFile)
+		ca, err := os.ReadFile(conf.TLS.CAFile)
 		if err != nil {
 			return nil, err
 		}
@@ -75,14 +63,14 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 			return nil, errors.New("failed to parse root certificate")
 		}
 		tlsConf.RootCAs = pool
-	} else if len(conf.MutualTLS.CertPEM) != 0 {
-		cert, err := tls.X509KeyPair(conf.MutualTLS.CertPEM, conf.MutualTLS.KeyPEM)
+	} else if len(conf.TLS.CertPEM) != 0 {
+		cert, err := tls.X509KeyPair(conf.TLS.CertPEM, conf.TLS.KeyPEM)
 		if err != nil {
 			return nil, err
 		}
 		tlsConf.Certificates = []tls.Certificate{cert}
 		pool := x509.NewCertPool()
-		if ok := pool.AppendCertsFromPEM(conf.MutualTLS.CAPEM); !ok {
+		if ok := pool.AppendCertsFromPEM(conf.TLS.CAPEM); !ok {
 			return nil, errors.New("failed to parse root certificate")
 		}
 		tlsConf.RootCAs = pool
@@ -94,7 +82,7 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 }
 
 func (c *Client) DialContext(ctx context.Context, _, addr string) (net.Conn, error) {
-	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
+	conn, err := c.dialer.DialContext(ctx, "tcp", c.conf.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -153,11 +141,4 @@ func (c *Client) makeHeader(addr string) ([]byte, error) {
 	binary.BigEndian.PutUint16(p, uint16(dstAddr.Port))
 	b = append(b, p...)
 	return b, nil
-}
-
-func (c *Client) Close() error {
-	if closer, ok := c.dialer.(io.Closer); ok {
-		return closer.Close()
-	}
-	return nil
 }

@@ -116,7 +116,7 @@ func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*confi
 		return nil, err
 	}
 
-	conf.Outbounds[0].MutualTLS = config.MutualTLS{
+	conf.Outbounds[0].TLS = config.TLS{
 		CertPEM: cert.ClientCert,
 		KeyPEM:  cert.ClientKey,
 		CAPEM:   cert.RootCert,
@@ -139,7 +139,7 @@ func makeServerProxyConf(inboundPort int, cert *util.Cert) (*config.Config, erro
 		return nil, err
 	}
 
-	conf.Inbounds.Yeager.MutualTLS = config.MutualTLS{
+	conf.Inbounds.Yeager.TLS = config.TLS{
 		CertPEM: cert.ServerCert,
 		KeyPEM:  cert.ServerKey,
 		CAPEM:   cert.RootCert,

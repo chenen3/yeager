@@ -31,7 +31,7 @@ func TestYeager(t *testing.T) {
 		clientConf *config.YeagerClient
 	}{
 		{
-			name: "tcp-plaintext",
+			name: "tcp",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
 				Transport: config.TransTCP,
@@ -42,11 +42,11 @@ func TestYeager(t *testing.T) {
 			},
 		},
 		{
-			name: "tls-mutual",
+			name: "tls",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
 				Transport: config.TransTLS,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: certInfo.ServerCert,
 					KeyPEM:  certInfo.ServerKey,
 					CAPEM:   certInfo.RootCert,
@@ -55,49 +55,7 @@ func TestYeager(t *testing.T) {
 			clientConf: &config.YeagerClient{
 				Address:   addr,
 				Transport: config.TransTLS,
-				MutualTLS: config.MutualTLS{
-					CertPEM: certInfo.ClientCert,
-					KeyPEM:  certInfo.ClientKey,
-					CAPEM:   certInfo.RootCert,
-				},
-			},
-		},
-		{
-			name: "grpc-mtls",
-			serverConf: &config.YeagerServer{
-				Listen:    fmt.Sprintf("127.0.0.1:%d", port),
-				Transport: config.TransGRPC,
-				MutualTLS: config.MutualTLS{
-					CertPEM: certInfo.ServerCert,
-					KeyPEM:  certInfo.ServerKey,
-					CAPEM:   certInfo.RootCert,
-				},
-			},
-			clientConf: &config.YeagerClient{
-				Address:   addr,
-				Transport: config.TransGRPC,
-				MutualTLS: config.MutualTLS{
-					CertPEM: certInfo.ClientCert,
-					KeyPEM:  certInfo.ClientKey,
-					CAPEM:   certInfo.RootCert,
-				},
-			},
-		},
-		{
-			name: "quic-mtls",
-			serverConf: &config.YeagerServer{
-				Listen:    addr,
-				Transport: config.TransQUIC,
-				MutualTLS: config.MutualTLS{
-					CertPEM: certInfo.ServerCert,
-					KeyPEM:  certInfo.ServerKey,
-					CAPEM:   certInfo.RootCert,
-				},
-			},
-			clientConf: &config.YeagerClient{
-				Address:   addr,
-				Transport: config.TransQUIC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: certInfo.ClientCert,
 					KeyPEM:  certInfo.ClientKey,
 					CAPEM:   certInfo.RootCert,
@@ -136,7 +94,6 @@ func TestYeager(t *testing.T) {
 				t.Error("NewClient err: " + err.Error())
 				return
 			}
-			defer client.Close()
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()

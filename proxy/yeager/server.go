@@ -16,8 +16,6 @@ import (
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
-	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
 )
 
 // Server implements the proxy.Inbounder interface
@@ -54,14 +52,14 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 	tlsConf := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 	}
-	if len(conf.MutualTLS.CertPEM) != 0 && len(conf.MutualTLS.KeyPEM) != 0 {
-		cert, err := tls.X509KeyPair(conf.MutualTLS.CertPEM, conf.MutualTLS.KeyPEM)
+	if len(conf.TLS.CertPEM) != 0 && len(conf.TLS.KeyPEM) != 0 {
+		cert, err := tls.X509KeyPair(conf.TLS.CertPEM, conf.TLS.KeyPEM)
 		if err != nil {
 			return nil, errors.New("parse cert pem: " + err.Error())
 		}
 		tlsConf.Certificates = []tls.Certificate{cert}
-	} else if conf.MutualTLS.CertFile != "" && conf.MutualTLS.KeyFile != "" {
-		cert, err := tls.LoadX509KeyPair(conf.MutualTLS.CertFile, conf.MutualTLS.KeyFile)
+	} else if conf.TLS.CertFile != "" && conf.TLS.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(conf.TLS.CertFile, conf.TLS.KeyFile)
 		if err != nil {
 			return nil, errors.New("parse cert file: " + err.Error())
 		}
@@ -70,16 +68,16 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 		return nil, errors.New("certificate and key required")
 	}
 
-	if len(conf.MutualTLS.CAPEM) != 0 {
+	if len(conf.TLS.CAPEM) != 0 {
 		pool := x509.NewCertPool()
-		ok := pool.AppendCertsFromPEM(conf.MutualTLS.CAPEM)
+		ok := pool.AppendCertsFromPEM(conf.TLS.CAPEM)
 		if !ok {
 			return nil, errors.New("failed to parse root cert pem")
 		}
 		tlsConf.ClientCAs = pool
 		tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-	} else if conf.MutualTLS.CAFile != "" {
-		ca, err := os.ReadFile(conf.MutualTLS.CAFile)
+	} else if conf.TLS.CAFile != "" {
+		ca, err := os.ReadFile(conf.TLS.CAFile)
 		if err != nil {
 			return nil, err
 		}
@@ -111,22 +109,6 @@ func (s *Server) listen() (net.Listener, error) {
 			return nil, err
 		}
 		if lis, err = tls.Listen("tcp", s.conf.Listen, tlsConf); err != nil {
-			return nil, err
-		}
-	case config.TransGRPC:
-		tlsConf, err := makeServerTLSConfig(s.conf)
-		if err != nil {
-			return nil, err
-		}
-		if lis, err = grpc.Listen(s.conf.Listen, tlsConf); err != nil {
-			return nil, err
-		}
-	case config.TransQUIC:
-		tlsConf, err := makeServerTLSConfig(s.conf)
-		if err != nil {
-			return nil, err
-		}
-		if lis, err = quic.Listen(s.conf.Listen, tlsConf); err != nil {
 			return nil, err
 		}
 	default:

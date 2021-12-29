@@ -122,15 +122,6 @@ func (p *Proxy) Close() error {
 			err = e
 		}
 	}
-
-	for _, outbound := range p.outbounds {
-		if c, ok := outbound.(io.Closer); ok {
-			if e := c.Close(); e != nil {
-				err = e
-			}
-		}
-	}
-
 	return err
 }
 

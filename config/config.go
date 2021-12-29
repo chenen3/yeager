@@ -40,9 +40,6 @@ type Config struct {
 
 	// developer only
 	Debug bool `json:"debug,omitempty"`
-
-	// 参考 transport/grpc/pool.go 如何预估连接池大小
-	GrpcChannelPoolSize int `json:"grpcChannelPoolSize,omitempty"`
 }
 
 type Inbounds struct {
@@ -60,13 +57,12 @@ type Inbounds struct {
 type Transport string
 
 const (
-	TransTCP  Transport = "tcp" // plain text, be caution
-	TransTLS  Transport = "tls"
-	TransGRPC Transport = "grpc"
-	TransQUIC Transport = "quic"
+	TransTCP Transport = "tcp" // plain text, be caution
+	TransTLS Transport = "tls"
 )
 
-type MutualTLS struct {
+// mutual TLS config
+type TLS struct {
 	CertFile string `json:"certFile"`
 	CertPEM  []byte `json:"-"`
 	KeyFile  string `json:"keyFile"`
@@ -78,14 +74,14 @@ type MutualTLS struct {
 type YeagerServer struct {
 	Listen    string    `json:"listen"`
 	Transport Transport `json:"transport"`
-	MutualTLS MutualTLS `json:"mutualTLS,omitempty"` // available when transport is tls, grpc or quic
+	TLS       TLS       `json:"tls,omitempty"` // available when transport is tls
 }
 
 type YeagerClient struct {
 	Tag       string    `json:"tag"`     // 出站标记，用于路由规则指定出站代理
 	Address   string    `json:"address"` // server address to be connected
 	Transport Transport `json:"transport"`
-	MutualTLS MutualTLS `json:"mutualTLS,omitempty"` // available when transport is tls, grpc or quic
+	TLS       TLS       `json:"tls,omitempty"` // available when transport is tls
 }
 
 const (
