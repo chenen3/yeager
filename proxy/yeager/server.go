@@ -167,7 +167,7 @@ func (s *Server) ListenAndServe() error {
 				return
 			}
 
-			s.handler(connWithIdleTimeout(conn, common.MaxConnectionIdle), dstAddr)
+			s.handler(conn, dstAddr)
 		}(conn)
 	}
 }

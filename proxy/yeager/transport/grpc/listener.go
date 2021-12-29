@@ -5,13 +5,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
 
@@ -68,9 +68,8 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	}
 
 	opt := []grpc.ServerOption{
-		// fix grpc client side error: "code = Unavailable desc = transport is closing"
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: 5 * time.Minute,
+			MaxConnectionIdle: common.MaxConnectionIdle,
 		}),
 	}
 	if tlsConf != nil {

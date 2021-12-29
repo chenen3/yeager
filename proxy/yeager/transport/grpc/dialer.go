@@ -48,8 +48,7 @@ func (d *dialer) ensureChannelPool(addr string) *channelPool {
 			opts := []grpc.DialOption{
 				grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
 				grpc.WithKeepaliveParams(keepalive.ClientParameters{
-					Time:    60 * time.Second,
-					Timeout: 1 * time.Second,
+					Time: 60 * time.Second,
 				}),
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)

@@ -12,7 +12,6 @@ import (
 	"os"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/yeager/transport"
 	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
 	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
@@ -108,7 +107,7 @@ func (c *Client) DialContext(ctx context.Context, _, addr string) (net.Conn, err
 		return nil, err
 	}
 
-	return connWithIdleTimeout(conn, common.MaxConnectionIdle), nil
+	return conn, nil
 }
 
 const maxAddrLen = 1 + 1 + 255 + 2

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"time"
 
+	"github.com/chenen3/yeager/proxy/common"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -50,8 +50,8 @@ func (d *dialer) ensureSession(ctx context.Context, addr string) (quic.Session, 
 	}
 
 	qc := &quic.Config{
-		MaxIdleTimeout: 30 * time.Second,
 		KeepAlive:      true,
+		MaxIdleTimeout: common.MaxConnectionIdle,
 	}
 	d.tlsConf.NextProtos = []string{"quic"}
 	newSession, err := quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
