@@ -63,8 +63,8 @@ func (s *Server) ListenAndServe() error {
 		}
 
 		go func(conn net.Conn) {
-			s.trackConn(conn, true)
-			defer s.trackConn(conn, false)
+			s.trackConn(conn)
+			defer s.untrackConn(conn)
 			addr, err := s.handshake(conn)
 			if err != nil {
 				log.L().Error("handshake: " + err.Error())
@@ -77,14 +77,16 @@ func (s *Server) ListenAndServe() error {
 	}
 }
 
-func (s *Server) trackConn(c net.Conn, add bool) {
+func (s *Server) trackConn(c net.Conn) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if add {
-		s.activeConn[c] = struct{}{}
-	} else {
-		delete(s.activeConn, c)
-	}
+	s.activeConn[c] = struct{}{}
+	s.mu.Unlock()
+}
+
+func (s *Server) untrackConn(c net.Conn) {
+	s.mu.Lock()
+	delete(s.activeConn, c)
+	s.mu.Unlock()
 }
 
 func (s *Server) Close() error {
