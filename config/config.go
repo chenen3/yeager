@@ -78,14 +78,14 @@ type MutualTLS struct {
 type YeagerServer struct {
 	Listen    string    `json:"listen"`
 	Transport Transport `json:"transport"`
-	MutualTLS MutualTLS `json:"mutualTLS,omitempty"` // available when transport is tls, grpc or quic
+	MutualTLS MutualTLS `json:"mtls,omitempty"` // unavailable when transport is tcp
 }
 
 type YeagerClient struct {
 	Tag       string    `json:"tag"`     // 出站标记，用于路由规则指定出站代理
 	Address   string    `json:"address"` // server address to be connected
 	Transport Transport `json:"transport"`
-	MutualTLS MutualTLS `json:"mutualTLS,omitempty"` // available when transport is tls, grpc or quic
+	MutualTLS MutualTLS `json:"mtls,omitempty"` // unavailable when transport is tcp
 }
 
 const (

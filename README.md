@@ -37,7 +37,7 @@ Create config file `/usr/local/etc/yeager/config.json`
         "yeager": {
             "listen": "0.0.0.0:9000",
             "transport": "tls",
-            "mutualTLS": {
+            "mtls": {
                 "certFile": "/usr/local/etc/yeager/server-cert.pem",
                 "keyFile": "/usr/local/etc/yeager/server-key.pem",
                 "caFile": "/usr/local/etc/yeager/ca-cert.pem"
@@ -92,9 +92,9 @@ create config file `/usr/local/etc/yeager/config.json`
     "outbounds": [
         {
             "tag": "proxy",
-            "address": "server-ip:9000", // replace server-ip
+            "address": "example.server.ip:9000", // replace example server IP
             "transport": "tls",
-            "mutualTLS": {
+            "mtls": {
                 "certFile": "/usr/local/etc/yeager/client-cert.pem",
                 "keyFile": "/usr/local/etc/yeager/client-key.pem",
                 "caFile": "/usr/local/etc/yeager/ca-cert.pem"
