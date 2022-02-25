@@ -26,11 +26,17 @@ func LoadJSON(bs []byte) (*Config, error) {
 
 // LoadFile load config from JSON file
 func LoadFile(filename string) (*Config, error) {
-	bs, err := os.ReadFile(filename)
+	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
-	return LoadJSON(bs)
+
+	var c Config
+	err = json.NewDecoder(f).Decode(&c)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 type Config struct {
