@@ -15,9 +15,9 @@ type streamer interface {
 // streamConn wraps grpc stream, implement net.Conn interface
 type streamConn struct {
 	stream  streamer
+	onClose func()
 	buf     []byte
 	off     int
-	onClose func()
 }
 
 func (c *streamConn) Read(b []byte) (n int, err error) {

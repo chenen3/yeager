@@ -29,12 +29,16 @@ func TestServer(t *testing.T) {
 			t.Errorf("received unexpected dst addr: %s", addr)
 			return
 		}
-		io.Copy(conn, conn)
+		_, e := io.Copy(conn, conn)
+		if e != nil {
+			t.Error(e)
+			return
+		}
 	})
 	go func() {
-		err := srv.ListenAndServe()
-		if err != nil {
-			t.Error(err)
+		e := srv.ListenAndServe()
+		if e != nil {
+			t.Error(e)
 		}
 	}()
 
@@ -57,7 +61,10 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := make([]byte, 1)
-	io.ReadFull(conn, got)
+	_, err = io.ReadFull(conn, got)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Equal(want, got) {
 		t.Fatalf("want %v, got %v", want, got)
 	}

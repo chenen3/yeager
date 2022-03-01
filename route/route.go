@@ -21,9 +21,7 @@ const (
 	// it is 46MB. While yeager startup with it, the memory usage raise
 	// up to 300MB. Considering GEOIP rule is not the essential feature,
 	// now disable it, so that the startup memory would beneath 15MB.
-
-	// deprecated
-	ruleGeoIP = "geoip" // 预定义IP集合
+	// ruleGeoIP = "geoip" // 预定义IP集合
 )
 
 var defaultFinalRule, _ = newRule(ruleFinal, "", direct.Direct.String())

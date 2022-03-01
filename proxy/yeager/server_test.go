@@ -121,12 +121,12 @@ func TestYeager(t *testing.T) {
 					t.Errorf("received unexpected dst addr: %s", addr)
 					return
 				}
-				io.Copy(conn, conn)
+				_, _ = io.Copy(conn, conn)
 			})
 			go func() {
-				err := srv.ListenAndServe()
-				if err != nil {
-					t.Error(err)
+				e := srv.ListenAndServe()
+				if e != nil {
+					t.Error(e)
 				}
 			}()
 			<-srv.ready
@@ -154,7 +154,11 @@ func TestYeager(t *testing.T) {
 				return
 			}
 			got := make([]byte, 1)
-			io.ReadFull(conn, got)
+			_, err = io.ReadFull(conn, got)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 			if !bytes.Equal(want, got) {
 				t.Errorf("want %v, got %v", want, got)
 				return

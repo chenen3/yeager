@@ -46,9 +46,9 @@ func TestServer(t *testing.T) {
 		}
 	})
 	go func() {
-		err := srv.ListenAndServe()
-		if err != nil {
-			t.Error(err)
+		e := srv.ListenAndServe()
+		if e != nil {
+			t.Error(e)
 		}
 	}()
 
@@ -69,5 +69,5 @@ func TestServer(t *testing.T) {
 		return
 	}
 	defer res.Body.Close()
-	io.Copy(io.Discard, res.Body)
+	_, _ = io.Copy(io.Discard, res.Body)
 }
