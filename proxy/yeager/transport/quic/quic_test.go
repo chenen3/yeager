@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -35,7 +36,7 @@ func TestQUIC(t *testing.T) {
 	go func() {
 		serverConn, e := lis.Accept()
 		if e != nil {
-			t.Error(e)
+			log.L().Error(e)
 			return
 		}
 		defer serverConn.Close()

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -118,18 +119,21 @@ func TestYeager(t *testing.T) {
 			srv.Handle(func(conn net.Conn, addr string) {
 				defer conn.Close()
 				if addr != "fake.domain.com:1234" {
-					t.Errorf("received unexpected dst addr: %s", addr)
-					return
+					panic("received unexpected dst addr: " + addr)
 				}
 				_, _ = io.Copy(conn, conn)
 			})
 			go func() {
 				e := srv.ListenAndServe()
 				if e != nil {
-					t.Error(e)
+					log.L().Error(e)
 				}
 			}()
-			<-srv.ready
+
+			select {
+			case <-time.After(time.Second):
+			case <-srv.ready:
+			}
 
 			client, err := NewClient(test.clientConf)
 			if err != nil {

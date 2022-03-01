@@ -28,31 +28,35 @@ func TestServer(t *testing.T) {
 	srv.Handle(func(conn net.Conn, addr string) {
 		defer conn.Close()
 		if addr != "fake.domain.com:1234" {
-			t.Errorf("received unexpected dst addr: %s", addr)
-			return
+			panic("received unexpected dst addr: " + addr)
 		}
 
 		rec := httptest.NewRecorder()
 		_, err = rec.WriteString("1")
 		if err != nil {
-			t.Error(err)
+			log.L().Error(err)
 			return
 		}
 
 		err = rec.Result().Write(conn)
 		if err != nil {
-			t.Error(err)
+			log.L().Error(err)
 			return
 		}
 	})
 	go func() {
-		e := srv.ListenAndServe()
-		if e != nil {
-			t.Error(e)
+		err = srv.ListenAndServe()
+		if err != nil {
+			log.L().Error(err)
 		}
 	}()
 
-	<-srv.ready
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("server not ready in time")
+	case <-srv.ready:
+	}
+
 	proxyUrl, _ := url.Parse("http://" + srv.addr)
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -69,5 +73,11 @@ func TestServer(t *testing.T) {
 		return
 	}
 	defer res.Body.Close()
-	_, _ = io.Copy(io.Discard, res.Body)
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(bs) != "1" {
+		t.Fatalf("want 1, got %s", bs)
+	}
 }

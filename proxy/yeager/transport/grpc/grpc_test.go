@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -34,15 +35,11 @@ func TestGRPC(t *testing.T) {
 	go func() {
 		conn, e := lis.Accept()
 		if e != nil {
-			t.Error(e)
+			log.L().Error(e)
 			return
 		}
 		defer conn.Close()
-		_, e = io.Copy(conn, conn)
-		if e != nil {
-			t.Error(e)
-			return
-		}
+		_, _ = io.Copy(conn, conn)
 	}()
 
 	d := NewDialer(&tls.Config{InsecureSkipVerify: true})

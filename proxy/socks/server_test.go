@@ -6,9 +6,11 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	gproxy "golang.org/x/net/proxy"
 
+	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -34,11 +36,16 @@ func TestServer(t *testing.T) {
 	go func() {
 		e := srv.ListenAndServe()
 		if e != nil {
-			t.Error(e)
+			log.L().Error(e)
 		}
 	}()
 
-	<-srv.ready
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("server not ready in time")
+	case <-srv.ready:
+	}
+
 	client, err := gproxy.SOCKS5("tcp", srv.addr, nil, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -64,11 +64,7 @@ func TestProxy(t *testing.T) {
 	time.Sleep(time.Millisecond)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := io.WriteString(w, "1")
-		if err != nil {
-			t.Error(err)
-			return
-		}
+		_, _ = io.WriteString(w, "1")
 	}))
 	defer ts.Close()
 
