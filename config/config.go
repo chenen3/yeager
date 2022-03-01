@@ -66,7 +66,7 @@ type Inbounds struct {
 type Transport string
 
 const (
-	TransTCP  Transport = "tcp" // plain text, be caution
+	TransTCP  Transport = "tcp" // plain text
 	TransTLS  Transport = "tls"
 	TransGRPC Transport = "grpc"
 	TransQUIC Transport = "quic"
