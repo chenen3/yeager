@@ -33,13 +33,13 @@ func TestQUIC(t *testing.T) {
 	defer lis.Close()
 
 	go func() {
-		serverConn, err := lis.Accept()
-		if err != nil {
-			t.Error(err)
+		serverConn, e := lis.Accept()
+		if e != nil {
+			t.Error(e)
 			return
 		}
 		defer serverConn.Close()
-		io.Copy(serverConn, serverConn)
+		_, _ = io.Copy(serverConn, serverConn)
 	}()
 
 	cliTLSConf := &tls.Config{

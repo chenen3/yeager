@@ -48,7 +48,7 @@ var serveCmd = &command.Command{
 		// http server for profiling
 		if conf.Debug {
 			go func() {
-				http.ListenAndServe("localhost:6060", nil)
+				log.L().Error(http.ListenAndServe("localhost:6060", nil))
 			}()
 		}
 

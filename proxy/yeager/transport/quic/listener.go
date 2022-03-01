@@ -38,7 +38,10 @@ func (l *listener) acceptLoop() {
 }
 
 func (l *listener) acceptStream(session quic.Session) {
-	defer session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "session closed")
+	defer func() {
+		_ = session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "session closed")
+	}()
+
 	for {
 		stream, err := session.AcceptStream(l.ctx)
 		if err != nil {

@@ -101,7 +101,7 @@ func (c *Command) PrintUsage() {
 	if c.commands != nil {
 		s += fmt.Sprintf("  %s [command]\n", c.Name)
 		s += "\n"
-		s += fmt.Sprintf("Commands:\n")
+		s += "Commands:\n"
 		for _, cmd := range c.commands {
 			// Four spaces before the tab triggers good alignment
 			// for both 4- and 8-space tab stops.

@@ -12,8 +12,8 @@ import (
 const maxAddrLen = 1 + 1 + 255 + 2
 
 const (
-	cmdConnect      = 0x01
-	cmdUDPAssociate = 0x03
+	cmdConnect = 0x01
+	// cmdUDPAssociate = 0x03
 )
 
 const (
@@ -30,17 +30,17 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 		return "", err
 	}
 	nmethods := buf[1]
-	if _, err := io.ReadFull(rw, buf[:nmethods]); err != nil {
+	if _, err = io.ReadFull(rw, buf[:nmethods]); err != nil {
 		return "", err
 	}
 
 	// socks5服务在此仅作为入站代理，使用场景应该是本地内网，无需认证
 	// write VER METHOD
-	if _, err := rw.Write([]byte{0x05, 0x00}); err != nil {
+	if _, err = rw.Write([]byte{0x05, 0x00}); err != nil {
 		return "", err
 	}
 	// read VER CMD RSV ATYP DST.ADDR DST.PORT
-	if _, err := io.ReadFull(rw, buf[:3]); err != nil {
+	if _, err = io.ReadFull(rw, buf[:3]); err != nil {
 		return "", err
 	}
 

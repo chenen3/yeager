@@ -63,8 +63,12 @@ func TestProxy(t *testing.T) {
 	// wait for the proxy server to start in the background
 	time.Sleep(time.Millisecond)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "1")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := io.WriteString(w, "1")
+		if err != nil {
+			t.Error(err)
+			return
+		}
 	}))
 	defer ts.Close()
 

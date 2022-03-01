@@ -235,7 +235,7 @@ func (s *Server) parseHeader(conn net.Conn) (addr string, err error) {
 			return "", err
 		}
 		domainLen := b[0]
-		if _, err := io.ReadFull(conn, b[:domainLen]); err != nil {
+		if _, err = io.ReadFull(conn, b[:domainLen]); err != nil {
 			return "", err
 		}
 		host = string(b[:domainLen])

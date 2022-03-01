@@ -32,13 +32,17 @@ func TestGRPC(t *testing.T) {
 	defer lis.Close()
 
 	go func() {
-		conn, err := lis.Accept()
-		if err != nil {
-			t.Error(err)
+		conn, e := lis.Accept()
+		if e != nil {
+			t.Error(e)
 			return
 		}
 		defer conn.Close()
-		io.Copy(conn, conn)
+		_, e = io.Copy(conn, conn)
+		if e != nil {
+			t.Error(e)
+			return
+		}
 	}()
 
 	d := NewDialer(&tls.Config{InsecureSkipVerify: true})

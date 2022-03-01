@@ -36,9 +36,9 @@ type Outbounder interface {
 
 type Proxy struct {
 	conf      *config.Config
-	inbounds  []Inbounder
-	outbounds map[string]Outbounder
 	router    *route.Router
+	outbounds map[string]Outbounder
+	inbounds  []Inbounder
 }
 
 func NewProxy(conf *config.Config) (*Proxy, error) {
@@ -98,7 +98,7 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 
 // Serve launch inbound server and register handler for incoming connection.
 // Serve returns when one of the inbounds stop.
-func (p *Proxy) Serve() error {
+func (p *Proxy) Serve() {
 	var wg sync.WaitGroup
 	for _, inbound := range p.inbounds {
 		wg.Add(1)
@@ -112,7 +112,6 @@ func (p *Proxy) Serve() error {
 		}(inbound)
 	}
 	wg.Wait()
-	return nil
 }
 
 func (p *Proxy) Close() error {
@@ -164,7 +163,8 @@ func (p *Proxy) handle(inConn net.Conn, addr string) {
 	}
 	defer outConn.Close()
 
-	if err := relay(inConn, outConn); err != nil {
+	err = relay(inConn, outConn)
+	if err != nil {
 		log.L().Warnf("relay %s: %s", addr, err)
 		return
 	}
