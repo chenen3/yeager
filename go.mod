@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/lucas-clemente/quic-go v0.24.0
-	github.com/v2fly/v2ray-core/v4 v4.43.0
+	github.com/v2fly/v2ray-core/v4 v4.44.0
 	golang.org/x/net v0.0.0-20211201190559-0a0e4e1bb54c
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
