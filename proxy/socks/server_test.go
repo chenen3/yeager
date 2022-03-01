@@ -29,11 +29,7 @@ func TestServer(t *testing.T) {
 			t.Errorf("received unexpected dst addr: %s", addr)
 			return
 		}
-		_, e := io.Copy(conn, conn)
-		if e != nil {
-			t.Error(e)
-			return
-		}
+		_, _ = io.Copy(conn, conn)
 	})
 	go func() {
 		e := srv.ListenAndServe()
