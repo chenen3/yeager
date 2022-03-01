@@ -132,6 +132,7 @@ func TestYeager(t *testing.T) {
 
 			select {
 			case <-time.After(time.Second):
+				t.Fatalf("server not ready in time")
 			case <-srv.ready:
 			}
 
