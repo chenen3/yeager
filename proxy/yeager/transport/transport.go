@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
 )
 
@@ -23,22 +22,5 @@ func NewTCPDialer() *tcpDialer {
 }
 
 func (d *tcpDialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	return d.dialer.DialContext(ctx, "tcp", addr)
-}
-
-type tlsDialer struct {
-	dialer *tls.Dialer
-}
-
-// NewTLSDialer return a TLS dialer that implements the ContextDialer interface
-func NewTLSDialer(c *tls.Config) *tlsDialer {
-	return &tlsDialer{
-		dialer: &tls.Dialer{
-			Config: c,
-		},
-	}
-}
-
-func (d *tlsDialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
 	return d.dialer.DialContext(ctx, "tcp", addr)
 }

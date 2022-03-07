@@ -1,10 +1,10 @@
 # yeager
 
-Yeager is a tool for bypassing network restrictions, supports the following features:
+Yeager is a tool for bypassing network restrictions. I learn the idea from Trojan and V2ray, then do it in my way, just a hobby. Supporting the following features:
 
 - SOCKS5 and HTTP/HTTPS proxy
 - lightweight tunnel proxy
-  - transport over TLS, gRPC, QUIC or TCP (plaintext)
+  - transport over gRPC, QUIC or TCP (plaintext)
   - security via mutual TLS
 - Rule-based routing
 
@@ -36,7 +36,7 @@ Create config file `/usr/local/etc/yeager/config.json`
     "inbounds": {
         "yeager": {
             "listen": "0.0.0.0:9000",
-            "transport": "tls",
+            "transport": "grpc",
             "mtls": {
                 "certFile": "/usr/local/etc/yeager/server-cert.pem",
                 "keyFile": "/usr/local/etc/yeager/server-key.pem",
@@ -93,7 +93,7 @@ create config file `/usr/local/etc/yeager/config.json`
         {
             "tag": "proxy",
             "address": "example.server.ip:9000", // replace example server IP
-            "transport": "tls",
+            "transport": "grpc",
             "mtls": {
                 "certFile": "/usr/local/etc/yeager/client-cert.pem",
                 "keyFile": "/usr/local/etc/yeager/client-key.pem",
@@ -195,5 +195,6 @@ docker image rm ghcr.io/chenen3/yeager
 
 ## Credit
 
+- [trojan](https://github.com/trojan-gfw/trojan)
 - [v2ray](https://github.com/v2fly/v2ray-core)
 - [quic-go](https://github.com/lucas-clemente/quic-go)

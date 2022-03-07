@@ -47,7 +47,7 @@ type Config struct {
 	// developer only
 	Debug bool `json:"debug,omitempty"`
 
-	// 参考 transport/grpc/pool.go 如何预估连接池大小
+	// 如何预估连接池大小，参考 proxy/yeager/transport/grpc/pool.go
 	GrpcChannelPoolSize int `json:"grpcChannelPoolSize,omitempty"`
 }
 
@@ -67,9 +67,11 @@ type Transport string
 
 const (
 	TransTCP  Transport = "tcp" // plain text
-	TransTLS  Transport = "tls"
 	TransGRPC Transport = "grpc"
 	TransQUIC Transport = "quic"
+
+	// deprecated. In most cases, gRPC transport performs better than TLS transport
+	// TransTLS Transport = "tls"
 )
 
 type MutualTLS struct {
