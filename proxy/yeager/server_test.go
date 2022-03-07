@@ -43,30 +43,9 @@ func TestYeager(t *testing.T) {
 			},
 		},
 		{
-			name: "tls-mutual",
-			serverConf: &config.YeagerServer{
-				Listen:    addr,
-				Transport: config.TransTLS,
-				MutualTLS: config.MutualTLS{
-					CertPEM: certInfo.ServerCert,
-					KeyPEM:  certInfo.ServerKey,
-					CAPEM:   certInfo.RootCert,
-				},
-			},
-			clientConf: &config.YeagerClient{
-				Address:   addr,
-				Transport: config.TransTLS,
-				MutualTLS: config.MutualTLS{
-					CertPEM: certInfo.ClientCert,
-					KeyPEM:  certInfo.ClientKey,
-					CAPEM:   certInfo.RootCert,
-				},
-			},
-		},
-		{
 			name: "grpc-mtls",
 			serverConf: &config.YeagerServer{
-				Listen:    fmt.Sprintf("127.0.0.1:%d", port),
+				Listen:    addr,
 				Transport: config.TransGRPC,
 				MutualTLS: config.MutualTLS{
 					CertPEM: certInfo.ServerCert,

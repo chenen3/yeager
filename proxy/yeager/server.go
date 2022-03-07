@@ -105,14 +105,6 @@ func (s *Server) listen() (net.Listener, error) {
 		if lis, err = net.Listen("tcp", s.conf.Listen); err != nil {
 			return nil, err
 		}
-	case config.TransTLS:
-		tlsConf, err := makeServerTLSConfig(s.conf)
-		if err != nil {
-			return nil, err
-		}
-		if lis, err = tls.Listen("tcp", s.conf.Listen, tlsConf); err != nil {
-			return nil, err
-		}
 	case config.TransGRPC:
 		tlsConf, err := makeServerTLSConfig(s.conf)
 		if err != nil {

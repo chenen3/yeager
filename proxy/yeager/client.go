@@ -29,12 +29,6 @@ func NewClient(conf *config.YeagerClient) (*Client, error) {
 	switch conf.Transport {
 	case config.TransTCP:
 		c.dialer = transport.NewTCPDialer()
-	case config.TransTLS:
-		tc, err := makeClientTLSConfig(conf)
-		if err != nil {
-			return nil, err
-		}
-		c.dialer = transport.NewTLSDialer(tc)
 	case config.TransGRPC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {

@@ -104,7 +104,7 @@ func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*confi
         {
             "tag": "PROXY",
             "address": "127.0.0.1:%d",
-            "transport": "tls"
+            "transport": "grpc"
         }
     ],
     "rules": [
@@ -129,7 +129,7 @@ func makeServerProxyConf(inboundPort int, cert *util.Cert) (*config.Config, erro
     "inbounds": {
         "yeager": {
             "listen": "127.0.0.1:%d",
-            "transport": "tls"
+            "transport": "grpc"
         }
     }
 }`, inboundPort)
