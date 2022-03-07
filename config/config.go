@@ -70,7 +70,7 @@ const (
 	TransGRPC Transport = "grpc"
 	TransQUIC Transport = "quic"
 
-	// deprecated. In most cases, gRPC transport performs better than TLS transport
+	// deprecated. Infrequently used
 	// TransTLS Transport = "tls"
 )
 
