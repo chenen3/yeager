@@ -4,7 +4,7 @@ Yeager is a tool for bypassing network restrictions. I learn the idea from Troja
 
 - SOCKS5 and HTTP/HTTPS proxy
 - lightweight tunnel proxy
-  - transport over gRPC, QUIC or TCP (plaintext)
+  - transport over gRPC or QUIC
   - security via mutual TLS
 - Rule-based routing
 
