@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -25,7 +26,7 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer srv.Close()
-	srv.Handle(func(conn net.Conn, addr string) {
+	srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
 		defer conn.Close()
 		if addr != "fake.domain.com:1234" {
 			panic("received unexpected dst addr: " + addr)
@@ -45,8 +46,8 @@ func TestServer(t *testing.T) {
 		}
 	})
 	go func() {
-		err = srv.ListenAndServe()
-		if err != nil {
+		e := srv.ListenAndServe()
+		if e != nil {
 			log.L().Error(err)
 		}
 	}()

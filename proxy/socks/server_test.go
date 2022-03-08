@@ -2,6 +2,7 @@ package socks
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -25,7 +26,7 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer srv.Close()
-	srv.Handle(func(conn net.Conn, addr string) {
+	srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
 		defer conn.Close()
 		if addr != "fake.domain.com:1234" {
 			t.Errorf("received unexpected dst addr: %s", addr)

@@ -21,9 +21,10 @@ import (
 )
 
 type Inbounder interface {
-	// Handle register handler function for incomming connection,
-	// handler is responsible for closing connection when Read and Write done
-	Handle(func(c net.Conn, addr string))
+	// Handle register handler function for incomming connection.
+	// Inbounder is responsible for closing the incomming connection,
+	// not the handler function.
+	Handle(func(ctx context.Context, conn net.Conn, addr string))
 	// ListenAndServe start the proxy server,
 	// block until closed or encounter error
 	ListenAndServe() error
@@ -135,12 +136,11 @@ func (p *Proxy) Close() error {
 
 var activeConnCnt = expvar.NewInt("activeConn")
 
-func (p *Proxy) handle(inConn net.Conn, addr string) {
+func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	if p.conf.Debug {
 		activeConnCnt.Add(1)
 		defer activeConnCnt.Add(-1)
 	}
-	defer inConn.Close()
 
 	tag, err := p.router.Dispatch(addr)
 	if err != nil {
@@ -154,31 +154,35 @@ func (p *Proxy) handle(inConn net.Conn, addr string) {
 	}
 	log.L().Infof("receive %s from %s, dispatch to [%s]", addr, inConn.RemoteAddr(), tag)
 
-	ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+	dialCtx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
-	outConn, err := outbound.DialContext(ctx, "tcp", addr)
+	outConn, err := outbound.DialContext(dialCtx, "tcp", addr)
 	if err != nil {
 		log.L().Errorf("dial %s: %s", addr, err)
 		return
 	}
 	defer outConn.Close()
 
-	err = relay(inConn, outConn)
-	if err != nil {
-		log.L().Warnf("relay %s: %s", addr, err)
-		return
+	ch := make(chan error, 2)
+	relay(ch, inConn, outConn)
+
+	select {
+	case <-ctx.Done():
+	case err := <-ch:
+		if err != nil {
+			log.L().Warnf("relay %s: %s", addr, err)
+			return
+		}
 	}
 }
 
-func relay(a, b io.ReadWriter) error {
-	errCh := make(chan error, 2)
+func relay(ch chan<- error, a, b io.ReadWriter) {
 	go func() {
 		_, err := io.Copy(a, b)
-		errCh <- err
+		ch <- err
 	}()
 	go func() {
 		_, err := io.Copy(b, a)
-		errCh <- err
+		ch <- err
 	}()
-	return <-errCh
 }
