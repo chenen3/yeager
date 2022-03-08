@@ -2,6 +2,7 @@
 package socks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -15,13 +16,13 @@ import (
 // Server implements the proxy.Inbounder interface
 type Server struct {
 	addr    string
-	handler func(c net.Conn, addr string)
+	handler func(ctx context.Context, c net.Conn, addr string)
 	lis     net.Listener
 
-	mu         sync.Mutex
-	activeConn map[net.Conn]struct{}
-	done       chan struct{}
-	ready      chan struct{} // imply that server is ready to accept connection, testing only
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+	ready  chan struct{} // imply that server is ready to accept connection, testing only
 }
 
 func NewServer(addr string) (*Server, error) {
@@ -29,15 +30,16 @@ func NewServer(addr string) (*Server, error) {
 		return nil, errors.New("empty address")
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		addr:       addr,
-		ready:      make(chan struct{}),
-		done:       make(chan struct{}),
-		activeConn: make(map[net.Conn]struct{}),
+		addr:   addr,
+		ready:  make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
 	}, nil
 }
 
-func (s *Server) Handle(handler func(c net.Conn, addr string)) {
+func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {
 	s.handler = handler
 }
 
@@ -54,7 +56,7 @@ func (s *Server) ListenAndServe() error {
 		conn, err := lis.Accept()
 		if err != nil {
 			select {
-			case <-s.done:
+			case <-s.ctx.Done():
 				return nil
 			default:
 			}
@@ -62,9 +64,10 @@ func (s *Server) ListenAndServe() error {
 			continue
 		}
 
+		s.wg.Add(1)
 		go func(conn net.Conn) {
-			s.trackConn(conn)
-			defer s.untrackConn(conn)
+			defer s.wg.Done()
+			defer conn.Close()
 			addr, err := s.handshake(conn)
 			if err != nil {
 				log.L().Error("handshake: " + err.Error())
@@ -72,35 +75,18 @@ func (s *Server) ListenAndServe() error {
 				return
 			}
 
-			s.handler(conn, addr)
+			s.handler(s.ctx, conn, addr)
 		}(conn)
 	}
 }
 
-func (s *Server) trackConn(c net.Conn) {
-	s.mu.Lock()
-	s.activeConn[c] = struct{}{}
-	s.mu.Unlock()
-}
-
-func (s *Server) untrackConn(c net.Conn) {
-	s.mu.Lock()
-	delete(s.activeConn, c)
-	s.mu.Unlock()
-}
-
 func (s *Server) Close() error {
-	close(s.done)
+	s.cancel()
 	var err error
 	if s.lis != nil {
 		err = s.lis.Close()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for c := range s.activeConn {
-		c.Close()
-		delete(s.activeConn, c)
-	}
+	s.wg.Wait()
 	return err
 }
 

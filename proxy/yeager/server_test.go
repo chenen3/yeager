@@ -95,7 +95,7 @@ func TestYeager(t *testing.T) {
 			}
 			defer srv.Close()
 
-			srv.Handle(func(conn net.Conn, addr string) {
+			srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
 				defer conn.Close()
 				if addr != "fake.domain.com:1234" {
 					panic("received unexpected dst addr: " + addr)

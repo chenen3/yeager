@@ -97,7 +97,8 @@ func (c *Client) DialContext(ctx context.Context, _, addr string) (net.Conn, err
 	if err != nil {
 		return nil, errors.New("make header: " + err.Error())
 	}
-	if _, err = conn.Write(header); err != nil {
+	_, err = conn.Write(header)
+	if err != nil {
 		return nil, err
 	}
 
