@@ -32,15 +32,15 @@ func TestServer(t *testing.T) {
 		}
 
 		rec := httptest.NewRecorder()
-		_, err = rec.WriteString("1")
-		if err != nil {
-			log.L().Error(err)
+		_, e := rec.WriteString("1")
+		if e != nil {
+			log.L().Error(e)
 			return
 		}
 
-		err = rec.Result().Write(conn)
-		if err != nil {
-			log.L().Error(err)
+		e = rec.Result().Write(conn)
+		if e != nil {
+			log.L().Error(e)
 			return
 		}
 	})
