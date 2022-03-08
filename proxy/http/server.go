@@ -71,7 +71,6 @@ func (s *Server) ListenAndServe() error {
 		go func(conn net.Conn) {
 			defer s.wg.Done()
 			defer conn.Close()
-
 			addr, reqcopy, err := s.handshake(conn)
 			if err != nil {
 				log.L().Errorf("handshake: %s", err.Error())
