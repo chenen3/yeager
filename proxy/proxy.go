@@ -5,6 +5,7 @@ import (
 	"errors"
 	"expvar"
 	"io"
+	glog "log"
 	"net"
 	"strings"
 	"sync"
@@ -21,8 +22,8 @@ import (
 )
 
 type Inbounder interface {
-	// Handle register handler function for incomming connection.
-	// Inbounder is responsible for closing the incomming connection,
+	// Handle register handler function for incoming connection.
+	// Inbounder is responsible for closing the incoming connection,
 	// not the handler function.
 	Handle(func(ctx context.Context, conn net.Conn, addr string))
 	// ListenAndServe start the proxy server,
@@ -152,11 +153,11 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 		log.L().Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	log.L().Infof("receive %s from %s, dispatch to [%s]", addr, inConn.RemoteAddr(), tag)
+	glog.Printf("peer %s, dest %s, outbound %s", inConn.RemoteAddr(), addr, tag)
 
-	dialCtx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+	dctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
-	outConn, err := outbound.DialContext(dialCtx, "tcp", addr)
+	outConn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
 		log.L().Errorf("dial %s: %s", addr, err)
 		return
@@ -164,7 +165,14 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	defer outConn.Close()
 
 	ch := make(chan error, 2)
-	relay(ch, inConn, outConn)
+	go func() {
+		_, err := io.Copy(outConn, inConn)
+		ch <- err
+	}()
+	go func() {
+		_, err := io.Copy(inConn, outConn)
+		ch <- err
+	}()
 
 	select {
 	case <-ctx.Done():
@@ -174,15 +182,4 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 			return
 		}
 	}
-}
-
-func relay(ch chan<- error, a, b io.ReadWriter) {
-	go func() {
-		_, err := io.Copy(a, b)
-		ch <- err
-	}()
-	go func() {
-		_, err := io.Copy(b, a)
-		ch <- err
-	}()
 }

@@ -64,8 +64,8 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	pool := d.ensureChannelPool(addr)
 	// DialContext 的参数 ctx 时效通常很短，不适合控制 stream 的生命周期，因此新建一个
 	ctxS, cancelS := context.WithCancel(context.Background())
-	ch := make(chan *streamConn, 1)
-	go func(ctxS context.Context, cancelS context.CancelFunc, pool *channelPool, ch chan<- *streamConn) {
+	ch := make(chan *clientStreamConn, 1)
+	go func(ctxS context.Context, cancelS context.CancelFunc, pool *channelPool, ch chan<- *clientStreamConn) {
 		channel := pool.Get()
 		if !isAvailable(channel) {
 			log.L().Error("unavailable grpc channel")
@@ -79,7 +79,7 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 			cancelS()
 			return
 		}
-		ch <- &streamConn{stream: stream, onClose: cancelS}
+		ch <- clientStreamToConn(stream, cancelS)
 	}(ctxS, cancelS, pool, ch)
 
 	select {

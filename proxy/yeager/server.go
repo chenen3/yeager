@@ -30,7 +30,7 @@ type Server struct {
 	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
-	ready  chan struct{} // imply that server is ready to accept connection, testing only
+	ready  chan struct{}
 }
 
 func NewServer(conf *config.YeagerServer) (*Server, error) {
@@ -157,8 +157,7 @@ func (s *Server) ListenAndServe() error {
 			defer conn.Close()
 			dstAddr, err := s.parseHeader(conn)
 			if err != nil {
-				log.L().Warnf("parse header: %s", err)
-				conn.Close()
+				log.L().Warnf("parse header: %s, peer: %s", err, conn.RemoteAddr())
 				return
 			}
 

@@ -25,7 +25,7 @@ type listener struct {
 
 func newListener() *listener {
 	return &listener{
-		connCh: make(chan net.Conn, 32),
+		connCh: make(chan net.Conn, 100),
 	}
 }
 
@@ -37,7 +37,7 @@ func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 
 	ctx, cancel := context.WithCancel(stream.Context())
-	l.connCh <- &streamConn{stream: stream, onClose: cancel}
+	l.connCh <- serverStreamToConn(stream, cancel)
 	<-ctx.Done()
 	return nil
 }
