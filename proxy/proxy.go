@@ -5,7 +5,6 @@ import (
 	"errors"
 	"expvar"
 	"io"
-	glog "log"
 	"net"
 	"strings"
 	"sync"
@@ -153,7 +152,9 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 		log.L().Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	glog.Printf("peer %s, dest %s, outbound %s", inConn.RemoteAddr(), addr, tag)
+	if p.conf.Debug {
+		log.L().Printf("peer %s, dest %s, outbound %s", inConn.RemoteAddr(), addr, tag)
+	}
 
 	dctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
