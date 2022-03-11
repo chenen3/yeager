@@ -19,5 +19,5 @@ func Error(a ...interface{}) {
 	errLogger.Output(2, fmt.Sprint(a...))
 }
 func Errorf(format string, a ...interface{}) {
-	errLogger.Output(2, fmt.Sprintf(format, 2))
+	errLogger.Output(2, fmt.Sprintf(format, a...))
 }
