@@ -6,10 +6,10 @@ import (
 )
 
 type logger struct {
+	Infof  func(format string, a ...interface{})
+	Warnf  func(format string, a ...interface{})
 	Errorf func(format string, a ...interface{})
 	Error  func(a ...interface{})
-	Warnf  func(format string, a ...interface{})
-	Infof  func(format string, a ...interface{})
 }
 
 var l *logger
@@ -21,9 +21,9 @@ func L() *logger {
 
 func init() {
 	l = new(logger)
+	l.Infof = log.New(os.Stderr, "INFO  ", log.LstdFlags|log.Lshortfile).Printf
+	l.Warnf = log.New(os.Stderr, "WARN  ", log.LstdFlags|log.Lshortfile).Printf
 	errLogger := log.New(os.Stderr, "ERROR ", log.LstdFlags|log.Lshortfile)
 	l.Errorf = errLogger.Printf
 	l.Error = errLogger.Print
-	l.Warnf = log.New(os.Stderr, "WARN ", log.LstdFlags|log.Lshortfile).Printf
-	l.Infof = log.New(os.Stderr, "INFO ", log.LstdFlags|log.Lshortfile).Printf
 }
