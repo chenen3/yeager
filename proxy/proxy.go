@@ -107,7 +107,7 @@ func (p *Proxy) Serve() {
 			defer wg.Done()
 			ib.Handle(p.handle)
 			if err := ib.ListenAndServe(); err != nil {
-				log.L().Error(err)
+				log.Error(err)
 				return
 			}
 		}(inbound)
@@ -144,23 +144,23 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 
 	tag, err := p.router.Dispatch(addr)
 	if err != nil {
-		log.L().Errorf("dispatch %s: %s", addr, err)
+		log.Errorf("dispatch %s: %s", addr, err)
 		return
 	}
 	outbound, ok := p.outbounds[tag]
 	if !ok {
-		log.L().Errorf("unknown outbound tag: %s", tag)
+		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	if p.conf.Debug {
-		log.L().Printf("peer %s, dest %s, outbound %s", inConn.RemoteAddr(), addr, tag)
+	if p.conf.Verbose {
+		log.Infof("peer %s, dest %s, outbound %s", inConn.RemoteAddr(), addr, tag)
 	}
 
 	dctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
 	outConn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
-		log.L().Errorf("dial %s: %s", addr, err)
+		log.Errorf("failed to dial %s, outbound: %s, err: %s", addr, tag, err)
 		return
 	}
 	defer outConn.Close()
@@ -179,7 +179,7 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 	case <-ctx.Done():
 	case err := <-ch:
 		if err != nil {
-			log.L().Warnf("relay %s: %s", addr, err)
+			log.Errorf("relay %s: %s", addr, err)
 			return
 		}
 	}

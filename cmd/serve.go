@@ -29,17 +29,17 @@ var serveCmd = &command.Command{
 	Do: func(_ *command.Command) {
 		conf, err := config.LoadFile(confFile)
 		if err != nil {
-			log.L().Errorf("load config: %s", err)
+			log.Errorf("load config: %s", err)
 			return
 		}
-		if conf.Debug {
+		if conf.Verbose {
 			bs, _ := json.MarshalIndent(conf, "", "  ")
-			log.L().Infof("loaded config: \n%s", bs)
+			log.Infof("loaded config: \n%s", bs)
 		}
 
 		p, err := proxy.NewProxy(conf)
 		if err != nil {
-			log.L().Errorf("init proxy: %s", err)
+			log.Errorf("init proxy: %s", err)
 			return
 		}
 		// trigger GC to release memory usage. (especially routing rule parsing)
@@ -47,7 +47,7 @@ var serveCmd = &command.Command{
 		// http server for profiling
 		if conf.Debug {
 			go func() {
-				log.L().Error(http.ListenAndServe("localhost:6060", nil))
+				log.Error(http.ListenAndServe("localhost:6060", nil))
 			}()
 		}
 
@@ -56,11 +56,10 @@ var serveCmd = &command.Command{
 			signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 			<-ch
 			if err := p.Close(); err != nil {
-				log.L().Errorf("close proxy: %s", err)
+				log.Errorf("close proxy: %s", err)
 			}
 		}()
-		log.L().Infof("yeager %s starting", Version)
+		log.Infof("yeager %s starting", Version)
 		p.Serve()
-		log.L().Infof("closed")
 	},
 }

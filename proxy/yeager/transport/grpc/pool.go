@@ -46,7 +46,7 @@ func newChannelPool(size int, factory channelFactoryFunc) *channelPool {
 	for i := 0; i < size; i++ {
 		c, err := factory()
 		if err != nil {
-			log.L().Error(err)
+			log.Error(err)
 			continue
 		}
 		p.channels[i] = c
@@ -70,7 +70,7 @@ func (p *channelPool) reconnectLoop() {
 			}
 			channel, err := p.factory()
 			if err != nil {
-				log.L().Error(err)
+				log.Error(err)
 				continue
 			}
 			p.channels[i] = channel
@@ -97,7 +97,7 @@ func (p *channelPool) Close() error {
 		if e := c.Close(); e != nil {
 			// still need to close other channels, do not return here
 			err = e
-			log.L().Warnf("close grpc channel: %s", e)
+			log.Errorf("close grpc channel: %s", e)
 		}
 	}
 	return err
