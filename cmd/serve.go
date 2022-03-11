@@ -27,43 +27,39 @@ var serveCmd = &command.Command{
 	Name: "serve",
 	Desc: "serve client-side or server-side proxy",
 	Do: func(_ *command.Command) {
-		log.L().Infof("load config file: %s", confFile)
 		conf, err := config.LoadFile(confFile)
 		if err != nil {
-			log.L().Errorf("load config: %s", err)
+			log.Errorf("load config: %s", err)
 			return
 		}
+		if conf.Verbose {
+			bs, _ := json.MarshalIndent(conf, "", "  ")
+			log.Infof("loaded config: \n%s", bs)
+		}
 
-		bs, _ := json.MarshalIndent(conf, "", "  ")
-		log.L().Infof("loaded config: \n%s", bs)
 		p, err := proxy.NewProxy(conf)
 		if err != nil {
-			log.L().Errorf("init proxy: %s", err)
+			log.Errorf("init proxy: %s", err)
 			return
 		}
-
 		// trigger GC to release memory usage. (especially routing rule parsing)
 		runtime.GC()
-
 		// http server for profiling
 		if conf.Debug {
 			go func() {
-				log.L().Error(http.ListenAndServe("localhost:6060", nil))
+				log.Error(http.ListenAndServe("localhost:6060", nil))
 			}()
 		}
 
-		// clean up
 		go func() {
-			terminate := make(chan os.Signal, 1)
-			signal.Notify(terminate, syscall.SIGTERM, os.Interrupt)
-			<-terminate
+			ch := make(chan os.Signal, 1)
+			signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
+			<-ch
 			if err := p.Close(); err != nil {
-				log.L().Errorf("close proxy: %s", err)
+				log.Errorf("close proxy: %s", err)
 			}
 		}()
-
-		log.L().Infof("yeager %s starting ...", Version)
+		log.Infof("yeager %s starting", Version)
 		p.Serve()
-		log.L().Infof("closed")
 	},
 }

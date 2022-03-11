@@ -68,14 +68,14 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	go func(ctxS context.Context, cancelS context.CancelFunc, pool *channelPool, ch chan<- *clientStreamConn) {
 		channel := pool.Get()
 		if !isAvailable(channel) {
-			log.L().Error("unavailable grpc channel")
+			log.Error("unavailable grpc channel")
 			cancelS()
 			return
 		}
 		client := pb.NewTunnelClient(channel)
 		stream, err := client.Stream(ctxS)
 		if err != nil {
-			log.L().Errorf("create grpc stream: %s", err)
+			log.Errorf("create grpc stream: %s", err)
 			cancelS()
 			return
 		}

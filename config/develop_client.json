@@ -1,4 +1,5 @@
 {
+    "verbose": true,
     "inbounds": {
         "socks": {
             "listen": ":1081"

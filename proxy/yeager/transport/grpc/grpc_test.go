@@ -35,7 +35,7 @@ func TestGRPC(t *testing.T) {
 	go func() {
 		conn, e := lis.Accept()
 		if e != nil {
-			log.L().Error(e)
+			log.Error(e)
 			return
 		}
 		defer conn.Close()

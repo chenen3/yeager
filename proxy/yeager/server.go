@@ -127,7 +127,7 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
 	}
 
-	log.L().Infof("yeager proxy listening %s", lis.Addr())
+	log.Infof("yeager proxy listening %s", lis.Addr())
 	return lis, nil
 }
 
@@ -147,7 +147,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.L().Warnf(err.Error())
+			log.Error(err)
 			continue
 		}
 
@@ -157,7 +157,7 @@ func (s *Server) ListenAndServe() error {
 			defer conn.Close()
 			dstAddr, err := s.parseHeader(conn)
 			if err != nil {
-				log.L().Warnf("parse header: %s, peer: %s", err, conn.RemoteAddr())
+				log.Errorf("parse header: %s, peer: %s", err, conn.RemoteAddr())
 				return
 			}
 

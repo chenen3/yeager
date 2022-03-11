@@ -32,7 +32,7 @@ func newListener() *listener {
 func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
-		log.L().Warnf(err.Error())
+		log.Error(err)
 		return err
 	}
 
@@ -82,7 +82,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	go func() {
 		err := grpcServer.Serve(tcpListener)
 		if err != nil {
-			log.L().Error(err)
+			log.Error(err)
 		}
 	}()
 

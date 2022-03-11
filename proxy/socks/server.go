@@ -49,7 +49,7 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.L().Infof("socks5 proxy listening %s", s.addr)
+	log.Infof("socks5 proxy listening %s", s.addr)
 
 	close(s.ready)
 	for {
@@ -60,7 +60,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.L().Warnf(err.Error())
+			log.Error(err.Error())
 			continue
 		}
 
@@ -70,7 +70,7 @@ func (s *Server) ListenAndServe() error {
 			defer conn.Close()
 			addr, err := s.handshake(conn)
 			if err != nil {
-				log.L().Error("handshake: " + err.Error())
+				log.Error("handshake: " + err.Error())
 				conn.Close()
 				return
 			}

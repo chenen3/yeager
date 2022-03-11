@@ -9,16 +9,15 @@ import (
 	"github.com/v2fly/v2ray-core/v4/app/router"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
-
-var assetDirs []string
 
 const (
 	defaultAssetDir = "/usr/local/share/yeager"
 	envAssetDir     = "YEAGER_ASSET_DIR"
 )
+
+var assetDirs []string
 
 func init() {
 	assetDirs = append(assetDirs, defaultAssetDir)
@@ -37,8 +36,6 @@ func loadGeoSiteFile() (*router.GeoSiteList, error) {
 		}
 	}
 	if err != nil {
-		log.L().Warnf("By default, yeager loads geosite.dat from %v (and honors %s if set)",
-			assetDirs, envAssetDir)
 		return nil, err
 	}
 

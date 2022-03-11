@@ -43,10 +43,10 @@ type Config struct {
 	Inbounds  Inbounds        `json:"inbounds,omitempty"`  // 入站代理
 	Outbounds []*YeagerClient `json:"outbounds,omitempty"` // 出站代理
 	Rules     []string        `json:"rules,omitempty"`     // 路由规则
+	Verbose   bool            `json:"verbose,omitempty"`   // verbose log
 
 	// developer only
 	Debug bool `json:"debug,omitempty"`
-
 	// 如何预估连接池大小，参考 proxy/yeager/transport/grpc/pool.go
 	GrpcChannelPoolSize int `json:"grpcChannelPoolSize,omitempty"`
 }
