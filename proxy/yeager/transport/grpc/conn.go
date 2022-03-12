@@ -37,10 +37,8 @@ func (c *serverStreamConn) Read(b []byte) (n int, err error) {
 		if err != nil {
 			return 0, err
 		}
-		if data != nil {
-			c.buf = data.Data
-			c.off = 0
-		}
+		c.buf = data.Data
+		c.off = 0
 	}
 
 	n = copy(b, c.buf[c.off:])
@@ -105,10 +103,8 @@ func (c *clientStreamConn) Read(b []byte) (n int, err error) {
 		if err != nil {
 			return 0, err
 		}
-		if data != nil {
-			c.buf = data.Data
-			c.off = 0
-		}
+		c.buf = data.Data
+		c.off = 0
 	}
 
 	n = copy(b, c.buf[c.off:])

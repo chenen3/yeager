@@ -107,7 +107,7 @@ func (p *Proxy) Serve() {
 			defer wg.Done()
 			ib.Handle(p.handle)
 			if err := ib.ListenAndServe(); err != nil {
-				log.Errorf("inbound server exit: %s",err)
+				log.Errorf("inbound server exit: %s", err)
 				return
 			}
 		}(inbound)
@@ -136,7 +136,7 @@ func (p *Proxy) Close() error {
 
 var activeConnCnt = expvar.NewInt("activeConn")
 
-func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
+func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	if p.conf.Debug {
 		activeConnCnt.Add(1)
 		defer activeConnCnt.Add(-1)
@@ -153,25 +153,25 @@ func (p *Proxy) handle(ctx context.Context, inConn net.Conn, addr string) {
 		return
 	}
 	if p.conf.Verbose {
-		log.Infof("peer %s, dest %s, outbound %s", inConn.RemoteAddr(), addr, tag)
+		log.Infof("peer %s, dest %s, outbound %s", ibConn.RemoteAddr(), addr, tag)
 	}
 
 	dctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
-	outConn, err := outbound.DialContext(dctx, "tcp", addr)
+	obConn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
-		log.Errorf("failed to dial %s, outbound: %s, err: %s", addr, tag, err)
+		log.Errorf("failed to connect: %s", err)
 		return
 	}
-	defer outConn.Close()
+	defer obConn.Close()
 
 	ch := make(chan error, 2)
 	go func() {
-		_, err := io.Copy(outConn, inConn)
+		_, err := io.Copy(obConn, ibConn)
 		ch <- err
 	}()
 	go func() {
-		_, err := io.Copy(inConn, outConn)
+		_, err := io.Copy(ibConn, obConn)
 		ch <- err
 	}()
 
