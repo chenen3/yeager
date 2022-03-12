@@ -1,7 +1,10 @@
 package grpc
 
 import (
+	"context"
+	"io"
 	"net"
+	"os"
 	"time"
 
 	"google.golang.org/grpc/peer"
@@ -17,6 +20,9 @@ type serverStreamConn struct {
 	off        int
 	localAddr  net.Addr
 	remoteAddr net.Addr
+
+	readCtx       context.Context
+	readCtxCancel context.CancelFunc
 }
 
 func serverStreamToConn(stream pb.Tunnel_StreamServer, onClose func()) *serverStreamConn {
@@ -28,22 +34,39 @@ func serverStreamToConn(stream pb.Tunnel_StreamServer, onClose func()) *serverSt
 	} else {
 		conn.remoteAddr = &net.TCPAddr{IP: []byte{0, 0, 0, 0}, Port: 0}
 	}
+
+	conn.readCtx, conn.readCtxCancel = context.WithCancel(context.Background())
 	return &conn
 }
 
-func (c *serverStreamConn) Read(b []byte) (n int, err error) {
-	if c.off >= len(c.buf) {
-		data, err := c.stream.Recv()
-		if err != nil {
-			return 0, err
-		}
-		c.buf = data.Data
-		c.off = 0
-	}
+type readResult struct {
+	byteCount int
+	err       error
+}
 
-	n = copy(b, c.buf[c.off:])
-	c.off += n
-	return n, nil
+func (c *serverStreamConn) Read(b []byte) (n int, err error) {
+	results := make(chan readResult, 1)
+	go func() {
+		if c.off >= len(c.buf) {
+			data, err := c.stream.Recv()
+			if err != nil {
+				results <- readResult{err: err}
+				return
+			}
+			c.buf = data.Data
+			c.off = 0
+		}
+		n = copy(b, c.buf[c.off:])
+		c.off += n
+		results <- readResult{byteCount: n}
+	}()
+
+	select {
+	case <-c.readCtx.Done():
+		return 0, os.ErrDeadlineExceeded
+	case result := <-results:
+		return result.byteCount, result.err
+	}
 }
 
 func (c *serverStreamConn) Write(b []byte) (n int, err error) {
@@ -59,13 +82,22 @@ func (c *serverStreamConn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
 
-// SetDeadline the gRPC server already provides a connection
-// idle timeout mechanism, nothing will be done here.
 func (c *serverStreamConn) SetDeadline(t time.Time) error {
 	return nil
 }
 
 func (c *serverStreamConn) SetReadDeadline(t time.Time) error {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if t.IsZero() {
+		ctx, cancel = context.WithCancel(context.Background())
+	} else {
+		ctx, cancel = context.WithDeadline(context.Background(), t)
+	}
+	c.readCtx, ctx = ctx, c.readCtx
+	c.readCtxCancel, cancel = cancel, c.readCtxCancel
+	_ = ctx
+	cancel()
 	return nil
 }
 
@@ -74,9 +106,8 @@ func (c *serverStreamConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (c *serverStreamConn) Close() error {
-	if c.onClose != nil {
-		defer c.onClose()
-	}
+	c.readCtxCancel()
+	c.onClose()
 	return nil
 }
 
@@ -88,28 +119,48 @@ type clientStreamConn struct {
 	off        int
 	localAddr  net.Addr
 	remoteAddr net.Addr
+
+	readCtx       context.Context
+	readCtxCancel context.CancelFunc
 }
 
 func clientStreamToConn(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamConn {
 	conn := clientStreamConn{stream: stream, onClose: onClose}
 	conn.localAddr = &net.TCPAddr{IP: []byte{0, 0, 0, 0}, Port: 0}
 	conn.remoteAddr = &net.TCPAddr{IP: []byte{0, 0, 0, 0}, Port: 0}
+	conn.readCtx, conn.readCtxCancel = context.WithCancel(context.Background())
 	return &conn
 }
 
 func (c *clientStreamConn) Read(b []byte) (n int, err error) {
-	if c.off >= len(c.buf) {
-		data, err := c.stream.Recv()
-		if err != nil {
-			return 0, err
+	results := make(chan readResult, 1)
+	go func() {
+		if c.off >= len(c.buf) {
+			data, err := c.stream.Recv()
+			if err != nil {
+				if err == io.EOF {
+					// client-side SendMsg does not wait until the message is received by the server. An
+					// untimely stream closure may result in lost messages. To ensure delivery,
+					// users should ensure the RPC completed successfully using RecvMsg.
+					c.onClose()
+				}
+				results <- readResult{err: err}
+				return
+			}
+			c.buf = data.Data
+			c.off = 0
 		}
-		c.buf = data.Data
-		c.off = 0
-	}
+		n = copy(b, c.buf[c.off:])
+		c.off += n
+		results <- readResult{byteCount: n}
+	}()
 
-	n = copy(b, c.buf[c.off:])
-	c.off += n
-	return n, nil
+	select {
+	case <-c.readCtx.Done():
+		return 0, os.ErrDeadlineExceeded
+	case result := <-results:
+		return result.byteCount, result.err
+	}
 }
 
 func (c *clientStreamConn) Write(b []byte) (n int, err error) {
@@ -125,13 +176,22 @@ func (c *clientStreamConn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
 
-// SetDeadline the gRPC server already provides a connection
-// idle timeout mechanism, nothing will be done here.
 func (c *clientStreamConn) SetDeadline(t time.Time) error {
 	return nil
 }
 
 func (c *clientStreamConn) SetReadDeadline(t time.Time) error {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if t.IsZero() {
+		ctx, cancel = context.WithCancel(context.Background())
+	} else {
+		ctx, cancel = context.WithDeadline(context.Background(), t)
+	}
+	c.readCtx, ctx = ctx, c.readCtx
+	c.readCtxCancel, cancel = cancel, c.readCtxCancel
+	_ = ctx
+	cancel()
 	return nil
 }
 
@@ -140,8 +200,6 @@ func (c *clientStreamConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (c *clientStreamConn) Close() error {
-	if c.onClose != nil {
-		defer c.onClose()
-	}
+	c.readCtxCancel()
 	return c.stream.CloseSend()
 }
