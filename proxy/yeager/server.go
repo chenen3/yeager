@@ -178,13 +178,11 @@ func (s *Server) Close() error {
 
 // parseHeader 读取 header, 解析其目的地址
 func (s *Server) parseHeader(conn net.Conn) (addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
-	if err != nil {
+	if err = conn.SetReadDeadline(time.Now().Add(common.HandshakeTimeout)); err != nil {
 		return
 	}
 	defer func() {
-		er := conn.SetDeadline(time.Time{})
-		if er != nil && err == nil {
+		if er := conn.SetReadDeadline(time.Time{}); er != nil && err == nil {
 			err = er
 		}
 	}()

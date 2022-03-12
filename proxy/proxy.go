@@ -6,8 +6,10 @@ import (
 	"expvar"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
@@ -160,33 +162,47 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	defer cancel()
 	obConn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
-		log.Errorf("failed to connect: %s", err)
+		log.Errorf("failed to connect %s: %s", addr, err)
 		return
 	}
 	defer obConn.Close()
 
-	ch := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(obConn, ibConn)
-		if err != nil {
-			err = errors.New("copy inbound->outbound: " + err.Error())
-		}
-		ch <- err
-	}()
-	go func() {
-		_, err := io.Copy(ibConn, obConn)
-		if err != nil {
-			err = errors.New("copy outbound->inbound: " + err.Error())
-		}
-		ch <- err
-	}()
-
+	errCh := make(chan error, 1)
+	relay(errCh, ibConn, obConn)
 	select {
 	case <-ctx.Done():
-	case err := <-ch:
+	case err := <-errCh:
 		if err != nil {
 			log.Errorf("relay %s: %s", addr, err)
 			return
 		}
 	}
+}
+
+func relay(errCh chan<- error, ibConn, obConn net.Conn) {
+	ibErrCh := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(obConn, ibConn)
+		if err != nil {
+			err = errors.New("copy inbound->outbound: " + err.Error())
+			// unblock future read on obConn
+			obConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		}
+		ibErrCh <- err
+	}()
+	_, obErr := io.Copy(ibConn, obConn)
+	if obErr != nil {
+		obErr = errors.New("copy outbound->inbound: " + obErr.Error())
+		// unblock future read on ibConn
+		ibConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	}
+	ibErr := <-ibErrCh
+
+	var err error
+	if ibErr != nil && ibErr != os.ErrDeadlineExceeded {
+		err = ibErr
+	} else if obErr != nil && obErr != os.ErrDeadlineExceeded {
+		err = obErr
+	}
+	errCh <- err
 }
