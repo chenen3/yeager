@@ -168,10 +168,16 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	ch := make(chan error, 2)
 	go func() {
 		_, err := io.Copy(obConn, ibConn)
+		if err != nil {
+			err = errors.New("copy inbound->outbound: " + err.Error())
+		}
 		ch <- err
 	}()
 	go func() {
 		_, err := io.Copy(ibConn, obConn)
+		if err != nil {
+			err = errors.New("copy outbound->inbound: " + err.Error())
+		}
 		ch <- err
 	}()
 
