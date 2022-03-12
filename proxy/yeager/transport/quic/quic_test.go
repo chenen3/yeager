@@ -36,7 +36,7 @@ func TestQUIC(t *testing.T) {
 	go func() {
 		serverConn, e := lis.Accept()
 		if e != nil {
-			log.Error(e)
+			log.Errorf("quic listener accept err: %s", e)
 			return
 		}
 		defer serverConn.Close()

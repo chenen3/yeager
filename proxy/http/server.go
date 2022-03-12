@@ -63,7 +63,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.Error(err)
+			log.Errorf("failed to accept conn: %s", err)
 			continue
 		}
 

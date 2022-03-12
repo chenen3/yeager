@@ -107,7 +107,7 @@ func (p *Proxy) Serve() {
 			defer wg.Done()
 			ib.Handle(p.handle)
 			if err := ib.ListenAndServe(); err != nil {
-				log.Error(err)
+				log.Errorf("inbound server exit: %s",err)
 				return
 			}
 		}(inbound)

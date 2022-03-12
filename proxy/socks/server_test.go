@@ -37,7 +37,7 @@ func TestServer(t *testing.T) {
 	go func() {
 		e := srv.ListenAndServe()
 		if e != nil {
-			log.Error(e)
+			log.Errorf("server exit: %s", err)
 		}
 	}()
 

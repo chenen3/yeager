@@ -60,7 +60,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.Error(err.Error())
+			log.Errorf("failed to accept conn: %s", err)
 			continue
 		}
 
@@ -70,7 +70,7 @@ func (s *Server) ListenAndServe() error {
 			defer conn.Close()
 			addr, err := s.handshake(conn)
 			if err != nil {
-				log.Error("handshake: " + err.Error())
+				log.Errorf("failed to handshake: %s", err)
 				conn.Close()
 				return
 			}

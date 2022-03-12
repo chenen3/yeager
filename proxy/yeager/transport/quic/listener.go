@@ -28,7 +28,7 @@ func (l *listener) acceptLoop() {
 			case <-l.ctx.Done():
 				return
 			default:
-				log.Error(err)
+				log.Errorf("failed to accept quic session: %s", err)
 				continue
 			}
 		}
@@ -51,7 +51,7 @@ func (l *listener) acceptStream(session quic.Session) {
 			case <-session.Context().Done():
 				return
 			default:
-				log.Error(err)
+				log.Errorf("failed to accept quic stream: %s", err)
 				continue
 			}
 		}

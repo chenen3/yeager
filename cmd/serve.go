@@ -29,7 +29,7 @@ var serveCmd = &command.Command{
 	Do: func(_ *command.Command) {
 		conf, err := config.LoadFile(confFile)
 		if err != nil {
-			log.Errorf("load config: %s", err)
+			log.Errorf("failed to load config: %s", err)
 			return
 		}
 		if conf.Verbose {
@@ -47,7 +47,10 @@ var serveCmd = &command.Command{
 		// http server for profiling
 		if conf.Debug {
 			go func() {
-				log.Error(http.ListenAndServe("localhost:6060", nil))
+				err := http.ListenAndServe("localhost:6060", nil)
+				if err != nil {
+					log.Errorf("http server exit: %s", err)
+				}
 			}()
 		}
 

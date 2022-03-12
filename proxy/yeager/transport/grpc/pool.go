@@ -46,7 +46,7 @@ func newChannelPool(size int, factory channelFactoryFunc) *channelPool {
 	for i := 0; i < size; i++ {
 		c, err := factory()
 		if err != nil {
-			log.Error(err)
+			log.Errorf("failed to make grpc channel: %s", err)
 			continue
 		}
 		p.channels[i] = c
@@ -70,7 +70,7 @@ func (p *channelPool) reconnectLoop() {
 			}
 			channel, err := p.factory()
 			if err != nil {
-				log.Error(err)
+				log.Errorf("failed to make grpc channel: %s", err)
 				continue
 			}
 			p.channels[i] = channel

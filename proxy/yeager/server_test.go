@@ -105,7 +105,7 @@ func TestYeager(t *testing.T) {
 			go func() {
 				e := srv.ListenAndServe()
 				if e != nil {
-					log.Error(e)
+					log.Errorf("yeager server exit: %s", err)
 				}
 			}()
 

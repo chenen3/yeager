@@ -11,13 +11,10 @@ var (
 	errLogger  = log.New(os.Stderr, "ERROR ", log.LstdFlags|log.Lshortfile)
 )
 
-func Infof(format string, a ...interface{}) {
-	infologger.Output(2, fmt.Sprintf(format, a...))
+func Infof(msg string, a ...interface{}) {
+	infologger.Output(2, fmt.Sprintf(msg, a...))
 }
 
-func Error(a ...interface{}) {
-	errLogger.Output(2, fmt.Sprint(a...))
-}
-func Errorf(format string, a ...interface{}) {
-	errLogger.Output(2, fmt.Sprintf(format, a...))
+func Errorf(msg string, a ...interface{}) {
+	errLogger.Output(2, fmt.Sprintf(msg, a...))
 }

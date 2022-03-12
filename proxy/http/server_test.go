@@ -35,20 +35,20 @@ func TestServer(t *testing.T) {
 		rec := httptest.NewRecorder()
 		_, e := rec.WriteString("1")
 		if e != nil {
-			log.Error(e)
+			log.Errorf("failed to write response recorder: %s", e)
 			return
 		}
 
 		e = rec.Result().Write(conn)
 		if e != nil {
-			log.Error(e)
+			log.Errorf("failed to write response: %s", e)
 			return
 		}
 	})
 	go func() {
 		e := srv.ListenAndServe()
 		if e != nil {
-			log.Error(err)
+			log.Errorf("server exit: %s", err)
 		}
 	}()
 
@@ -70,7 +70,7 @@ func TestServer(t *testing.T) {
 	}
 	res, err := client.Get("http://fake.domain.com:1234")
 	if err != nil {
-		log.Error(err)
+		log.Errorf("failed to get response: %s", err)
 		return
 	}
 	defer res.Body.Close()

@@ -35,7 +35,7 @@ func TestGRPC(t *testing.T) {
 	go func() {
 		conn, e := lis.Accept()
 		if e != nil {
-			log.Error(e)
+			log.Errorf("grpc listener accpet err: %s", e)
 			return
 		}
 		defer conn.Close()
