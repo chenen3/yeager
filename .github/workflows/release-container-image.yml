@@ -37,7 +37,7 @@ jobs:
         run: |
           printf "::set-output name=%s::%s\n" version "${GITHUB_REF#refs/tags/}"
 
-      - name: Push image to Docker Hub
+      - name: Build and push
         uses: docker/build-push-action@v2
         with:
           push: true
@@ -45,11 +45,5 @@ jobs:
           tags: |
             en180706/yeager:latest
             en180706/yeager:${{ steps.extract-version.outputs.version }}
-      - name: Push image to github
-        uses: docker/build-push-action@v2
-        with:
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ steps.extract-version.outputs.version }}
