@@ -1,5 +1,5 @@
 {
-    "verbose": true,
+    "debug": true,
     "inbounds": {
         "yeager": {
             "listen": "127.0.0.1:10812",

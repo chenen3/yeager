@@ -32,7 +32,7 @@ var serveCmd = &command.Command{
 			log.Errorf("failed to load config: %s", err)
 			return
 		}
-		if conf.Verbose {
+		if conf.Debug {
 			bs, _ := json.MarshalIndent(conf, "", "  ")
 			log.Infof("loaded config: \n%s", bs)
 		}

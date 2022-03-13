@@ -79,7 +79,7 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 			cancelS()
 			return
 		}
-		ch <- clientStreamToConn(stream, cancelS)
+		ch <- clientStreamAsConn(stream, cancelS)
 	}(ctxS, cancelS, pool, ch)
 
 	select {

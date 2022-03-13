@@ -154,7 +154,7 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
-	if p.conf.Verbose {
+	if p.conf.Debug {
 		log.Infof("peer %s, dest %s, outbound %s", ibConn.RemoteAddr(), addr, tag)
 	}
 
@@ -167,42 +167,42 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	}
 	defer obConn.Close()
 
-	errCh := make(chan error, 1)
-	relay(errCh, ibConn, obConn)
-	select {
-	case <-ctx.Done():
-	case err := <-errCh:
-		if err != nil {
-			log.Errorf("relay %s: %s", addr, err)
+	relayErrCh := make(chan error)
+	go func() {
+		inboundErrCh := make(chan error, 1)
+		go func() {
+			_, ibErr := io.Copy(obConn, ibConn)
+			inboundErrCh <- ibErr
+			// unblock Read on outbound connection
+			obConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			// grpc stream does nothing on SetReadDeadline()
+			if cs, ok := obConn.(interface{ CloseSend() error }); ok {
+				cs.CloseSend()
+			}
+		}()
+
+		_, obErr := io.Copy(ibConn, obConn)
+		// unblock Read on inbound connection
+		ibConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+		ibErr := <-inboundErrCh
+		if ibErr != nil && !errors.Is(ibErr, os.ErrDeadlineExceeded) {
+			relayErrCh <- errors.New("failed to relay traffic from inbound: " + ibErr.Error())
 			return
 		}
-	}
-}
-
-func relay(errCh chan<- error, ibConn, obConn net.Conn) {
-	ibErrCh := make(chan error, 1)
-	go func() {
-		_, err := io.Copy(obConn, ibConn)
-		if err != nil {
-			err = errors.New("copy inbound->outbound: " + err.Error())
-			// unblock future read on obConn
-			obConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if obErr != nil && !errors.Is(obErr, os.ErrDeadlineExceeded) {
+			relayErrCh <- errors.New("failed to relay traffic from outbound: " + obErr.Error())
+			return
 		}
-		ibErrCh <- err
+		relayErrCh <- nil
 	}()
-	_, obErr := io.Copy(ibConn, obConn)
-	if obErr != nil {
-		obErr = errors.New("copy outbound->inbound: " + obErr.Error())
-		// unblock future read on ibConn
-		ibConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	}
-	ibErr := <-ibErrCh
 
-	var err error
-	if ibErr != nil && ibErr != os.ErrDeadlineExceeded {
-		err = ibErr
-	} else if obErr != nil && obErr != os.ErrDeadlineExceeded {
-		err = obErr
+	select {
+	case <-ctx.Done():
+	case err := <-relayErrCh:
+		// avoid confusing the average user by insignificant logs
+		if err != nil && p.conf.Debug {
+			log.Errorf(err.Error())
+		}
 	}
-	errCh <- err
 }
