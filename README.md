@@ -1,6 +1,8 @@
 # yeager
 
-Yeager is a tool for bypassing network restrictions. I learn the idea from Trojan and V2ray, then do it in my way, just a hobby. Supporting the following features:
+> I learned this idea from Trojan and V2ray, and wrote it in my own way, as a hobby.
+
+This repository implements a proxy tool for bypassing network restrictions, it use [domain-list](https://github.com/v2fly/domain-list-community) of V2Ray for routing, supporting features:
 
 - SOCKS5 and HTTP/HTTPS proxy
 - lightweight tunnel proxy
