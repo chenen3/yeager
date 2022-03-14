@@ -19,8 +19,9 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-// set by compilation, for example:
-// go build -ldflags="-X main.version=v0.1"
+// version is set by a Github Action that triggered at release time,
+// for example :
+//   go build -ldflags="-X main.version=v0.1"
 var version string
 
 func printUsage() {
@@ -100,9 +101,10 @@ func main() {
 		log.Errorf("init proxy: %s", err)
 		return
 	}
-	// trigger GC to release memory usage. (especially routing rule parsing)
+	// parsing router rules significantly increases memory consumption
 	runtime.GC()
-	// http server for profiling
+
+	// for profiling
 	if conf.Debug {
 		go func() {
 			err := http.ListenAndServe("localhost:6060", nil)
@@ -121,7 +123,7 @@ func main() {
 			os.Exit(1)
 		})
 		if err := p.Close(); err != nil {
-			log.Errorf("failed to close proxy server: %s", err)
+			log.Errorf("failed to close: %s", err)
 		}
 	}()
 	log.Infof("yeager %s starting", version)
