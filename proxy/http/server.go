@@ -68,7 +68,7 @@ func (s *Server) ListenAndServe() error {
 		}
 
 		s.wg.Add(1)
-		go func(conn net.Conn) {
+		go func() {
 			defer s.wg.Done()
 			defer conn.Close()
 			addr, reqcopy, err := s.handshake(conn)
@@ -83,7 +83,7 @@ func (s *Server) ListenAndServe() error {
 				conn = &Conn{Conn: conn, readEarly: reqcopy}
 			}
 			s.handler(s.ctx, conn, addr)
-		}(conn)
+		}()
 	}
 }
 

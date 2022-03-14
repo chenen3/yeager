@@ -100,7 +100,7 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 }
 
 // Serve launch inbound server and register handler for incoming connection.
-// Serve returns when one of the inbounds stop.
+// Serve returns when all inbounds stop.
 func (p *Proxy) Serve() {
 	var wg sync.WaitGroup
 	for _, inbound := range p.inbounds {

@@ -152,17 +152,20 @@ func (s *Server) ListenAndServe() error {
 		}
 
 		s.wg.Add(1)
-		go func(conn net.Conn) {
+		go func() {
 			defer s.wg.Done()
 			defer conn.Close()
 			dstAddr, err := s.parseHeader(conn)
 			if err != nil {
-				log.Errorf("parse header: %s, peer: %s", err, conn.RemoteAddr())
+				log.Errorf("failed to parse header, peer: %s, err: %s", conn.RemoteAddr(), err)
+				if _, err = io.Copy(io.Discard, conn); err != nil {
+					log.Errorf("failed to drain bad connection: %s", err)
+				}
 				return
 			}
 
 			s.handler(s.ctx, conn, dstAddr)
-		}(conn)
+		}()
 	}
 }
 
