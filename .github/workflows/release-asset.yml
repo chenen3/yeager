@@ -23,15 +23,15 @@ jobs:
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat README.md
-          shasum -a 256 yeager-linux-amd64.tar.gz >> shasums
+          shasum -a 256 yeager-linux-amd64.tar.gz >> shasums.txt
 
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-macos-amd64.tar.gz yeager geosite.dat README.md
-          shasum -a 256 yeager-macos-amd64.tar.gz >> shasums
+          shasum -a 256 yeager-macos-amd64.tar.gz >> shasums.txt
 
           CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-freebsd-amd64.tar.gz yeager geosite.dat README.md
-          shasum -a 256 yeager-freebsd-amd64.tar.gz >> shasums
+          shasum -a 256 yeager-freebsd-amd64.tar.gz >> shasums.txt
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -40,7 +40,7 @@ jobs:
             yeager-linux-amd64.tar.gz
             yeager-macos-amd64.tar.gz
             yeager-freebsd-amd64.tar.gz
-            shasums
+            shasums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

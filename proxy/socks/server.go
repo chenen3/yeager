@@ -31,12 +31,13 @@ func NewServer(addr string) (*Server, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
+	s := &Server{
 		addr:   addr,
 		ready:  make(chan struct{}),
 		ctx:    ctx,
 		cancel: cancel,
-	}, nil
+	}
+	return s, nil
 }
 
 func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {

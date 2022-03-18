@@ -14,9 +14,7 @@ import (
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/direct"
 	"github.com/chenen3/yeager/proxy/http"
-	"github.com/chenen3/yeager/proxy/reject"
 	"github.com/chenen3/yeager/proxy/socks"
 	"github.com/chenen3/yeager/proxy/yeager"
 	"github.com/chenen3/yeager/route"
@@ -35,6 +33,14 @@ type Inbounder interface {
 
 type Outbounder interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+}
+
+// reject implements Outbounder,
+// always reject connection and return error
+type reject struct{}
+
+func (reject) DialContext(_ context.Context, _, _ string) (net.Conn, error) {
+	return nil, errors.New("traffic rejected")
 }
 
 type Proxy struct {
@@ -76,8 +82,8 @@ func NewProxy(conf *config.Config) (*Proxy, error) {
 	}
 
 	// built-in outbound
-	p.outbounds[direct.Direct.String()] = direct.Direct
-	p.outbounds[reject.Reject.String()] = reject.Reject
+	p.outbounds[route.Direct] = new(net.Dialer)
+	p.outbounds[route.Reject] = reject{}
 
 	for _, oc := range conf.Outbounds {
 		outbound, err := yeager.NewClient(oc)

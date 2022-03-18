@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/chenen3/yeager/proxy/direct"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -24,7 +23,13 @@ const (
 	// ruleGeoIP = "geoip" // 预定义IP集合
 )
 
-var defaultFinalRule, _ = newRule(ruleFinal, "", direct.Direct.String())
+// built-in outbound tag
+const (
+	Direct = "direct"
+	Reject = "reject"
+)
+
+var defaultFinalRule, _ = newRule(ruleFinal, "", Direct)
 
 type rule struct {
 	type_       string
