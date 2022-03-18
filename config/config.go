@@ -24,14 +24,14 @@ func LoadJSON(bs []byte) (*Config, error) {
 	return &conf, nil
 }
 
-// LoadFile load config from JSON file
+// LoadFile load config from JSON file,
+// and update the global config instance
 func LoadFile(filename string) (*Config, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	var c Config
 	err = json.NewDecoder(f).Decode(&c)
 	if err != nil {
 		return nil, err
