@@ -40,25 +40,25 @@ func TestGenerateCertificate(t *testing.T) {
 
 	want := []byte{1}
 	go func() {
-		cert, err := tls.X509KeyPair(certInfo.ClientCert, certInfo.ClientKey)
-		if err != nil {
-			t.Error(err)
+		cert, er := tls.X509KeyPair(certInfo.ClientCert, certInfo.ClientKey)
+		if er != nil {
+			t.Error(er)
 			return
 		}
 		tlsConf := &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			RootCAs:      pool,
 		}
-		conn, err := tls.Dial("tcp", listener.Addr().String(), tlsConf)
-		if err != nil {
+		conn, er := tls.Dial("tcp", listener.Addr().String(), tlsConf)
+		if er != nil {
 			t.Log(listener.Addr().String())
-			t.Error(err)
+			t.Error(er)
 			return
 		}
 		defer conn.Close()
-		_, err = conn.Write(want)
-		if err != nil {
-			t.Error(err)
+		_, er = conn.Write(want)
+		if er != nil {
+			t.Error(er)
 			return
 		}
 	}()

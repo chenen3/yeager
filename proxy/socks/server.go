@@ -87,6 +87,15 @@ func (s *Server) Close() error {
 	if s.lis != nil {
 		err = s.lis.Close()
 	}
+	return err
+}
+
+func (s *Server) GraceClose() error {
+	s.cancel()
+	var err error
+	if s.lis != nil {
+		err = s.lis.Close()
+	}
 	s.wg.Wait()
 	return err
 }

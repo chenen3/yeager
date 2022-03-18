@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,7 +112,7 @@ func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*confi
         "FINAL,PROXY"
     ]
 }`, inboundPort, outboundPort)
-	conf, err := config.LoadJSON([]byte(s))
+	conf, err := config.Load(strings.NewReader(s))
 	if err != nil {
 		return nil, err
 	}

@@ -93,7 +93,11 @@ func TestYeager(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			defer srv.Close()
+			defer func() {
+				if er := srv.GraceClose(); er != nil {
+					t.Error(er)
+				}
+			}()
 
 			srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
 				defer conn.Close()

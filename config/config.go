@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 )
 
@@ -12,27 +13,9 @@ func C() Config {
 	return c
 }
 
-// LoadJSON load config from bytes in JSON format
-func LoadJSON(bs []byte) (*Config, error) {
-	var conf Config
-	err := json.Unmarshal(bs, &conf)
-	if err != nil {
-		return nil, err
-	}
-
-	c = conf
-	return &conf, nil
-}
-
-// LoadFile load config from JSON file,
-// and update the global config instance
-func LoadFile(filename string) (*Config, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.NewDecoder(f).Decode(&c)
+// Load read config from reader, and update the global config instance
+func Load(r io.Reader) (*Config, error) {
+	err := json.NewDecoder(r).Decode(&c)
 	if err != nil {
 		return nil, err
 	}

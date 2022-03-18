@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/log"
@@ -86,7 +85,12 @@ func main() {
 		return
 	}
 
-	conf, err := config.LoadFile(flags.configFile)
+	f, err := os.Open(flags.configFile)
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+	defer f.Close()
+	conf, err := config.Load(f)
 	if err != nil {
 		log.Errorf("failed to load config: %s", err)
 		return
@@ -118,15 +122,10 @@ func main() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 		<-ch
-		// in case the server does not stop
-		time.AfterFunc(3*time.Second, func() {
-			os.Exit(1)
-		})
 		if err := p.Close(); err != nil {
-			log.Errorf("failed to close: %s", err)
+			panic("failed to close: " + err.Error())
 		}
 	}()
 	log.Infof("yeager %s starting", version)
 	p.Serve()
-	log.Infof("closing")
 }

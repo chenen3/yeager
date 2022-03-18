@@ -25,7 +25,11 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer srv.Close()
+	defer func() {
+		if er := srv.GraceClose(); er != nil {
+			t.Error(err)
+		}
+	}()
 	srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
 		defer conn.Close()
 		if addr != "fake.domain.com:1234" {
