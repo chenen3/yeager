@@ -89,8 +89,8 @@ func main() {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	defer f.Close()
 	conf, err := config.Load(f)
+	f.Close()
 	if err != nil {
 		log.Errorf("failed to load config: %s", err)
 		return
