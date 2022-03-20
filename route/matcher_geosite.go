@@ -97,7 +97,6 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 		case router.Domain_Full:
 			m = domainMatcher(domain.Value)
 		case router.Domain_Regex:
-			var err error
 			m, err = newRegexMatcher(domain.Value)
 			if err != nil {
 				return nil, err

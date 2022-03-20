@@ -77,10 +77,9 @@ func (s *Server) ListenAndServe() error {
 				conn.Close()
 				return
 			}
-
 			// forward HTTP proxy request
 			if len(reqcopy) > 0 {
-				conn = &Conn{Conn: conn, readEarly: reqcopy}
+				conn = connWithLazyRead(conn, reqcopy)
 			}
 			s.handler(s.ctx, conn, addr)
 		}()
@@ -149,17 +148,24 @@ func (s *Server) handshake(conn net.Conn) (addr string, reqcopy []byte, err erro
 	return addr, reqcopy, nil
 }
 
-// Conn wraps net.Conn, implements early-read especially for HTTP proxy forwarding
-type Conn struct {
+// lazyReadConn wraps net.Conn, implements lazy-read for HTTP proxy forwarding
+type lazyReadConn struct {
 	net.Conn
-	readEarly []byte // data to be read early before reading the underlying connection
-	off       int
+	lazyRead []byte
 }
 
-func (c *Conn) Read(b []byte) (n int, err error) {
-	if c.off < len(c.readEarly) {
-		n := copy(b, c.readEarly[c.off:])
-		c.off += n
+// wrap connection with lazy-read data, which will not be read until the first Read()
+func connWithLazyRead(conn net.Conn, lazyRead []byte) *lazyReadConn {
+	return &lazyReadConn{
+		Conn:     conn,
+		lazyRead: lazyRead,
+	}
+}
+
+func (c *lazyReadConn) Read(b []byte) (n int, err error) {
+	if len(c.lazyRead) != 0 {
+		n := copy(b, c.lazyRead)
+		c.lazyRead = c.lazyRead[n:]
 		return n, nil
 	}
 
@@ -170,7 +176,7 @@ type writerOnly struct {
 	io.Writer
 }
 
-func (c *Conn) ReadFrom(r io.Reader) (n int64, err error) {
+func (c *lazyReadConn) ReadFrom(r io.Reader) (n int64, err error) {
 	if rf, ok := c.Conn.(io.ReaderFrom); ok {
 		return rf.ReadFrom(r)
 	}

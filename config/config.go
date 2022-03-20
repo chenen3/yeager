@@ -2,9 +2,7 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
-	"os"
 )
 
 var c Config
@@ -14,12 +12,12 @@ func C() Config {
 }
 
 // Load read config from reader, and update the global config instance
-func Load(r io.Reader) (*Config, error) {
+func Load(r io.Reader) (Config, error) {
 	err := json.NewDecoder(r).Decode(&c)
 	if err != nil {
-		return nil, err
+		return Config{}, err
 	}
-	return &c, nil
+	return c, nil
 }
 
 type Config struct {
@@ -82,23 +80,3 @@ const (
 	EnvYeagerAddress   = "YEAGER_ADDRESS"
 	EnvYeagerTransport = "YEAGER_TRANSPORT"
 )
-
-// Deprecated
-// LoadEnv generate configuration from environment variables,
-// suitable for server side plaintext
-func LoadEnv() (conf *Config, err error) {
-	address, ok := os.LookupEnv(EnvYeagerAddress)
-	if !ok {
-		return nil, errors.New("missing " + EnvYeagerAddress)
-	}
-	transport, ok := os.LookupEnv(EnvYeagerTransport)
-	if !ok {
-		return nil, errors.New("missing " + EnvYeagerTransport)
-	}
-
-	sc := &YeagerServer{
-		Listen:    address,
-		Transport: Transport(transport),
-	}
-	return &Config{Inbounds: Inbounds{Yeager: sc}}, nil
-}

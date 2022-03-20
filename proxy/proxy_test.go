@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -94,7 +93,7 @@ func TestProxy(t *testing.T) {
 	}
 }
 
-func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*config.Config, error) {
+func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
 		"http": {
@@ -114,7 +113,7 @@ func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*confi
 }`, inboundPort, outboundPort)
 	conf, err := config.Load(strings.NewReader(s))
 	if err != nil {
-		return nil, err
+		return config.Config{}, err
 	}
 
 	conf.Outbounds[0].MutualTLS = config.MutualTLS{
@@ -125,7 +124,7 @@ func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (*confi
 	return conf, nil
 }
 
-func makeServerProxyConf(inboundPort int, cert *util.Cert) (*config.Config, error) {
+func makeServerProxyConf(inboundPort int, cert *util.Cert) (config.Config, error) {
 	s := fmt.Sprintf(`{
     "inbounds": {
         "yeager": {
@@ -135,9 +134,9 @@ func makeServerProxyConf(inboundPort int, cert *util.Cert) (*config.Config, erro
     }
 }`, inboundPort)
 
-	conf := new(config.Config)
-	if err := json.Unmarshal([]byte(s), conf); err != nil {
-		return nil, err
+	conf, err := config.Load(strings.NewReader(s))
+	if err != nil {
+		return config.Config{}, err
 	}
 
 	conf.Inbounds.Yeager.MutualTLS = config.MutualTLS{

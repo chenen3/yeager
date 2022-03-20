@@ -155,12 +155,20 @@ func (s *Server) ListenAndServe() error {
 		go func() {
 			defer s.wg.Done()
 			defer conn.Close()
-			dstAddr, err := s.parseHeader(conn)
+			err = conn.SetReadDeadline(time.Now().Add(common.HandshakeTimeout))
+			if err != nil {
+				return
+			}
+			dstAddr, err := parseHeader(conn)
 			if err != nil {
 				log.Errorf("failed to parse header, peer: %s, err: %s", conn.RemoteAddr(), err)
 				if _, err = io.Copy(io.Discard, conn); err != nil {
 					log.Errorf("failed to drain bad connection: %s", err)
 				}
+				return
+			}
+			err = conn.SetReadDeadline(time.Time{})
+			if err != nil {
 				return
 			}
 
@@ -190,23 +198,14 @@ func (s *Server) GraceClose() error {
 }
 
 // parseHeader 读取 header, 解析其目的地址
-func (s *Server) parseHeader(conn net.Conn) (addr string, err error) {
-	if err = conn.SetReadDeadline(time.Now().Add(common.HandshakeTimeout)); err != nil {
-		return
-	}
-	defer func() {
-		if er := conn.SetReadDeadline(time.Time{}); er != nil && err == nil {
-			err = er
-		}
-	}()
-
+func parseHeader(r io.Reader) (addr string, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		VER ATYP DST.ADDR DST.PORT
 		1   1    动态     2
 	*/
 	b := make([]byte, 1+maxAddrLen)
-	if _, err = io.ReadFull(conn, b[:2]); err != nil {
+	if _, err = io.ReadFull(r, b[:2]); err != nil {
 		return "", err
 	}
 
@@ -214,21 +213,21 @@ func (s *Server) parseHeader(conn net.Conn) (addr string, err error) {
 	var host string
 	switch atyp {
 	case addrIPv4:
-		if _, err = io.ReadFull(conn, b[:net.IPv4len]); err != nil {
+		if _, err = io.ReadFull(r, b[:net.IPv4len]); err != nil {
 			return "", err
 		}
 		host = net.IPv4(b[0], b[1], b[2], b[3]).String()
 	case addrDomain:
-		if _, err = io.ReadFull(conn, b[:1]); err != nil {
+		if _, err = io.ReadFull(r, b[:1]); err != nil {
 			return "", err
 		}
 		domainLen := b[0]
-		if _, err = io.ReadFull(conn, b[:domainLen]); err != nil {
+		if _, err = io.ReadFull(r, b[:domainLen]); err != nil {
 			return "", err
 		}
 		host = string(b[:domainLen])
 	case addrIPv6:
-		if _, err = io.ReadFull(conn, b[:net.IPv6len]); err != nil {
+		if _, err = io.ReadFull(r, b[:net.IPv6len]); err != nil {
 			return "", err
 		}
 		ipv6 := make(net.IP, net.IPv6len)
@@ -238,7 +237,7 @@ func (s *Server) parseHeader(conn net.Conn) (addr string, err error) {
 		return "", fmt.Errorf("unsupported address type: %x", atyp)
 	}
 
-	if _, err = io.ReadFull(conn, b[:2]); err != nil {
+	if _, err = io.ReadFull(r, b[:2]); err != nil {
 		return "", err
 	}
 	port := binary.BigEndian.Uint16(b[:2])

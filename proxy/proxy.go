@@ -44,13 +44,13 @@ func (reject) DialContext(_ context.Context, _, _ string) (net.Conn, error) {
 }
 
 type Proxy struct {
-	conf      *config.Config
+	conf      config.Config
 	router    *route.Router
 	outbounds map[string]Outbounder
 	inbounds  []Inbounder
 }
 
-func NewProxy(conf *config.Config) (*Proxy, error) {
+func NewProxy(conf config.Config) (*Proxy, error) {
 	p := &Proxy{
 		conf:      conf,
 		outbounds: make(map[string]Outbounder, 2+len(conf.Outbounds)),
@@ -200,7 +200,7 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 			relayErrCh <- errors.New("failed to relay traffic from outbound: " + obErr.Error())
 			return
 		}
-		relayErrCh <- nil
+		close(relayErrCh)
 	}()
 
 	select {

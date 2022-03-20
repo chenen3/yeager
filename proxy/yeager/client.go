@@ -93,7 +93,7 @@ func (c *Client) DialContext(ctx context.Context, _, addr string) (net.Conn, err
 		return nil, err
 	}
 
-	header, err := c.makeHeader(addr)
+	header, err := makeHeader(addr)
 	if err != nil {
 		return nil, errors.New("make header: " + err.Error())
 	}
@@ -114,7 +114,7 @@ const (
 )
 
 // makeHeader 构造 header，包含目的地址
-func (c *Client) makeHeader(addr string) ([]byte, error) {
+func makeHeader(addr string) ([]byte, error) {
 	dstAddr, err := util.ParseAddr("tcp", addr)
 	if err != nil {
 		return nil, err
