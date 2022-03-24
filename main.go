@@ -88,6 +88,7 @@ func main() {
 	f, err := os.Open(flags.configFile)
 	if err != nil {
 		log.Errorf(err.Error())
+		return
 	}
 	conf, err := config.Load(f)
 	f.Close()
