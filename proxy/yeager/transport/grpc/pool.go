@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"errors"
 	"sync/atomic"
 
 	"google.golang.org/grpc"
@@ -78,16 +79,14 @@ func (p *channelPool) reconnectLoop() {
 	}
 }
 
-func (p *channelPool) Get() *grpc.ClientConn {
+func (p *channelPool) Get() (*grpc.ClientConn, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	channel := p.channels[i]
 	if !isAvailable(channel) {
 		p.reconnect <- i
-		// try to get another one
-		i = int(atomic.AddUint32(&p.i, 1)) % p.size
-		channel = p.channels[i]
+		return nil, errors.New("unavailable grpc channel")
 	}
-	return channel
+	return channel, nil
 }
 
 func (p *channelPool) Close() error {
