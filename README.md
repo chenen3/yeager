@@ -28,7 +28,7 @@ docker run --rm \
     --workdir /usr/local/etc/yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     ghcr.io/chenen3/yeager \
-    yeager cert --host [server-public-ip]
+    yeager -cert -host [server-public-ip]
 ```
 
 Create config file `/usr/local/etc/yeager/config.json`
