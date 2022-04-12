@@ -26,7 +26,7 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if er := srv.GraceClose(); er != nil {
+		if er := srv.Shutdown(); er != nil {
 			t.Error(err)
 		}
 	}()

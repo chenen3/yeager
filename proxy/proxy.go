@@ -173,7 +173,7 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	}
 	defer obConn.Close()
 
-	relayErrCh := make(chan error)
+	errCh := make(chan error)
 	go func() {
 		inboundErrCh := make(chan error, 1)
 		go func() {
@@ -193,19 +193,19 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 
 		ibErr := <-inboundErrCh
 		if ibErr != nil && !errors.Is(ibErr, os.ErrDeadlineExceeded) {
-			relayErrCh <- errors.New("failed to relay traffic from inbound: " + ibErr.Error())
+			errCh <- errors.New("failed to relay traffic from inbound: " + ibErr.Error())
 			return
 		}
 		if obErr != nil && !errors.Is(obErr, os.ErrDeadlineExceeded) {
-			relayErrCh <- errors.New("failed to relay traffic from outbound: " + obErr.Error())
+			errCh <- errors.New("failed to relay traffic from outbound: " + obErr.Error())
 			return
 		}
-		close(relayErrCh)
+		close(errCh)
 	}()
 
 	select {
 	case <-ctx.Done():
-	case err := <-relayErrCh:
+	case err := <-errCh:
 		// avoid confusing the average user by insignificant logs
 		if err != nil && p.conf.Debug {
 			log.Errorf(err.Error())

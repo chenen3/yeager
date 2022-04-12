@@ -186,8 +186,10 @@ func (s *Server) Close() error {
 	return err
 }
 
-// GraceClose close server and wait util all connection closed
-func (s *Server) GraceClose() error {
+// Shutdown gracefully shuts down the server,
+// it works by first closing listener,
+// then wait for all connection to close
+func (s *Server) Shutdown() error {
 	s.cancel()
 	var err error
 	if s.lis != nil {

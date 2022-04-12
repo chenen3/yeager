@@ -4,7 +4,7 @@
 
 This repository implements a proxy tool for bypassing network restrictions, it use [domain-list](https://github.com/v2fly/domain-list-community) of V2Ray for routing, supporting features:
 
-- SOCKS5 and HTTP/HTTPS proxy
+- SOCKS5 and HTTP proxy
 - lightweight tunnel proxy
   - transport over gRPC or QUIC
   - security via mutual TLS

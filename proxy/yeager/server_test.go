@@ -94,7 +94,7 @@ func TestYeager(t *testing.T) {
 				return
 			}
 			defer func() {
-				if er := srv.GraceClose(); er != nil {
+				if er := srv.Shutdown(); er != nil {
 					t.Error(er)
 				}
 			}()
