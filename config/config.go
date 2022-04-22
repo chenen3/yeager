@@ -75,8 +75,3 @@ type YeagerClient struct {
 	Transport Transport `json:"transport"`
 	MutualTLS MutualTLS `json:"mtls,omitempty"` // unavailable when transport is tcp
 }
-
-const (
-	EnvYeagerAddress   = "YEAGER_ADDRESS"
-	EnvYeagerTransport = "YEAGER_TRANSPORT"
-)

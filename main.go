@@ -106,7 +106,7 @@ func main() {
 		log.Errorf("init proxy: %s", err)
 		return
 	}
-	// parsing router rules significantly increases memory consumption
+	// reduce the memory usage boosted by parsing rules of geosite.dat
 	runtime.GC()
 
 	// for profiling
