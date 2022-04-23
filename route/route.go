@@ -16,7 +16,7 @@ const (
 	ruleIPCIDR        = "ip-cidr"        // 无类别域间路由
 	ruleFinal         = "final"          // 最终规则
 
-	// geoip.dat was only 4MB size, but now downloading from upstream
+	// size of geoip.dat was only 4MB, but now downloading from upstream
 	// it is 46MB. While yeager startup with it, the memory usage raise
 	// up to 300MB. Considering GEOIP rule is not the essential feature,
 	// now disable it, so that the startup memory would beneath 15MB.
@@ -74,7 +74,7 @@ type Router struct {
 
 func NewRouter(rules []string) (*Router, error) {
 	if len(rules) == 0 {
-		return new(Router), nil
+		return nil, errors.New("empty rules")
 	}
 
 	var r Router
@@ -91,10 +91,10 @@ func NewRouter(rules []string) (*Router, error) {
 	}
 	r.rules = parsedRules
 
-	// parsing geoip file obviously increase memory usage,
-	// set nil to release objects, memory shall release in future GC
+	// parsing rules of geosite.dat (or geoip.dat) boosted memory usage,
+	// set nil to release heap objects in future GC
 	// globalGeoIPList = nil
-	globalGeoSiteList = nil
+	geoSites = nil
 	return &r, nil
 }
 
@@ -130,15 +130,10 @@ func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if len(r.rules) == 0 {
-		return defaultFinalRule.outboundTag, nil
-	}
-
 	for _, ru := range r.rules {
 		if ru.Match(dst) {
 			return ru.outboundTag, nil
 		}
 	}
-
 	return defaultFinalRule.outboundTag, nil
 }

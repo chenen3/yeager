@@ -97,11 +97,13 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 		p.outbounds[tag] = outbound
 	}
 
-	rt, err := route.NewRouter(conf.Rules)
-	if err != nil {
-		return nil, err
+	if len(conf.Rules) > 0 {
+		rt, err := route.NewRouter(conf.Rules)
+		if err != nil {
+			return nil, err
+		}
+		p.router = rt
 	}
-	p.router = rt
 	return p, nil
 }
 
@@ -142,24 +144,30 @@ func (p *Proxy) Close() error {
 	return err
 }
 
-var activeConnCnt = expvar.NewInt("activeConn")
+var numConn = expvar.NewInt("numConn")
 
 func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	if p.conf.Debug {
-		activeConnCnt.Add(1)
-		defer activeConnCnt.Add(-1)
+		numConn.Add(1)
+		defer numConn.Add(-1)
 	}
 
-	tag, err := p.router.Dispatch(addr)
-	if err != nil {
-		log.Errorf("dispatch %s: %s", addr, err)
-		return
+	// when no rule provided, dial directly
+	tag := route.Direct
+	if p.router != nil {
+		t, err := p.router.Dispatch(addr)
+		if err != nil {
+			log.Errorf("dispatch %s: %s", addr, err)
+			return
+		}
+		tag = t
 	}
 	outbound, ok := p.outbounds[tag]
 	if !ok {
 		log.Errorf("unknown outbound tag: %s", tag)
 		return
 	}
+
 	if p.conf.Debug {
 		log.Infof("peer %s, dest %s, outbound %s", ibConn.RemoteAddr(), addr, tag)
 	}

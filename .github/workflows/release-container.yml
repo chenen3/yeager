@@ -1,4 +1,4 @@
-name: Publish Container image
+name: Release Container image
 on:
   release:
     types: [published]

@@ -26,7 +26,7 @@ func init() {
 	}
 }
 
-func loadGeoSiteFile() (*router.GeoSiteList, error) {
+func loadGeoSite() (*router.GeoSiteList, error) {
 	var data []byte
 	var err error
 	for _, dir := range assetDirs {
@@ -48,18 +48,18 @@ func loadGeoSiteFile() (*router.GeoSiteList, error) {
 	return geoSiteList, nil
 }
 
-var globalGeoSiteList *router.GeoSiteList
+var geoSites *router.GeoSiteList
 
 func extractCountrySite(country string) ([]*router.Domain, error) {
-	if globalGeoSiteList == nil {
-		geoSiteList, err := loadGeoSiteFile()
+	if geoSites == nil {
+		sites, err := loadGeoSite()
 		if err != nil {
 			return nil, err
 		}
-		globalGeoSiteList = geoSiteList
+		geoSites = sites
 	}
 
-	for _, g := range globalGeoSiteList.Entry {
+	for _, g := range geoSites.Entry {
 		if strings.EqualFold(g.CountryCode, country) {
 			return g.Domain, nil
 		}

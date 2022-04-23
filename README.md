@@ -150,7 +150,7 @@ The Outbound tag is specified by config, also yeager comes with two built-in out
 - `direct` means sending traffic directly, do not pass through proxy
 - `reject` means rejecting traffic and close the connection
 
-rule example:
+For example:
 
 - `ip-cidr,127.0.0.1/8,direct` matches if destination IP is in specified CIDR
 - `domain,www.apple.com,direct` matches if destination domain is the given one
