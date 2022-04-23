@@ -18,7 +18,7 @@ jobs:
 
       - name: Build
         run: |
-          wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O geosite.dat
+          cp route/testdata/geosite.dat .
           ldflags="-X main.version=${GITHUB_REF#refs/tags/}"
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
