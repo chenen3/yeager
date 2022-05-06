@@ -22,33 +22,31 @@ type listener struct {
 
 func (l *listener) acceptLoop() {
 	for {
-		sess, err := l.lis.Accept(l.ctx)
+		qconn, err := l.lis.Accept(l.ctx)
 		if err != nil {
 			select {
 			case <-l.ctx.Done():
 				return
 			default:
-				log.Errorf("failed to accept quic session: %s", err)
+				log.Errorf("failed to accept quic connection: %s", err)
 				continue
 			}
 		}
 
-		go l.acceptStream(sess)
+		go l.acceptStream(qconn)
 	}
 }
 
-func (l *listener) acceptStream(session quic.Session) {
-	defer func() {
-		_ = session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "session closed")
-	}()
+func (l *listener) acceptStream(qconn quic.Connection) {
+	defer qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "connection closed")
 
 	for {
-		stream, err := session.AcceptStream(l.ctx)
+		stream, err := qconn.AcceptStream(l.ctx)
 		if err != nil {
 			select {
 			case <-l.ctx.Done():
 				return
-			case <-session.Context().Done():
+			case <-qconn.Context().Done():
 				return
 			default:
 				log.Errorf("failed to accept quic stream: %s", err)
@@ -64,8 +62,8 @@ func (l *listener) acceptStream(session quic.Session) {
 
 		l.conns <- &streamConn{
 			Stream:     stream,
-			localAddr:  session.LocalAddr(),
-			remoteAddr: session.RemoteAddr(),
+			localAddr:  qconn.LocalAddr(),
+			remoteAddr: qconn.RemoteAddr(),
 		}
 	}
 }
