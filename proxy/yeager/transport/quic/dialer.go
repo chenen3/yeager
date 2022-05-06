@@ -7,14 +7,15 @@ import (
 	"net"
 	"sync"
 
+	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/lucas-clemente/quic-go"
 )
 
 type dialer struct {
 	tlsConf *tls.Config
-	session quic.Session
-	mu      sync.Mutex // guard session
+	pool    *connPool
+	once    sync.Once
 }
 
 // NewDialer return a QUIC dialer that implements the transport.ContextDialer interface
@@ -22,69 +23,42 @@ func NewDialer(tlsConf *tls.Config) *dialer {
 	return &dialer{tlsConf: tlsConf}
 }
 
-func isAvailable(session quic.Session) bool {
-	if session == nil {
-		return false
-	}
-
-	select {
-	case <-session.Context().Done():
-		return false
-	default:
-		return true
-	}
-}
-
-// TODO: consider saving more sessions for better throughput
-// get an available session, otherwise dial an new one
-func (d *dialer) getSession(ctx context.Context, addr string) (quic.Session, error) {
-	if isAvailable(d.session) {
-		return d.session, nil
-	}
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	// check if another goroutine has set the session
-	if isAvailable(d.session) {
-		return d.session, nil
-	}
-
-	qc := &quic.Config{
-		KeepAlive:      true,
-		MaxIdleTimeout: common.MaxConnectionIdle,
-	}
-	d.tlsConf.NextProtos = []string{"quic"}
-	newSession, err := quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
-	if err != nil {
-		return nil, err
-	}
-	d.session = newSession
-	return newSession, nil
-}
-
 func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	session, err := d.getSession(ctx, addr)
+	d.once.Do(func() {
+		factory := func() (quic.Connection, error) {
+			qc := &quic.Config{
+				KeepAlive:      true,
+				MaxIdleTimeout: common.MaxConnectionIdle,
+			}
+			d.tlsConf.NextProtos = []string{"quic"}
+			ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+			defer cancel()
+			return quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
+		}
+		d.pool = newConnPool(config.C().ConnectionPoolSize, factory)
+	})
+
+	qconn, err := d.pool.Get()
 	if err != nil {
-		err = errors.New("dial quic: " + err.Error())
-		return nil, err
+		return nil, errors.New("dial quic: " + err.Error())
 	}
 
-	stream, err := session.OpenStream()
+	stream, err := qconn.OpenStreamSync(ctx)
 	if err != nil {
-		return nil, errors.New("open stream: " + err.Error())
+		return nil, errors.New("open quic stream: " + err.Error())
 	}
 
 	conn := &streamConn{
 		Stream:     stream,
-		localAddr:  session.LocalAddr(),
-		remoteAddr: session.RemoteAddr(),
+		localAddr:  qconn.LocalAddr(),
+		remoteAddr: qconn.RemoteAddr(),
 	}
 	return conn, nil
 }
 
 func (d *dialer) Close() error {
-	if !isAvailable(d.session) {
-		return nil
+	if d.pool != nil {
+		return d.pool.Close()
 	}
-	return d.session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "session closed")
+	return nil
 }

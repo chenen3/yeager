@@ -55,7 +55,7 @@ func (d *dialer) ensureChannelPool(addr string) *channelPool {
 			defer cancel()
 			return grpc.DialContext(ctx, addr, opts...)
 		}
-		d.channelPool = newChannelPool(config.C().GrpcChannelPoolSize, factory)
+		d.channelPool = newChannelPool(config.C().ConnectionPoolSize, factory)
 	})
 	return d.channelPool
 }
