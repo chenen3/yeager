@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 )
 
@@ -50,7 +50,7 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.Infof("socks5 proxy listening %s", s.addr)
+	log.Printf("socks5 proxy listening %s", s.addr)
 
 	close(s.ready)
 	for {
@@ -61,7 +61,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.Errorf("failed to accept conn: %s", err)
+			log.Printf("failed to accept conn: %s", err)
 			continue
 		}
 
@@ -71,7 +71,7 @@ func (s *Server) ListenAndServe() error {
 			defer conn.Close()
 			addr, err := s.handshake(conn)
 			if err != nil {
-				log.Errorf("failed to handshake: %s", err)
+				log.Printf("failed to handshake: %s", err)
 				conn.Close()
 				return
 			}

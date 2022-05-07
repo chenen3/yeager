@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"log"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
@@ -33,7 +33,7 @@ func newListener() *listener {
 func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
-		log.Errorf(err.Error())
+		log.Printf(err.Error())
 		return err
 	}
 
@@ -85,7 +85,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	go func() {
 		err := grpcServer.Serve(tcpListener)
 		if err != nil {
-			log.Errorf("grpc server exit: %s", err)
+			log.Printf("grpc server exit: %s", err)
 		}
 	}()
 

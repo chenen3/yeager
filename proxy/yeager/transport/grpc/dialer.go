@@ -13,6 +13,7 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -23,7 +24,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
@@ -72,14 +72,14 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 	go func() {
 		conn, err := d.pool.Get()
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Printf(err.Error())
 			cancelS()
 			return
 		}
 		client := pb.NewTunnelClient(conn)
 		stream, err := client.Stream(ctxS)
 		if err != nil {
-			log.Errorf("create grpc stream: %s", err)
+			log.Printf("create grpc stream: %s", err)
 			cancelS()
 			return
 		}

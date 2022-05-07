@@ -2,12 +2,11 @@ package grpc
 
 import (
 	"errors"
+	"log"
 	"sync/atomic"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-
-	"github.com/chenen3/yeager/log"
 )
 
 // 如何预估连接池大小：
@@ -47,7 +46,7 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 	for i := 0; i < size; i++ {
 		c, err := factory()
 		if err != nil {
-			log.Errorf("failed to make grpc connection: %s", err)
+			log.Printf("failed to make grpc connection: %s", err)
 			continue
 		}
 		p.conns[i] = c
@@ -71,7 +70,7 @@ func (p *connPool) reconnectLoop() {
 			}
 			conn, err := p.factory()
 			if err != nil {
-				log.Errorf("failed to make grpc connection: %s", err)
+				log.Printf("failed to make grpc connection: %s", err)
 				continue
 			}
 			p.conns[i] = conn
@@ -96,7 +95,7 @@ func (p *connPool) Close() error {
 		if e := c.Close(); e != nil {
 			// still need to close other connections, do not return here
 			err = e
-			log.Errorf("close grpc connection: %s", e)
+			log.Printf("close grpc connection: %s", e)
 		}
 	}
 	return err

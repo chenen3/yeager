@@ -2,9 +2,9 @@ package quic
 
 import (
 	"errors"
+	"log"
 	"sync/atomic"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -37,7 +37,7 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 	for i := 0; i < size; i++ {
 		c, err := p.factory()
 		if err != nil {
-			log.Errorf("failed to make quic connection")
+			log.Printf("failed to make quic connection")
 			continue
 		}
 		p.conns[i] = c
@@ -69,7 +69,7 @@ func (p *connPool) reconnectLoop() {
 			}
 			c, err := p.factory()
 			if err != nil {
-				log.Errorf("failed to make quic connection")
+				log.Printf("failed to make quic connection")
 				continue
 			}
 			p.conns[i] = c
