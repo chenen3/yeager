@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"
@@ -28,7 +29,7 @@ func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error)
 		factory := func() (quic.Connection, error) {
 			qc := &quic.Config{
 				KeepAlive:      true,
-				MaxIdleTimeout: common.MaxConnectionIdle,
+				MaxIdleTimeout: time.Second * 30,
 			}
 			d.tlsConf.NextProtos = []string{"quic"}
 			ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)

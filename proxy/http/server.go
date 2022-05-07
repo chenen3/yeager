@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 )
 
@@ -52,7 +52,7 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("http proxy failed to listen, err: %s", err)
 	}
 	s.lis = lis
-	log.Infof("http proxy listening %s", s.addr)
+	log.Printf("http proxy listening %s", s.addr)
 
 	close(s.ready)
 	for {
@@ -63,7 +63,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.Errorf("failed to accept conn: %s", err)
+			log.Printf("failed to accept conn: %s", err)
 			continue
 		}
 
@@ -73,7 +73,7 @@ func (s *Server) ListenAndServe() error {
 			defer conn.Close()
 			addr, reqcopy, err := s.handshake(conn)
 			if err != nil {
-				log.Errorf("handshake: %s", err.Error())
+				log.Printf("handshake: %s", err.Error())
 				conn.Close()
 				return
 			}

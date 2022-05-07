@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log"
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -36,7 +36,7 @@ func TestQUIC(t *testing.T) {
 	go func() {
 		serverConn, e := lis.Accept()
 		if e != nil {
-			log.Errorf("quic listener accept err: %s", e)
+			log.Printf("quic listener accept err: %s", e)
 			return
 		}
 		defer serverConn.Close()

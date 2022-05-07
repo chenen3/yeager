@@ -5,12 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -109,7 +109,7 @@ func TestYeager(t *testing.T) {
 			go func() {
 				e := srv.ListenAndServe()
 				if e != nil {
-					log.Errorf("yeager server exit: %s", err)
+					log.Printf("yeager server exit: %s", err)
 				}
 			}()
 

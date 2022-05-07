@@ -5,9 +5,9 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log"
 	"testing"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -35,7 +35,7 @@ func TestGRPC(t *testing.T) {
 	go func() {
 		conn, e := lis.Accept()
 		if e != nil {
-			log.Errorf("grpc listener accpet err: %s", e)
+			log.Printf("grpc listener accpet err: %s", e)
 			return
 		}
 		defer conn.Close()

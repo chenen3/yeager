@@ -5,13 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"testing"
 	"time"
 
 	gproxy "golang.org/x/net/proxy"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -41,7 +41,7 @@ func TestServer(t *testing.T) {
 	go func() {
 		e := srv.ListenAndServe()
 		if e != nil {
-			log.Errorf("server exit: %s", err)
+			log.Printf("server exit: %s", err)
 		}
 	}()
 

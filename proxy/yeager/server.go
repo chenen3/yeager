@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strconv"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
 	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
@@ -127,7 +127,7 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
 	}
 
-	log.Infof("yeager proxy listening %s", lis.Addr())
+	log.Printf("yeager proxy listening %s", lis.Addr())
 	return lis, nil
 }
 
@@ -147,7 +147,7 @@ func (s *Server) ListenAndServe() error {
 				return nil
 			default:
 			}
-			log.Errorf("failed to accpet conn: %s", err)
+			log.Printf("failed to accpet conn: %s", err)
 			continue
 		}
 
@@ -161,9 +161,9 @@ func (s *Server) ListenAndServe() error {
 			}
 			dstAddr, err := parseHeader(conn)
 			if err != nil {
-				log.Errorf("failed to parse header, peer: %s, err: %s", conn.RemoteAddr(), err)
+				log.Printf("failed to parse header, peer: %s, err: %s", conn.RemoteAddr(), err)
 				if _, err = io.Copy(io.Discard, conn); err != nil {
-					log.Errorf("failed to drain bad connection: %s", err)
+					log.Printf("failed to drain bad connection: %s", err)
 				}
 				return
 			}

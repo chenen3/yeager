@@ -5,12 +5,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"log"
 
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
 )
@@ -32,7 +33,7 @@ func newListener() *listener {
 func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
-		log.Errorf(err.Error())
+		log.Printf(err.Error())
 		return err
 	}
 
@@ -67,22 +68,24 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 		return nil, errors.New("failed to listen: " + err.Error())
 	}
 
-	opt := []grpc.ServerOption{
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsConf)),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             60 * time.Second,
+			PermitWithoutStream: true,
+		}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: common.MaxConnectionIdle,
+			Time:              60 * time.Second,
+			Timeout:           1 * time.Second,
 		}),
-	}
-	if tlsConf != nil {
-		opt = append(opt, grpc.Creds(credentials.NewTLS(tlsConf)))
-	}
-
-	grpcServer := grpc.NewServer(opt...)
+	)
 	grpcListener := newListener()
 	pb.RegisterTunnelServer(grpcServer, grpcListener)
 	go func() {
 		err := grpcServer.Serve(tcpListener)
 		if err != nil {
-			log.Errorf("grpc server exit: %s", err)
+			log.Printf("grpc server exit: %s", err)
 		}
 	}()
 

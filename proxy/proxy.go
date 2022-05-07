@@ -5,6 +5,7 @@ import (
 	"errors"
 	"expvar"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy/common"
 	"github.com/chenen3/yeager/proxy/http"
 	"github.com/chenen3/yeager/proxy/socks"
@@ -117,7 +117,7 @@ func (p *Proxy) Serve() {
 			defer wg.Done()
 			ib.Handle(p.handle)
 			if err := ib.ListenAndServe(); err != nil {
-				log.Errorf("inbound server exit: %s", err)
+				log.Printf("inbound server exit: %s", err)
 				return
 			}
 		}(inbound)
@@ -157,26 +157,26 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	if p.router != nil {
 		t, err := p.router.Dispatch(addr)
 		if err != nil {
-			log.Errorf("dispatch %s: %s", addr, err)
+			log.Printf("dispatch %s: %s", addr, err)
 			return
 		}
 		tag = t
 	}
 	outbound, ok := p.outbounds[tag]
 	if !ok {
-		log.Errorf("unknown outbound tag: %s", tag)
+		log.Printf("unknown outbound tag: %s", tag)
 		return
 	}
 
-	if p.conf.Debug {
-		log.Infof("peer %s, dest %s, outbound %s", ibConn.RemoteAddr(), addr, tag)
+	if p.conf.Verbose {
+		log.Printf("relay %s <-> %s <-> %s", ibConn.RemoteAddr(), tag, addr)
 	}
 
 	dctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
 	defer cancel()
 	obConn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
-		log.Errorf("failed to connect %s: %s", addr, err)
+		log.Printf("connect %s: %s", addr, err)
 		return
 	}
 	defer obConn.Close()
@@ -201,11 +201,11 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 
 		ibErr := <-inboundErrCh
 		if ibErr != nil && !errors.Is(ibErr, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("failed to relay traffic from inbound: " + ibErr.Error())
+			errCh <- errors.New("relay traffic from inbound: " + ibErr.Error())
 			return
 		}
 		if obErr != nil && !errors.Is(obErr, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("failed to relay traffic from outbound: " + obErr.Error())
+			errCh <- errors.New("relay traffic from outbound: " + obErr.Error())
 			return
 		}
 		close(errCh)
@@ -215,8 +215,8 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	case <-ctx.Done():
 	case err := <-errCh:
 		// avoid confusing the average user by insignificant logs
-		if err != nil && p.conf.Debug {
-			log.Errorf(err.Error())
+		if err != nil && p.conf.Verbose {
+			log.Printf(err.Error())
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -13,10 +14,13 @@ import (
 	"syscall"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/proxy"
 	"github.com/chenen3/yeager/util"
 )
+
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
 
 // version is set by a Github Action that triggered at release time,
 // for example :
@@ -87,23 +91,23 @@ func main() {
 
 	f, err := os.Open(flags.configFile)
 	if err != nil {
-		log.Errorf(err.Error())
+		log.Print(err.Error())
 		return
 	}
 	conf, err := config.Load(f)
 	f.Close()
 	if err != nil {
-		log.Errorf("failed to load config: %s", err)
+		log.Printf("failed to load config: %s", err)
 		return
 	}
-	if conf.Debug {
+	if conf.Verbose {
 		bs, _ := json.MarshalIndent(conf, "", "  ")
-		log.Infof("loaded config: \n%s", bs)
+		log.Printf("loaded config: \n%s", bs)
 	}
 
 	p, err := proxy.NewProxy(conf)
 	if err != nil {
-		log.Errorf("init proxy: %s", err)
+		log.Printf("init proxy: %s", err)
 		return
 	}
 	// reduce the memory usage boosted by parsing rules of geosite.dat
@@ -114,7 +118,7 @@ func main() {
 		go func() {
 			err := http.ListenAndServe("localhost:6060", nil)
 			if err != nil {
-				log.Errorf("http server exit: %s", err)
+				log.Printf("http server exit: %s", err)
 			}
 		}()
 	}
@@ -127,6 +131,6 @@ func main() {
 			panic("failed to close: " + err.Error())
 		}
 	}()
-	log.Infof("yeager %s starting", version)
+	log.Printf("yeager %s starting", version)
 	p.Serve()
 }

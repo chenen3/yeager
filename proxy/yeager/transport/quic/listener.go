@@ -8,7 +8,8 @@ import (
 
 	quic "github.com/lucas-clemente/quic-go"
 
-	"github.com/chenen3/yeager/log"
+	"log"
+
 	"github.com/chenen3/yeager/proxy/common"
 )
 
@@ -28,7 +29,7 @@ func (l *listener) acceptLoop() {
 			case <-l.ctx.Done():
 				return
 			default:
-				log.Errorf("failed to accept quic connection: %s", err)
+				log.Printf("failed to accept quic connection: %s", err)
 				continue
 			}
 		}
@@ -49,7 +50,7 @@ func (l *listener) acceptStream(qconn quic.Connection) {
 			case <-qconn.Context().Done():
 				return
 			default:
-				log.Errorf("failed to accept quic stream: %s", err)
+				log.Printf("failed to accept quic stream: %s", err)
 				continue
 			}
 		}
