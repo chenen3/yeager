@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/proxy/common"

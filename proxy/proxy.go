@@ -201,11 +201,11 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 
 		ibErr := <-inboundErrCh
 		if ibErr != nil && !errors.Is(ibErr, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay traffic from inbound: " + ibErr.Error())
+			errCh <- errors.New("relay from inbound: " + ibErr.Error())
 			return
 		}
 		if obErr != nil && !errors.Is(obErr, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay traffic from outbound: " + obErr.Error())
+			errCh <- errors.New("relay from outbound: " + obErr.Error())
 			return
 		}
 		close(errCh)
