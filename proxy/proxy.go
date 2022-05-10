@@ -214,9 +214,9 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
-		// avoid confusing the average user by insignificant logs
+		// avoid confusing user by insignificant logs
 		if err != nil && p.conf.Verbose {
-			log.Printf(err.Error())
+			log.Print(err)
 		}
 	}
 }
