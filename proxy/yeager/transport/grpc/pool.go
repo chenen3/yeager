@@ -19,12 +19,11 @@ const defaultPoolSize = 2
 
 // gRPC 连接池
 type connPool struct {
-	size      int
-	i         uint32
-	conns     []*grpc.ClientConn
-	factory   connFactoryFunc
-	reconnect chan int // inside is the index of the gRPC connection which need to reconnect
-	done      chan struct{}
+	size    int
+	i       uint32
+	conns   []*grpc.ClientConn
+	factory connFactoryFunc
+	done    chan struct{}
 }
 
 type connFactoryFunc func() (*grpc.ClientConn, error)
@@ -35,18 +34,16 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 	}
 
 	p := &connPool{
-		size:      size,
-		conns:     make([]*grpc.ClientConn, size),
-		factory:   factory,
-		reconnect: make(chan int, size),
-		done:      make(chan struct{}),
+		size:    size,
+		conns:   make([]*grpc.ClientConn, size),
+		factory: factory,
+		done:    make(chan struct{}),
 	}
-	go p.reconnectLoop()
 
 	for i := 0; i < size; i++ {
 		c, err := factory()
 		if err != nil {
-			log.Printf("failed to make grpc connection: %s", err)
+			log.Printf("connect grpc: %s", err)
 			continue
 		}
 		p.conns[i] = c
@@ -54,36 +51,15 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 	return p
 }
 
-func isAvailable(c *grpc.ClientConn) bool {
+func isValid(c *grpc.ClientConn) bool {
 	return c != nil && c.GetState() != connectivity.Shutdown
-}
-
-func (p *connPool) reconnectLoop() {
-	for {
-		select {
-		case <-p.done:
-			return
-		case i := <-p.reconnect:
-			if isAvailable(p.conns[i]) {
-				// another Get has found it unavailable and command to reconnect
-				continue
-			}
-			conn, err := p.factory()
-			if err != nil {
-				log.Printf("failed to make grpc connection: %s", err)
-				continue
-			}
-			p.conns[i] = conn
-		}
-	}
 }
 
 func (p *connPool) Get() (*grpc.ClientConn, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	conn := p.conns[i]
-	if !isAvailable(conn) {
-		p.reconnect <- i
-		return nil, errors.New("unavailable grpc connection")
+	if !isValid(conn) {
+		return nil, errors.New("invalid grpc connection")
 	}
 	return conn, nil
 }

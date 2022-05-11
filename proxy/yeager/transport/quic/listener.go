@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"net"
-
-	quic "github.com/lucas-clemente/quic-go"
-
 	"log"
+	"net"
+	"sync"
+
+	"github.com/lucas-clemente/quic-go"
 
 	"github.com/chenen3/yeager/proxy/common"
 )
@@ -19,6 +19,7 @@ type listener struct {
 	cancelCtx context.CancelFunc
 	lis       quic.Listener
 	conns     chan net.Conn
+	wg        sync.WaitGroup
 }
 
 func (l *listener) acceptLoop() {
@@ -33,13 +34,19 @@ func (l *listener) acceptLoop() {
 				continue
 			}
 		}
-
+		l.wg.Add(1)
 		go l.acceptStream(qconn)
 	}
 }
 
 func (l *listener) acceptStream(qconn quic.Connection) {
-	defer qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "connection closed")
+	defer func() {
+		err := qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "connection closed")
+		if err != nil {
+			log.Printf("close quic connection: %s", err)
+		}
+		l.wg.Done()
+	}()
 
 	for {
 		stream, err := qconn.AcceptStream(l.ctx)
@@ -60,7 +67,6 @@ func (l *listener) acceptStream(qconn quic.Connection) {
 			continue
 		default:
 		}
-
 		l.conns <- &streamConn{
 			Stream:     stream,
 			localAddr:  qconn.LocalAddr(),
@@ -72,6 +78,8 @@ func (l *listener) acceptStream(qconn quic.Connection) {
 func (l *listener) Accept() (net.Conn, error) {
 	select {
 	case <-l.ctx.Done():
+		// do not return until all connection closed
+		l.wg.Wait()
 		return nil, l.ctx.Err()
 	case c := <-l.conns:
 		return c, nil
