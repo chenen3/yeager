@@ -15,7 +15,6 @@ import (
 	"crypto/tls"
 	"log"
 	"net"
-	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -31,41 +30,38 @@ import (
 type dialer struct {
 	tlsConf *tls.Config
 	pool    *connPool
-	once    sync.Once
 }
 
-// NewDialer return a gRPC dialer that implements the transport.ContextDialer interface
-func NewDialer(tlsConf *tls.Config) *dialer {
-	return &dialer{tlsConf: tlsConf}
-}
-
-func (d *dialer) DialContext(ctx context.Context, addr string) (net.Conn, error) {
-	d.once.Do(func() {
-		factory := func() (*grpc.ClientConn, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
-			defer cancel()
-			opts := []grpc.DialOption{
-				grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
-				grpc.WithKeepaliveParams(keepalive.ClientParameters{
-					Time:                60 * time.Second,
-					Timeout:             1 * time.Second,
-					PermitWithoutStream: true,
-				}),
-				grpc.WithConnectParams(grpc.ConnectParams{
-					Backoff: backoff.Config{
-						BaseDelay:  1.0 * time.Second,
-						Multiplier: 1.6,
-						Jitter:     0.2,
-						MaxDelay:   20 * time.Second,
-					},
-					MinConnectTimeout: 5 * time.Second,
-				}),
-			}
-			return grpc.DialContext(ctx, addr, opts...)
+// NewDialer return a gRPC dialer that implements the TunnelDialer interface
+func NewDialer(tlsConf *tls.Config, addr string) *dialer {
+	d := &dialer{tlsConf: tlsConf}
+	factory := func() (*grpc.ClientConn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+		defer cancel()
+		opts := []grpc.DialOption{
+			grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
+			grpc.WithKeepaliveParams(keepalive.ClientParameters{
+				Time:                60 * time.Second,
+				Timeout:             1 * time.Second,
+				PermitWithoutStream: true,
+			}),
+			grpc.WithConnectParams(grpc.ConnectParams{
+				Backoff: backoff.Config{
+					BaseDelay:  1.0 * time.Second,
+					Multiplier: 1.6,
+					Jitter:     0.2,
+					MaxDelay:   20 * time.Second,
+				},
+				MinConnectTimeout: 5 * time.Second,
+			}),
 		}
-		d.pool = newConnPool(config.C().ConnectionPoolSize, factory)
-	})
+		return grpc.DialContext(ctx, addr, opts...)
+	}
+	d.pool = newConnPool(config.C().ConnectionPoolSize, factory)
+	return d
+}
 
+func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 	// DialContext 的参数 ctx 时效通常很短，不适合控制 stream 的生命周期，因此新建一个
 	ctxS, cancelS := context.WithCancel(context.Background())
 	ch := make(chan *clientStreamConn, 1)

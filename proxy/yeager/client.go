@@ -21,26 +21,26 @@ import (
 // Client implement the proxy.Outbounder interface
 type Client struct {
 	conf   *config.YeagerClient
-	dialer transport.ContextDialer
+	dialer transport.TunnelDialer
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
-		c.dialer = transport.NewTCPDialer()
+		c.dialer = transport.NewTCPDialer(conf.Address)
 	case config.TransGRPC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = grpc.NewDialer(tc)
+		c.dialer = grpc.NewDialer(tc, conf.Address)
 	case config.TransQUIC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = quic.NewDialer(tc)
+		c.dialer = quic.NewDialer(tc, conf.Address)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}
@@ -88,7 +88,7 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 }
 
 func (c *Client) DialContext(ctx context.Context, _, addr string) (net.Conn, error) {
-	conn, err := c.dialer.DialContext(ctx, c.conf.Address)
+	conn, err := c.dialer.DialContext(ctx)
 	if err != nil {
 		return nil, err
 	}

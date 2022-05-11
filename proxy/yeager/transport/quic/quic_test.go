@@ -46,10 +46,10 @@ func TestQUIC(t *testing.T) {
 	cliTLSConf := &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	dialer := NewDialer(cliTLSConf)
+	dialer := NewDialer(cliTLSConf, lis.Addr().String())
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	clientConn, err := dialer.DialContext(ctx, lis.Addr().String())
+	clientConn, err := dialer.DialContext(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
