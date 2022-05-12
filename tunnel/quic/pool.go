@@ -30,14 +30,14 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 		size:      size,
 		conns:     make([]quic.Connection, size),
 		factory:   factory,
-		reconnect: make(chan int, size),
+		reconnect: make(chan int, size*2),
 		done:      make(chan struct{}),
 	}
 	go p.reconnectLoop()
 	for i := 0; i < size; i++ {
 		c, err := p.factory()
 		if err != nil {
-			log.Printf("failed to make quic connection")
+			log.Printf("connect quic: %s", err)
 			continue
 		}
 		p.conns[i] = c
@@ -45,7 +45,7 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 	return p
 }
 
-func isAvailable(conn quic.Connection) bool {
+func isValid(conn quic.Connection) bool {
 	if conn == nil {
 		return false
 	}
@@ -64,12 +64,12 @@ func (p *connPool) reconnectLoop() {
 		case <-p.done:
 			return
 		case i := <-p.reconnect:
-			if isAvailable(p.conns[i]) {
+			if isValid(p.conns[i]) {
 				continue
 			}
 			c, err := p.factory()
 			if err != nil {
-				log.Printf("failed to make quic connection")
+				log.Printf("connect quic: %s", err)
 				continue
 			}
 			p.conns[i] = c
@@ -80,9 +80,11 @@ func (p *connPool) reconnectLoop() {
 func (p *connPool) Get() (quic.Connection, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	conn := p.conns[i]
-	if !isAvailable(conn) {
-		p.reconnect <- i
-		return nil, errors.New("unavailable connection")
+	if !isValid(conn) {
+		go func() {
+			p.reconnect <- i
+		}()
+		return nil, errors.New("invalid connection")
 	}
 	return conn, nil
 }

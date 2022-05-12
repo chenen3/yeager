@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/grpc/peer"
 
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
+	"github.com/chenen3/yeager/tunnel/grpc/pb"
 )
 
 // serverStreamConn wraps grpc server-side stream, implement net.Conn interface

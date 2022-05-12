@@ -1,4 +1,4 @@
-package proxy
+package main
 
 import (
 	"context"
@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/http"
-	"github.com/chenen3/yeager/proxy/socks"
-	"github.com/chenen3/yeager/proxy/yeager"
+	"github.com/chenen3/yeager/http"
 	"github.com/chenen3/yeager/route"
+	"github.com/chenen3/yeager/socks"
+	"github.com/chenen3/yeager/tunnel"
+	"github.com/chenen3/yeager/util"
 )
 
 type Inbounder interface {
@@ -71,7 +71,7 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if conf.Inbounds.Yeager != nil {
-		srv, err := yeager.NewServer(conf.Inbounds.Yeager)
+		srv, err := tunnel.NewServer(conf.Inbounds.Yeager)
 		if err != nil {
 			return nil, errors.New("init yeager proxy server: " + err.Error())
 		}
@@ -86,7 +86,7 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 	p.outbounds[route.Reject] = reject{}
 
 	for _, oc := range conf.Outbounds {
-		outbound, err := yeager.NewClient(oc)
+		outbound, err := tunnel.NewClient(oc)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +172,7 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 		log.Printf("relay %s <-> %s <-> %s", ibConn.RemoteAddr(), tag, addr)
 	}
 
-	dctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+	dctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 	defer cancel()
 	obConn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {

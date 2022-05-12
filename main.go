@@ -14,7 +14,6 @@ import (
 	"syscall"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -105,7 +104,7 @@ func main() {
 		log.Printf("loaded config: \n%s", bs)
 	}
 
-	p, err := proxy.NewProxy(conf)
+	p, err := NewProxy(conf)
 	if err != nil {
 		log.Printf("init proxy: %s", err)
 		return

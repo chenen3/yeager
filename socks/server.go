@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/util"
 )
 
-// Server implements the proxy.Inbounder interface
+// Server implements the Inbounder interface
 type Server struct {
 	addr    string
 	handler func(ctx context.Context, c net.Conn, addr string)
@@ -47,7 +47,7 @@ func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr strin
 func (s *Server) ListenAndServe() error {
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
-		return fmt.Errorf("socks5 proxy failed to listen, err: %s", err)
+		return fmt.Errorf("socks5 proxy listen: %s", err)
 	}
 	s.lis = lis
 	log.Printf("socks5 proxy listening %s", s.addr)
@@ -104,7 +104,7 @@ func (s *Server) Shutdown() error {
 }
 
 func (s *Server) handshake(conn net.Conn) (addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout))
+	err = conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
 	if err != nil {
 		return
 	}
