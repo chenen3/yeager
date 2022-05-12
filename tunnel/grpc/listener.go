@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
+	"github.com/chenen3/yeager/tunnel/grpc/pb"
+	"github.com/chenen3/yeager/util"
 )
 
 // listener implements the net.Listener and pb.TransportServer interface
@@ -61,11 +61,10 @@ func (l *listener) Addr() net.Addr {
 	return l.addr
 }
 
-// given nil tlsConf, data will be transport in plaintext
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	tcpListener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, errors.New("failed to listen: " + err.Error())
+		return nil, err
 	}
 
 	grpcServer := grpc.NewServer(
@@ -75,7 +74,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 			PermitWithoutStream: true,
 		}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: common.MaxConnectionIdle,
+			MaxConnectionIdle: util.MaxConnectionIdle,
 			Time:              60 * time.Second,
 			Timeout:           1 * time.Second,
 		}),

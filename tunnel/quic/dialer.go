@@ -9,7 +9,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/util"
 )
 
 type dialer struct {
@@ -17,16 +17,16 @@ type dialer struct {
 	pool    *connPool
 }
 
-// NewDialer return a QUIC dialer that implements the TunnelDialer interface
+// NewDialer return a QUIC dialer that implements the tunnel.Dialer interface
 func NewDialer(tlsConf *tls.Config, addr string) *dialer {
 	d := &dialer{tlsConf: tlsConf}
 	factory := func() (quic.Connection, error) {
 		qc := &quic.Config{
 			KeepAlive:      true,
-			MaxIdleTimeout: common.MaxConnectionIdle,
+			MaxIdleTimeout: util.MaxConnectionIdle,
 		}
 		d.tlsConf.NextProtos = []string{"quic"}
-		ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 		defer cancel()
 		return quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
 	}

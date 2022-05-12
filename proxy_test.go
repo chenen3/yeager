@@ -1,4 +1,4 @@
-package proxy
+package main
 
 import (
 	"fmt"
@@ -78,7 +78,7 @@ func TestProxy(t *testing.T) {
 		},
 		Timeout: time.Second,
 	}
-	// traffic direction: client request -> inbound http proxy -> outbound yeager proxy -> inbound yeager proxy -> http test server
+	// traffic direction: client request -> http proxy -> tunnel client -> tunnel server -> http test server
 	resp, err := client.Get(ts.URL)
 	if err != nil {
 		t.Fatal(err)

@@ -23,8 +23,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc/pb"
+	"github.com/chenen3/yeager/tunnel/grpc/pb"
+	"github.com/chenen3/yeager/util"
 )
 
 type dialer struct {
@@ -32,11 +32,11 @@ type dialer struct {
 	pool    *connPool
 }
 
-// NewDialer return a gRPC dialer that implements the TunnelDialer interface
+// NewDialer return a gRPC dialer that implements the tunnel.Dialer interface
 func NewDialer(tlsConf *tls.Config, addr string) *dialer {
 	d := &dialer{tlsConf: tlsConf}
 	factory := func() (*grpc.ClientConn, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), common.DialTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 		defer cancel()
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),

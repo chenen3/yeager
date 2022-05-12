@@ -1,4 +1,4 @@
-package yeager
+package tunnel
 
 import (
 	"context"
@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/common"
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
-	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
+	"github.com/chenen3/yeager/tunnel/grpc"
+	"github.com/chenen3/yeager/tunnel/quic"
+	"github.com/chenen3/yeager/util"
 )
 
-// Server implements the proxy.Inbounder interface
+// Server implements the Inbounder interface
 type Server struct {
 	conf    *config.YeagerServer
 	lis     net.Listener
@@ -127,16 +127,16 @@ func (s *Server) listen() (net.Listener, error) {
 		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
 	}
 
-	log.Printf("yeager proxy listening %s", lis.Addr())
 	return lis, nil
 }
 
 func (s *Server) ListenAndServe() error {
 	lis, err := s.listen()
 	if err != nil {
-		return err
+		return fmt.Errorf("tunnel listen: %s", err)
 	}
 	s.lis = lis
+	log.Printf("tunnel listening %s", lis.Addr())
 
 	close(s.ready)
 	for {
@@ -155,7 +155,7 @@ func (s *Server) ListenAndServe() error {
 		go func() {
 			defer s.wg.Done()
 			defer conn.Close()
-			err = conn.SetReadDeadline(time.Now().Add(common.HandshakeTimeout))
+			err = conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
 			if err != nil {
 				return
 			}

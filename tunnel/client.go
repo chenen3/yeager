@@ -1,4 +1,4 @@
-package yeager
+package tunnel
 
 import (
 	"context"
@@ -12,23 +12,22 @@ import (
 	"os"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/proxy/yeager/transport"
-	"github.com/chenen3/yeager/proxy/yeager/transport/grpc"
-	"github.com/chenen3/yeager/proxy/yeager/transport/quic"
+	"github.com/chenen3/yeager/tunnel/grpc"
+	"github.com/chenen3/yeager/tunnel/quic"
 	"github.com/chenen3/yeager/util"
 )
 
-// Client implement the proxy.Outbounder interface
+// Client implement the Outbounder interface
 type Client struct {
 	conf   *config.YeagerClient
-	dialer transport.TunnelDialer
+	dialer Dialer
 }
 
 func NewClient(conf *config.YeagerClient) (*Client, error) {
 	c := Client{conf: conf}
 	switch conf.Transport {
 	case config.TransTCP:
-		c.dialer = transport.NewTCPDialer(conf.Address)
+		c.dialer = NewTCPDialer(conf.Address)
 	case config.TransGRPC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {

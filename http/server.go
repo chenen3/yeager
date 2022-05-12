@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/util"
 )
 
-// Server implements the proxy.Inbounder interface
+// Server implements the Inbounder interface
 type Server struct {
 	addr    string
 	handler func(ctx context.Context, c net.Conn, addr string)
@@ -49,7 +49,7 @@ func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr strin
 func (s *Server) ListenAndServe() error {
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
-		return fmt.Errorf("http proxy failed to listen, err: %s", err)
+		return fmt.Errorf("http proxy listen: %s", err)
 	}
 	s.lis = lis
 	log.Printf("http proxy listening %s", s.addr)
@@ -112,7 +112,7 @@ func (s *Server) Shutdown() error {
 // - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
 // - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
 func (s *Server) handshake(conn net.Conn) (addr string, reqcopy []byte, err error) {
-	if err = conn.SetDeadline(time.Now().Add(common.HandshakeTimeout)); err != nil {
+	if err = conn.SetDeadline(time.Now().Add(util.HandshakeTimeout)); err != nil {
 		return
 	}
 	defer func() {

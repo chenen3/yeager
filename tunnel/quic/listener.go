@@ -10,7 +10,7 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 
-	"github.com/chenen3/yeager/proxy/common"
+	"github.com/chenen3/yeager/util"
 )
 
 // listener implements the net.Listener interface
@@ -101,7 +101,7 @@ func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	}
 
 	tlsConf.NextProtos = []string{"quic"}
-	lis, err := quic.ListenAddr(addr, tlsConf, &quic.Config{MaxIdleTimeout: common.MaxConnectionIdle})
+	lis, err := quic.ListenAddr(addr, tlsConf, &quic.Config{MaxIdleTimeout: util.MaxConnectionIdle})
 	if err != nil {
 		return nil, err
 	}
