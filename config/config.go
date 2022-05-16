@@ -25,7 +25,7 @@ type Config struct {
 	Outbounds []*YeagerClient `json:"outbounds,omitempty"` // 出站代理
 	Rules     []string        `json:"rules,omitempty"`     // 路由规则
 	// verbose logging
-	Verbose bool `json:"verbose,omitempty`
+	Verbose bool `json:"verbose,omitempty"`
 	// 如何预估连接池大小，参考 proxy/yeager/transport/grpc/pool.go
 	ConnectionPoolSize int `json:"connectionPoolSize,omitempty"`
 	// expose runtime metrics for debugging and profiling, developers only
@@ -33,15 +33,19 @@ type Config struct {
 }
 
 type Inbounds struct {
-	SOCKS *struct {
-		Listen string `json:"listen"`
-	} `json:"socks,omitempty"`
+	SOCKS *socks `json:"socks,omitempty"`
 
-	HTTP *struct {
-		Listen string `json:"listen"`
-	} `json:"http,omitempty"`
+	HTTP *http `json:"http,omitempty"`
 
 	Yeager *YeagerServer `json:"yeager,omitempty"`
+}
+
+type socks struct {
+	Listen string `json:"listen"`
+}
+
+type http struct {
+	Listen string `json:"listen"`
 }
 
 type Transport string

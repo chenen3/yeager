@@ -68,7 +68,7 @@ func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 	go func() {
 		conn, err := d.pool.Get()
 		if err != nil {
-			log.Printf(err.Error())
+			log.Print(err)
 			cancelS()
 			return
 		}

@@ -33,7 +33,7 @@ func newListener() *listener {
 func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 	if err := stream.Context().Err(); err != nil {
 		err = errors.New("client stream closed: " + err.Error())
-		log.Printf(err.Error())
+		log.Print(err)
 		return err
 	}
 
