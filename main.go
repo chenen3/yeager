@@ -21,10 +21,8 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
-// version is set by a Github Action that triggered at release time,
-// for example :
-//   go build -ldflags="-X main.version=v0.1"
-var version string
+// set by Github Action at project release
+var version = "dev"
 
 func printUsage() {
 	flag.Usage()
