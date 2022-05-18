@@ -5,14 +5,9 @@ import (
 	"io"
 )
 
-var c Config
-
-func C() Config {
-	return c
-}
-
 // Load read config from reader, and update the global config instance
 func Load(r io.Reader) (Config, error) {
+	var c Config
 	err := json.NewDecoder(r).Decode(&c)
 	if err != nil {
 		return Config{}, err
@@ -26,8 +21,6 @@ type Config struct {
 	Rules     []string        `json:"rules,omitempty"`     // 路由规则
 	// verbose logging
 	Verbose bool `json:"verbose,omitempty"`
-	// 如何预估连接池大小，参考 proxy/yeager/transport/grpc/pool.go
-	ConnectionPoolSize int `json:"connectionPoolSize,omitempty"`
 	// expose runtime metrics for debugging and profiling, developers only
 	Debug bool `json:"debug,omitempty"`
 }
@@ -73,8 +66,10 @@ type YeagerServer struct {
 }
 
 type YeagerClient struct {
-	Tag       string    `json:"tag"`     // 出站标记，用于路由规则指定出站代理
+	Tag       string    `json:"tag"`
 	Address   string    `json:"address"` // server address to be connected
 	Transport Transport `json:"transport"`
 	MutualTLS MutualTLS `json:"mtls,omitempty"` // unavailable when transport is tcp
+
+	ConnectionPoolSize int `json:"connectionPoolSize,omitempty"` // optional
 }

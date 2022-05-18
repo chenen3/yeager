@@ -8,7 +8,6 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 
-	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -18,7 +17,7 @@ type dialer struct {
 }
 
 // NewDialer return a QUIC dialer that implements the tunnel.Dialer interface
-func NewDialer(tlsConf *tls.Config, addr string) *dialer {
+func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 	d := &dialer{tlsConf: tlsConf}
 	factory := func() (quic.Connection, error) {
 		qc := &quic.Config{
@@ -30,7 +29,7 @@ func NewDialer(tlsConf *tls.Config, addr string) *dialer {
 		defer cancel()
 		return quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
 	}
-	d.pool = newConnPool(config.C().ConnectionPoolSize, factory)
+	d.pool = newConnPool(poolSize, factory)
 	return d
 }
 

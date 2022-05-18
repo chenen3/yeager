@@ -12,7 +12,6 @@ func TestConfig(t *testing.T) {
 	{
 		"debug": true,
 		"verbose": true,
-		"connectionPoolSize": 3,
 		"inbounds": {
 			"socks": {
 				"listen": ":1081"
@@ -39,7 +38,8 @@ func TestConfig(t *testing.T) {
 					"certFile": "/usr/local/etc/yeager/client-cert.pem",
 					"keyFile": "/usr/local/etc/yeager/client-key.pem",
 					"caFile": "/usr/local/etc/yeager/ca-cert.pem"
-				}
+				},
+				"connectionPoolSize": 3
 			}
 		],
 		"rules": [
@@ -71,12 +71,12 @@ func TestConfig(t *testing.T) {
 					KeyFile:  "/usr/local/etc/yeager/client-key.pem",
 					CAFile:   "/usr/local/etc/yeager/ca-cert.pem",
 				},
+				ConnectionPoolSize: 3,
 			},
 		},
-		Rules:              []string{"FINAL,PROXY"},
-		Verbose:            true,
-		ConnectionPoolSize: 3,
-		Debug:              true,
+		Rules:   []string{"FINAL,PROXY"},
+		Verbose: true,
+		Debug:   true,
 	}
 
 	got, err := Load(strings.NewReader(rawConf))
@@ -84,7 +84,7 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(want, got) {
-		// built-in printing does not dereference pointer of structure field,
+		// built-in printing does not dereference the pointer of structure field,
 		// if something wrong, hard to tell which field is different
 		if !reflect.DeepEqual(want.Inbounds.HTTP, got.Inbounds.HTTP) {
 			t.Fatalf("want inbound http: %+v, got %+v", want.Inbounds.HTTP, got.Inbounds.HTTP)
@@ -104,7 +104,7 @@ func TestConfig(t *testing.T) {
 			for i := range got.Outbounds {
 				gob += fmt.Sprintf("%+v ", got.Outbounds[i])
 			}
-			t.Fatalf("want outbounds: %s, got %v", wob, gob)
+			t.Fatalf("want outbounds: %s, \ngot %v", wob, gob)
 		}
 		t.Fatalf("want config %+v, got %+v", want, got)
 	}
