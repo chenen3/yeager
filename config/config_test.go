@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -48,8 +49,8 @@ func TestConfig(t *testing.T) {
 	`
 	want := Config{
 		Inbounds: Inbounds{
-			SOCKS: &socks{Listen: ":1081"},
-			HTTP:  &http{Listen: ":8081"},
+			SOCKS: &SOCKS{Listen: ":1081"},
+			HTTP:  &HTTP{Listen: ":8081"},
 			Yeager: &YeagerServer{
 				Listen:    "127.0.0.1:10812",
 				Transport: "grpc",
@@ -83,6 +84,28 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(want, got) {
-		t.Fatalf("want %#v, got %#v", want, got)
+		// built-in printing does not dereference pointer of structure field,
+		// if something wrong, hard to tell which field is different
+		if !reflect.DeepEqual(want.Inbounds.HTTP, got.Inbounds.HTTP) {
+			t.Fatalf("want inbound http: %+v, got %+v", want.Inbounds.HTTP, got.Inbounds.HTTP)
+		}
+		if !reflect.DeepEqual(want.Inbounds.SOCKS, got.Inbounds.SOCKS) {
+			t.Fatalf("want inbound socks: %+v, got %+v", want.Inbounds.SOCKS, got.Inbounds.SOCKS)
+		}
+		if !reflect.DeepEqual(want.Inbounds.Yeager, got.Inbounds.Yeager) {
+			t.Fatalf("want inbound yeager: %+v, got %+v", want.Inbounds.Yeager, got.Inbounds.Yeager)
+		}
+		if !reflect.DeepEqual(want.Outbounds, got.Outbounds) {
+			var wob string
+			for i := range want.Outbounds {
+				wob += fmt.Sprintf("%+v ", want.Outbounds[i])
+			}
+			var gob string
+			for i := range got.Outbounds {
+				gob += fmt.Sprintf("%+v ", got.Outbounds[i])
+			}
+			t.Fatalf("want outbounds: %s, got %v", wob, gob)
+		}
+		t.Fatalf("want config %+v, got %+v", want, got)
 	}
 }

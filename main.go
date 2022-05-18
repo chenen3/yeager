@@ -46,9 +46,9 @@ func main() {
 		host       string
 		version    bool
 	}
-	flag.StringVar(&flags.configFile, "config", "", "config file path")
+	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.cert, "cert", false, "generate certificates")
-	flag.StringVar(&flags.host, "host", "", "comma-separated hostnames and IPs to generate a certificate for")
+	flag.StringVar(&flags.host, "host", "", "IP to generate a certificate for")
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.Parse()
 
@@ -59,7 +59,7 @@ func main() {
 
 	if flags.cert {
 		if flags.host == "" {
-			fmt.Printf("ERROR: required flag \"-host\" not set\n")
+			fmt.Println("ERROR: required -host")
 			printUsage()
 			return
 		}
@@ -88,7 +88,7 @@ func main() {
 
 	f, err := os.Open(flags.configFile)
 	if err != nil {
-		log.Print(err.Error())
+		log.Print(err)
 		return
 	}
 	conf, err := config.Load(f)

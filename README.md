@@ -17,18 +17,19 @@ This repository implements a proxy tool for bypassing network restrictions, it u
 
 ## Usage
 
-### As server
+### As server on remote host
 
 Generate certificate files:
 
 ```sh
+ip=$(curl -s https://checkip.amazonaws.com)
 mkdir -p /usr/local/etc/yeager
 cd /usr/local/etc/yeager
 docker run --rm \
     --workdir /usr/local/etc/yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     ghcr.io/chenen3/yeager \
-    yeager -cert -host [server-public-ip]
+    yeager -cert -host $ip
 ```
 
 Create config file `/usr/local/etc/yeager/config.json`
@@ -60,7 +61,7 @@ docker run -d \
     ghcr.io/chenen3/yeager
 ```
 
-### As client
+### As client on local host
 
 #### Install
 

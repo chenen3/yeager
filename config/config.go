@@ -33,18 +33,16 @@ type Config struct {
 }
 
 type Inbounds struct {
-	SOCKS *socks `json:"socks,omitempty"`
-
-	HTTP *http `json:"http,omitempty"`
-
+	SOCKS  *SOCKS        `json:"socks,omitempty"`
+	HTTP   *HTTP         `json:"http,omitempty"`
 	Yeager *YeagerServer `json:"yeager,omitempty"`
 }
 
-type socks struct {
+type SOCKS struct {
 	Listen string `json:"listen"`
 }
 
-type http struct {
+type HTTP struct {
 	Listen string `json:"listen"`
 }
 

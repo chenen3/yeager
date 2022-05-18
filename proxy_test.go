@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,14 +22,22 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	// setup proxy server
-	yeagerProxyPort, err := util.ChoosePort()
+	tunnelPort, err := util.ChoosePort()
 	if err != nil {
 		panic(err)
 	}
-	srvConf, err := makeServerProxyConf(yeagerProxyPort, cert)
-	if err != nil {
-		panic(err)
+	srvConf := config.Config{
+		Inbounds: config.Inbounds{
+			Yeager: &config.YeagerServer{
+				Listen:    fmt.Sprintf("127.0.0.1:%d", tunnelPort),
+				Transport: config.TransGRPC,
+				MutualTLS: config.MutualTLS{
+					CertPEM: cert.ServerCert,
+					KeyPEM:  cert.ServerKey,
+					CAPEM:   cert.RootCert,
+				},
+			},
+		},
 	}
 	serverProxy, err := NewProxy(srvConf)
 	if err != nil {
@@ -45,9 +52,27 @@ func TestMain(m *testing.M) {
 	}
 	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
 
-	cliConf, err := makeClientProxyConf(httpProxyPort, yeagerProxyPort, cert)
-	if err != nil {
-		panic(err)
+	cliConf := config.Config{
+		Inbounds: config.Inbounds{
+			HTTP: &config.HTTP{
+				Listen: fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
+			},
+		},
+		Outbounds: []*config.YeagerClient{
+			{
+				Tag:       "PROXY",
+				Address:   fmt.Sprintf("127.0.0.1:%d", tunnelPort),
+				Transport: config.TransGRPC,
+				MutualTLS: config.MutualTLS{
+					CertPEM: cert.ClientCert,
+					KeyPEM:  cert.ClientKey,
+					CAPEM:   cert.RootCert,
+				},
+			},
+		},
+		Rules: []string{
+			"FINAL,PROXY",
+		},
 	}
 	clientProxy, err := NewProxy(cliConf)
 	if err != nil {
@@ -91,58 +116,4 @@ func TestProxy(t *testing.T) {
 	if string(bs) != "1" {
 		t.Fatalf("want 1, got %s", bs)
 	}
-}
-
-func makeClientProxyConf(inboundPort, outboundPort int, cert *util.Cert) (config.Config, error) {
-	s := fmt.Sprintf(`{
-    "inbounds": {
-		"http": {
-            "listen": "127.0.0.1:%d"
-        }
-	},
-    "outbounds": [
-        {
-            "tag": "PROXY",
-            "address": "127.0.0.1:%d",
-            "transport": "grpc"
-        }
-    ],
-    "rules": [
-        "FINAL,PROXY"
-    ]
-}`, inboundPort, outboundPort)
-	conf, err := config.Load(strings.NewReader(s))
-	if err != nil {
-		return config.Config{}, err
-	}
-
-	conf.Outbounds[0].MutualTLS = config.MutualTLS{
-		CertPEM: cert.ClientCert,
-		KeyPEM:  cert.ClientKey,
-		CAPEM:   cert.RootCert,
-	}
-	return conf, nil
-}
-
-func makeServerProxyConf(inboundPort int, cert *util.Cert) (config.Config, error) {
-	s := fmt.Sprintf(`{
-    "inbounds": {
-        "yeager": {
-            "listen": "127.0.0.1:%d",
-            "transport": "grpc"
-        }
-    }
-}`, inboundPort)
-
-	conf, err := config.Load(strings.NewReader(s))
-	if err != nil {
-		return config.Config{}, err
-	}
-
-	conf.Inbounds.Yeager.MutualTLS = config.MutualTLS{
-		CertPEM: cert.ServerCert,
-		KeyPEM:  cert.ServerKey,
-		CAPEM:   cert.RootCert,
-	}
-	return conf, nil
 }
