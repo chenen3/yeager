@@ -17,7 +17,6 @@ import (
 //   例如预估有 100 个并发请求，需要 ceil(100 / 50) == 2 个 connection，连接池大小为 2
 const defaultPoolSize = 2
 
-// gRPC 连接池
 type connPool struct {
 	size    int
 	i       uint32

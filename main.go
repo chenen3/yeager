@@ -19,14 +19,17 @@ import (
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		fmt.Fprint(flag.CommandLine.Output(), example)
+	}
 }
 
 // set by Github Action at project release
 var version = "dev"
 
-func printUsage() {
-	flag.Usage()
-	fmt.Print(`
+var example = `
 Example:
   yeager -config /usr/local/etc/yeager/config.json
       run service
@@ -36,8 +39,7 @@ Example:
 
   yeager -version
       print version number
-`)
-}
+`
 
 func main() {
 	var flags struct {
@@ -60,7 +62,7 @@ func main() {
 	if flags.cert {
 		if flags.host == "" {
 			fmt.Println("ERROR: required -host")
-			printUsage()
+			flag.Usage()
 			return
 		}
 
@@ -82,7 +84,7 @@ func main() {
 	}
 
 	if flags.configFile == "" {
-		printUsage()
+		flag.Usage()
 		return
 	}
 
