@@ -6,9 +6,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/v2fly/v2ray-core/v4/app/router"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/chenen3/yeager/route/pb"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -26,7 +26,7 @@ func init() {
 	}
 }
 
-func loadGeoSite() (*router.GeoSiteList, error) {
+func loadGeoSite() (*pb.GeoSiteList, error) {
 	var data []byte
 	var err error
 	for _, dir := range assetDirs {
@@ -39,18 +39,18 @@ func loadGeoSite() (*router.GeoSiteList, error) {
 		return nil, err
 	}
 
-	geoSiteList := new(router.GeoSiteList)
-	err = proto.Unmarshal(data, geoSiteList)
+	var geoSiteList pb.GeoSiteList
+	err = proto.Unmarshal(data, &geoSiteList)
 	if err != nil {
 		return nil, err
 	}
 
-	return geoSiteList, nil
+	return &geoSiteList, nil
 }
 
-var geoSites *router.GeoSiteList
+var geoSites *pb.GeoSiteList
 
-func extractCountrySite(country string) ([]*router.Domain, error) {
+func extractCountrySite(country string) ([]*pb.Domain, error) {
 	if geoSites == nil {
 		sites, err := loadGeoSite()
 		if err != nil {
@@ -90,13 +90,13 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 		}
 		var m matcher
 		switch domain.Type {
-		case router.Domain_Plain:
+		case pb.Domain_Plain:
 			m = domainKeywordMatcher(domain.Value)
-		case router.Domain_Domain:
+		case pb.Domain_RootDomain:
 			m = domainSuffixMatcher(domain.Value)
-		case router.Domain_Full:
+		case pb.Domain_Full:
 			m = domainMatcher(domain.Value)
-		case router.Domain_Regex:
+		case pb.Domain_Regex:
 			m, err = newRegexMatcher(domain.Value)
 			if err != nil {
 				return nil, err
@@ -116,7 +116,7 @@ func (g geoSiteMatcher) Match(addr *util.Addr) bool {
 	return false
 }
 
-func domainContainsAnyAttr(domain *router.Domain, attrs []string) bool {
+func domainContainsAnyAttr(domain *pb.Domain, attrs []string) bool {
 	for _, attr := range attrs {
 		for _, dattr := range domain.Attribute {
 			if strings.EqualFold(dattr.Key, attr) {

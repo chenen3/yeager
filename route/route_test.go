@@ -11,7 +11,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	assetDirs = append(assetDirs, filepath.Join(dir, "testdata"))
+	// use yeager/route/testdata/geosite.dat
+	assetDirs = []string{filepath.Join(dir, "testdata")}
 	os.Exit(m.Run())
 }
 
