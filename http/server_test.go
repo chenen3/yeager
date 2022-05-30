@@ -21,7 +21,7 @@ func TestServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv, err := NewServer(fmt.Sprintf("127.0.0.1:%d", port))
+	srv, err := NewProxyServer(fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		t.Fatal(err)
 	}

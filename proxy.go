@@ -64,7 +64,7 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 		p.inbounds = append(p.inbounds, srv)
 	}
 	if conf.Inbounds.HTTP != nil {
-		srv, err := http.NewServer(conf.Inbounds.HTTP.Listen)
+		srv, err := http.NewProxyServer(conf.Inbounds.HTTP.Listen)
 		if err != nil {
 			return nil, errors.New("init http proxy server: " + err.Error())
 		}
@@ -181,12 +181,12 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	}
 	defer obConn.Close()
 
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 	go func() {
 		inboundErrCh := make(chan error, 1)
 		go func() {
-			_, ibErr := io.Copy(obConn, ibConn)
-			inboundErrCh <- ibErr
+			_, err := io.Copy(obConn, ibConn)
+			inboundErrCh <- err
 			// unblock Read on outbound connection
 			obConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 			// grpc stream does nothing on SetReadDeadline()
@@ -195,17 +195,17 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 			}
 		}()
 
-		_, obErr := io.Copy(ibConn, obConn)
+		_, errOb := io.Copy(ibConn, obConn)
 		// unblock Read on inbound connection
 		ibConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
-		ibErr := <-inboundErrCh
-		if ibErr != nil && !errors.Is(ibErr, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay from inbound: " + ibErr.Error())
+		errIb := <-inboundErrCh
+		if errIb != nil && !errors.Is(errIb, os.ErrDeadlineExceeded) {
+			errCh <- errors.New("relay from inbound: " + errIb.Error())
 			return
 		}
-		if obErr != nil && !errors.Is(obErr, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay from outbound: " + obErr.Error())
+		if errOb != nil && !errors.Is(errOb, os.ErrDeadlineExceeded) {
+			errCh <- errors.New("relay from outbound: " + errOb.Error())
 			return
 		}
 		close(errCh)

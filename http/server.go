@@ -16,8 +16,8 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-// Server implements the Inbounder interface
-type Server struct {
+// ProxyServer implements the Inbounder interface
+type ProxyServer struct {
 	addr    string
 	handler func(ctx context.Context, c net.Conn, addr string)
 	lis     net.Listener
@@ -28,13 +28,13 @@ type Server struct {
 	ready  chan struct{} // imply that server is ready to accept connection, testing only
 }
 
-func NewServer(addr string) (*Server, error) {
+func NewProxyServer(addr string) (*ProxyServer, error) {
 	if addr == "" {
 		return nil, errors.New("empty address")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
+	return &ProxyServer{
 		addr:   addr,
 		ready:  make(chan struct{}),
 		ctx:    ctx,
@@ -42,11 +42,11 @@ func NewServer(addr string) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {
+func (s *ProxyServer) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {
 	s.handler = handler
 }
 
-func (s *Server) ListenAndServe() error {
+func (s *ProxyServer) ListenAndServe() error {
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("http proxy listen: %s", err)
@@ -86,7 +86,7 @@ func (s *Server) ListenAndServe() error {
 	}
 }
 
-func (s *Server) Close() error {
+func (s *ProxyServer) Close() error {
 	s.cancel()
 	var err error
 	if s.lis != nil {
@@ -98,7 +98,7 @@ func (s *Server) Close() error {
 // Shutdown gracefully shuts down the server,
 // it works by first closing listener,
 // then wait for all connection to close
-func (s *Server) Shutdown() error {
+func (s *ProxyServer) Shutdown() error {
 	s.cancel()
 	var err error
 	if s.lis != nil {
@@ -111,7 +111,7 @@ func (s *Server) Shutdown() error {
 // HTTP代理服务器接收到请求时：
 // - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
 // - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
-func (s *Server) handshake(conn net.Conn) (addr string, reqcopy []byte, err error) {
+func (s *ProxyServer) handshake(conn net.Conn) (addr string, reqcopy []byte, err error) {
 	if err = conn.SetDeadline(time.Now().Add(util.HandshakeTimeout)); err != nil {
 		return
 	}
