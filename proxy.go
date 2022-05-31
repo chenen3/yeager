@@ -146,7 +146,7 @@ func (p *Proxy) Close() error {
 
 var numConn = expvar.NewInt("numConn")
 
-func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
+func (p *Proxy) handle(ctx context.Context, ic net.Conn, addr string) {
 	if p.conf.Debug {
 		numConn.Add(1)
 		defer numConn.Add(-1)
@@ -169,35 +169,35 @@ func (p *Proxy) handle(ctx context.Context, ibConn net.Conn, addr string) {
 	}
 
 	if p.conf.Verbose {
-		log.Printf("relay %s <-> %s <-> %s", ibConn.RemoteAddr(), tag, addr)
+		log.Printf("relay %s <-> %s <-> %s", ic.RemoteAddr(), tag, addr)
 	}
 
 	dctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 	defer cancel()
-	obConn, err := outbound.DialContext(dctx, "tcp", addr)
+	oc, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
 		log.Printf("connect %s: %s", addr, err)
 		return
 	}
-	defer obConn.Close()
+	defer oc.Close()
 
 	errCh := make(chan error, 1)
 	go func() {
 		inboundErrCh := make(chan error, 1)
 		go func() {
-			_, err := io.Copy(obConn, ibConn)
+			_, err := io.Copy(oc, ic)
 			inboundErrCh <- err
 			// unblock Read on outbound connection
-			obConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			oc.SetReadDeadline(time.Now().Add(5 * time.Second))
 			// grpc stream does nothing on SetReadDeadline()
-			if cs, ok := obConn.(interface{ CloseSend() error }); ok {
+			if cs, ok := oc.(interface{ CloseSend() error }); ok {
 				cs.CloseSend()
 			}
 		}()
 
-		_, errOb := io.Copy(ibConn, obConn)
+		_, errOb := io.Copy(ic, oc)
 		// unblock Read on inbound connection
-		ibConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		ic.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 		errIb := <-inboundErrCh
 		if errIb != nil && !errors.Is(errIb, os.ErrDeadlineExceeded) {

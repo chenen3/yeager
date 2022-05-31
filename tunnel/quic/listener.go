@@ -41,7 +41,7 @@ func (l *listener) acceptLoop() {
 
 func (l *listener) acceptStream(qconn quic.Connection) {
 	defer func() {
-		err := qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "connection closed")
+		err := qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 		if err != nil {
 			log.Printf("close quic connection: %s", err)
 		}
