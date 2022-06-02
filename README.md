@@ -19,7 +19,7 @@ This repository implements a proxy tool for bypassing network restrictions, it u
 
 ### As server on remote host
 
-Generate certificate files:
+Generate TLS certificate:
 
 ```sh
 ip=$(curl -s https://checkip.amazonaws.com)
@@ -32,22 +32,30 @@ docker run --rm \
     yeager -cert -host $ip
 ```
 
-Create config file `/usr/local/etc/yeager/config.json`
+Create config file:
 
-```json
+```sh
+cat > /usr/local/etc/yeager/config.json << EOF
 {
-    "inbounds": {
-        "yeager": {
-            "listen": "0.0.0.0:9000",
-            "transport": "grpc",
-            "mtls": {
-                "certFile": "/usr/local/etc/yeager/server-cert.pem",
-                "keyFile": "/usr/local/etc/yeager/server-key.pem",
-                "caFile": "/usr/local/etc/yeager/ca-cert.pem"
-            }
-        }
-    }
+	"inbounds": {
+		"yeager": {
+			"listen": "0.0.0.0:9000",
+			"transport": "grpc",
+			"mtls": {
+				"certFile": "/usr/local/etc/yeager/server-cert.pem",
+				"keyFile": "/usr/local/etc/yeager/server-key.pem",
+				"caFile": "/usr/local/etc/yeager/ca-cert.pem"
+			}
+		}
+	},
+	"rules": [
+		"ip-cidr,127.0.0.1/8,reject",
+		"ip-cidr,192.168.0.0/16,reject",
+		"domain,localhost,reject",
+		"final,direct"
+	]
 }
+EOF
 ```
 
 Launch:

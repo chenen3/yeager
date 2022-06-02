@@ -32,9 +32,9 @@ func TestMain(m *testing.M) {
 				Listen:    fmt.Sprintf("127.0.0.1:%d", tunnelPort),
 				Transport: config.TransGRPC,
 				MutualTLS: config.MutualTLS{
-					CertPEM: cert.ServerCert,
-					KeyPEM:  cert.ServerKey,
-					CAPEM:   cert.RootCert,
+					CertPEM: string(cert.ServerCert),
+					KeyPEM:  string(cert.ServerKey),
+					CAPEM:   string(cert.RootCert),
 				},
 			},
 		},
@@ -58,15 +58,15 @@ func TestMain(m *testing.M) {
 				Listen: fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
 			},
 		},
-		Outbounds: []*config.YeagerClient{
+		Outbounds: []config.YeagerClient{
 			{
 				Tag:       "PROXY",
 				Address:   fmt.Sprintf("127.0.0.1:%d", tunnelPort),
 				Transport: config.TransGRPC,
 				MutualTLS: config.MutualTLS{
-					CertPEM: cert.ClientCert,
-					KeyPEM:  cert.ClientKey,
-					CAPEM:   cert.RootCert,
+					CertPEM: string(cert.ClientCert),
+					KeyPEM:  string(cert.ClientKey),
+					CAPEM:   string(cert.RootCert),
 				},
 			},
 		},

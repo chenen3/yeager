@@ -57,7 +57,7 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 		MinVersion: tls.VersionTLS13,
 	}
 	if len(conf.MutualTLS.CertPEM) != 0 && len(conf.MutualTLS.KeyPEM) != 0 {
-		cert, err := tls.X509KeyPair(conf.MutualTLS.CertPEM, conf.MutualTLS.KeyPEM)
+		cert, err := tls.X509KeyPair([]byte(conf.MutualTLS.CertPEM), []byte(conf.MutualTLS.KeyPEM))
 		if err != nil {
 			return nil, errors.New("parse cert pem: " + err.Error())
 		}
@@ -74,7 +74,7 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 
 	if len(conf.MutualTLS.CAPEM) != 0 {
 		pool := x509.NewCertPool()
-		ok := pool.AppendCertsFromPEM(conf.MutualTLS.CAPEM)
+		ok := pool.AppendCertsFromPEM([]byte(conf.MutualTLS.CAPEM))
 		if !ok {
 			return nil, errors.New("failed to parse root cert pem")
 		}
@@ -100,34 +100,24 @@ func makeServerTLSConfig(conf *config.YeagerServer) (*tls.Config, error) {
 }
 
 func (s *Server) listen() (net.Listener, error) {
-	var lis net.Listener
-	var err error
 	switch s.conf.Transport {
 	case config.TransTCP:
-		if lis, err = net.Listen("tcp", s.conf.Listen); err != nil {
-			return nil, err
-		}
+		return net.Listen("tcp", s.conf.Listen)
 	case config.TransGRPC:
 		tlsConf, err := makeServerTLSConfig(s.conf)
 		if err != nil {
 			return nil, err
 		}
-		if lis, err = grpc.Listen(s.conf.Listen, tlsConf); err != nil {
-			return nil, err
-		}
+		return grpc.Listen(s.conf.Listen, tlsConf)
 	case config.TransQUIC:
 		tlsConf, err := makeServerTLSConfig(s.conf)
 		if err != nil {
 			return nil, err
 		}
-		if lis, err = quic.Listen(s.conf.Listen, tlsConf); err != nil {
-			return nil, err
-		}
+		return quic.Listen(s.conf.Listen, tlsConf)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
 	}
-
-	return lis, nil
 }
 
 func (s *Server) ListenAndServe() error {

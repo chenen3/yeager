@@ -67,6 +67,11 @@ func (p *connPool) reconnectLoop() {
 			if isValid(p.conns[i]) {
 				continue
 			}
+			if p.conns[i] != nil {
+				e := quic.ApplicationErrorCode(quic.ApplicationErrorErrorCode)
+				// release resource
+				p.conns[i].CloseWithError(e, "dead connection")
+			}
 			c, err := p.factory()
 			if err != nil {
 				log.Printf("connect quic: %s", err)
@@ -84,7 +89,7 @@ func (p *connPool) Get() (quic.Connection, error) {
 		go func() {
 			p.reconnect <- i
 		}()
-		return nil, errors.New("invalid connection")
+		return nil, errors.New("dead connection")
 	}
 	return conn, nil
 }
@@ -93,7 +98,7 @@ func (p *connPool) Close() error {
 	close(p.done)
 	var err error
 	for _, c := range p.conns {
-		e := c.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "connection closed")
+		e := c.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 		if e != nil {
 			err = e
 		}

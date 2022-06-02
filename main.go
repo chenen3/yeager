@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	_ "expvar"
 	"flag"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
+	"gopkg.in/yaml.v3"
 )
 
 func init() {
@@ -88,19 +88,18 @@ func main() {
 		return
 	}
 
-	f, err := os.Open(flags.configFile)
+	bs, err := os.ReadFile(flags.configFile)
 	if err != nil {
 		log.Print(err)
 		return
 	}
-	conf, err := config.Load(f)
-	f.Close()
+	conf, err := config.Load(bs)
 	if err != nil {
 		log.Printf("failed to load config: %s", err)
 		return
 	}
 	if conf.Verbose {
-		bs, _ := json.MarshalIndent(conf, "", "  ")
+		bs, _ := yaml.Marshal(conf)
 		log.Printf("loaded config: \n%s", bs)
 	}
 
