@@ -86,7 +86,7 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 	p.outbounds[route.Reject] = reject{}
 
 	for _, oc := range conf.Outbounds {
-		outbound, err := tunnel.NewClient(oc)
+		outbound, err := tunnel.NewClient(&oc)
 		if err != nil {
 			return nil, err
 		}

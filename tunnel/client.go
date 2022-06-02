@@ -69,13 +69,13 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 		}
 		tlsConf.RootCAs = pool
 	} else if len(conf.MutualTLS.CertPEM) != 0 {
-		cert, err := tls.X509KeyPair(conf.MutualTLS.CertPEM, conf.MutualTLS.KeyPEM)
+		cert, err := tls.X509KeyPair([]byte(conf.MutualTLS.CertPEM), []byte(conf.MutualTLS.KeyPEM))
 		if err != nil {
 			return nil, err
 		}
 		tlsConf.Certificates = []tls.Certificate{cert}
 		pool := x509.NewCertPool()
-		if ok := pool.AppendCertsFromPEM(conf.MutualTLS.CAPEM); !ok {
+		if ok := pool.AppendCertsFromPEM([]byte(conf.MutualTLS.CAPEM)); !ok {
 			return nil, errors.New("failed to parse root certificate")
 		}
 		tlsConf.RootCAs = pool

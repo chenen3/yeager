@@ -67,9 +67,11 @@ func (p *connPool) reconnectLoop() {
 			if isValid(p.conns[i]) {
 				continue
 			}
-			e := quic.ApplicationErrorCode(quic.ApplicationErrorErrorCode)
-			// release resource
-			p.conns[i].CloseWithError(e, "dead connection")
+			if p.conns[i] != nil {
+				e := quic.ApplicationErrorCode(quic.ApplicationErrorErrorCode)
+				// release resource
+				p.conns[i].CloseWithError(e, "dead connection")
+			}
 			c, err := p.factory()
 			if err != nil {
 				log.Printf("connect quic: %s", err)
