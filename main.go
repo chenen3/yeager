@@ -14,7 +14,6 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/util"
-	"gopkg.in/yaml.v3"
 )
 
 func init() {
@@ -97,10 +96,6 @@ func main() {
 	if err != nil {
 		log.Printf("failed to load config: %s", err)
 		return
-	}
-	if conf.Verbose {
-		bs, _ := yaml.Marshal(conf)
-		log.Printf("loaded config: \n%s", bs)
 	}
 
 	p, err := NewProxy(conf)
