@@ -18,31 +18,29 @@ import (
 const defaultPoolSize = 2
 
 type connPool struct {
-	size    int
-	i       uint32
-	conns   []*grpc.ClientConn
-	factory connFactoryFunc
-	done    chan struct{}
+	size     int
+	i        uint32
+	conns    []*grpc.ClientConn
+	dialFunc func() (*grpc.ClientConn, error)
+	done     chan struct{}
 }
 
-type connFactoryFunc func() (*grpc.ClientConn, error)
-
-func newConnPool(size int, factory connFactoryFunc) *connPool {
+func newConnPool(size int, dialFunc func() (*grpc.ClientConn, error)) *connPool {
 	if size <= 0 {
 		size = defaultPoolSize
 	}
 
 	p := &connPool{
-		size:    size,
-		conns:   make([]*grpc.ClientConn, size),
-		factory: factory,
-		done:    make(chan struct{}),
+		size:     size,
+		conns:    make([]*grpc.ClientConn, size),
+		dialFunc: dialFunc,
+		done:     make(chan struct{}),
 	}
 
 	for i := 0; i < size; i++ {
-		c, err := factory()
+		c, err := dialFunc()
 		if err != nil {
-			log.Printf("connect grpc: %s", err)
+			log.Printf("dial grpc: %s", err)
 			continue
 		}
 		p.conns[i] = c
@@ -58,7 +56,7 @@ func (p *connPool) Get() (*grpc.ClientConn, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	conn := p.conns[i]
 	if !isValid(conn) {
-		return nil, errors.New("invalid grpc connection")
+		return nil, errors.New("dead connection")
 	}
 	return conn, nil
 }

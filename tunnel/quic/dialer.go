@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"time"
 
 	"github.com/lucas-clemente/quic-go"
 
@@ -19,24 +20,24 @@ type dialer struct {
 // NewDialer return a QUIC dialer that implements the tunnel.Dialer interface
 func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 	d := &dialer{tlsConf: tlsConf}
-	factory := func() (quic.Connection, error) {
+	dialFunc := func() (quic.Connection, error) {
 		qc := &quic.Config{
 			KeepAlive:      true,
-			MaxIdleTimeout: util.MaxConnectionIdle,
+			MaxIdleTimeout: 30 * time.Second,
 		}
 		d.tlsConf.NextProtos = []string{"quic"}
 		ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 		defer cancel()
 		return quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
 	}
-	d.pool = newConnPool(poolSize, factory)
+	d.pool = NewConnPool(poolSize, dialFunc)
 	return d
 }
 
 func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 	qconn, err := d.pool.Get()
 	if err != nil {
-		return nil, errors.New("dial quic: " + err.Error())
+		return nil, errors.New("get quic conn: " + err.Error())
 	}
 
 	stream, err := qconn.OpenStreamSync(ctx)

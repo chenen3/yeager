@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"sync/atomic"
+	"time"
 
 	"github.com/lucas-clemente/quic-go"
 )
@@ -14,14 +15,12 @@ type connPool struct {
 	size      int
 	i         uint32
 	conns     []quic.Connection
-	factory   connFactoryFunc
+	dialFunc  func() (quic.Connection, error)
 	reconnect chan int
 	done      chan struct{}
 }
 
-type connFactoryFunc func() (quic.Connection, error)
-
-func newConnPool(size int, factory connFactoryFunc) *connPool {
+func NewConnPool(size int, dialFunc func() (quic.Connection, error)) *connPool {
 	if size <= 0 {
 		size = defaultSize
 	}
@@ -29,15 +28,15 @@ func newConnPool(size int, factory connFactoryFunc) *connPool {
 	p := &connPool{
 		size:      size,
 		conns:     make([]quic.Connection, size),
-		factory:   factory,
+		dialFunc:  dialFunc,
 		reconnect: make(chan int, size*2),
 		done:      make(chan struct{}),
 	}
 	go p.reconnectLoop()
 	for i := 0; i < size; i++ {
-		c, err := p.factory()
+		c, err := p.dialFunc()
 		if err != nil {
-			log.Printf("connect quic: %s", err)
+			log.Printf("dial quic: %s", err)
 			continue
 		}
 		p.conns[i] = c
@@ -58,6 +57,10 @@ func isValid(conn quic.Connection) bool {
 	}
 }
 
+func (p *connPool) notifyReconnect(i int) {
+	p.reconnect <- i
+}
+
 func (p *connPool) reconnectLoop() {
 	for {
 		select {
@@ -72,7 +75,7 @@ func (p *connPool) reconnectLoop() {
 				// release resource
 				p.conns[i].CloseWithError(e, "dead connection")
 			}
-			c, err := p.factory()
+			c, err := p.dialFunc()
 			if err != nil {
 				log.Printf("reconnect quic: %s", err)
 				continue
@@ -85,13 +88,26 @@ func (p *connPool) reconnectLoop() {
 func (p *connPool) Get() (quic.Connection, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	conn := p.conns[i]
-	if !isValid(conn) {
-		go func() {
-			p.reconnect <- i
-		}()
-		return nil, errors.New("dead connection")
+	if isValid(conn) {
+		return conn, nil
 	}
-	return conn, nil
+
+	go p.notifyReconnect(i)
+	t := time.NewTimer(time.Second)
+	defer t.Stop()
+	// retry to find a valid connection
+	for {
+		select {
+		case <-t.C:
+			return nil, errors.New("all dead")
+		default:
+			for _, conn := range p.conns {
+				if isValid(conn) {
+					return conn, nil
+				}
+			}
+		}
+	}
 }
 
 func (p *connPool) Close() error {
