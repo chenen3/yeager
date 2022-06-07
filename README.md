@@ -35,26 +35,20 @@ docker run --rm \
 Create config file:
 
 ```sh
-cat > /usr/local/etc/yeager/config.json << EOF
-{
-	"inbounds": {
-		"yeager": {
-			"listen": "0.0.0.0:9000",
-			"transport": "grpc",
-			"mtls": {
-				"certFile": "/usr/local/etc/yeager/server-cert.pem",
-				"keyFile": "/usr/local/etc/yeager/server-key.pem",
-				"caFile": "/usr/local/etc/yeager/ca-cert.pem"
-			}
-		}
-	},
-	"rules": [
-		"ip-cidr,127.0.0.1/8,reject",
-		"ip-cidr,192.168.0.0/16,reject",
-		"domain,localhost,reject",
-		"final,direct"
-	]
-}
+cat > /usr/local/etc/yeager/config.yaml << EOF
+inbounds:
+  yeager:
+    listen: 0.0.0.0:9000
+    transport: grpc
+    mtls:
+      certFile: "/usr/local/etc/yeager/server-cert.pem"
+      keyFile: "/usr/local/etc/yeager/server-key.pem"
+      caFile: "/usr/local/etc/yeager/ca-cert.pem"
+rules:
+- ip-cidr,127.0.0.1/8,reject
+- ip-cidr,192.168.0.0/16,reject
+- domain,localhost,reject
+- final,direct
 EOF
 ```
 
@@ -88,41 +82,32 @@ brew install yeager
 
 > At server side we have generated certificate files: client-cert.pem, client-key.pem, ca-cert.pem. Ensure you have copy these files to client device, and place in directory `/usr/local/etc/yeager`
 
-create config file `/usr/local/etc/yeager/config.json`
+create config file `/usr/local/etc/yeager/config.yaml`
 
-```json
-{
-    "inbounds": {
-        "socks": {
-            "address": "127.0.0.1:1080"
-        },
-        "http": {
-            "address": "127.0.0.1:8080"
-        }
-    },
-    "outbounds": [
-        {
-            "tag": "proxy",
-            "address": "example.server.ip:9000", // replace example server IP
-            "transport": "grpc",
-            "mtls": {
-                "certFile": "/usr/local/etc/yeager/client-cert.pem",
-                "keyFile": "/usr/local/etc/yeager/client-key.pem",
-                "caFile": "/usr/local/etc/yeager/ca-cert.pem"
-            }
-        }
-    ],
-    "rules": [
-        "ip-cidr,127.0.0.1/8,direct",
-        "ip-cidr,192.168.0.0/16,direct",
-        "geosite,private,direct",
-        "geosite,google,proxy",
-        "geosite,twitter,proxy",
-        "geosite,cn,direct",
-        "geosite,apple@cn,direct",
-        "final,proxy"
-    ]
-}
+```yaml
+inbounds:
+  socks:
+    address: 127.0.0.1:1080
+  http:
+    address: 127.0.0.1:8080
+outbounds:
+- tag: proxy
+  # replace the example server IP
+  address: example.server.ip:9000
+  transport: grpc
+  mtls:
+    certFile: "/usr/local/etc/yeager/client-cert.pem"
+    keyFile: "/usr/local/etc/yeager/client-key.pem"
+    caFile: "/usr/local/etc/yeager/ca-cert.pem"
+rules:
+- ip-cidr,127.0.0.1/8,direct
+- ip-cidr,192.168.0.0/16,direct
+- geosite,private,direct
+- geosite,google,proxy
+- geosite,twitter,proxy
+- geosite,cn,direct
+- geosite,apple@cn,direct
+- final,proxy
 ```
 
 #### Run

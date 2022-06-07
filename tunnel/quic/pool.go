@@ -74,7 +74,7 @@ func (p *connPool) reconnectLoop() {
 			}
 			c, err := p.factory()
 			if err != nil {
-				log.Printf("connect quic: %s", err)
+				log.Printf("reconnect quic: %s", err)
 				continue
 			}
 			p.conns[i] = c
