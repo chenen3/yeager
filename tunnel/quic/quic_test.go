@@ -27,26 +27,26 @@ func generateTLSConfig() *tls.Config {
 }
 
 func TestQUIC(t *testing.T) {
-	lis, err := Listen("127.0.0.1:0", generateTLSConfig())
+	srv, err := Listen("127.0.0.1:0", generateTLSConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lis.Close()
+	defer srv.Close()
 
 	go func() {
-		serverConn, e := lis.Accept()
+		srvConn, e := srv.Accept()
 		if e != nil {
 			log.Printf("quic listener accept err: %s", e)
 			return
 		}
-		defer serverConn.Close()
-		_, _ = io.Copy(serverConn, serverConn)
+		defer srvConn.Close()
+		_, _ = io.Copy(srvConn, srvConn)
 	}()
 
 	cliTLSConf := &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	dialer := NewDialer(cliTLSConf, lis.Addr().String(), 1)
+	dialer := NewDialer(cliTLSConf, srv.Addr().String(), 1)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	clientConn, err := dialer.DialContext(ctx)

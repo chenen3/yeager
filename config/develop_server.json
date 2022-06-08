@@ -1,9 +1,0 @@
-{
-    "verbose": true,
-    "inbounds": {
-        "yeager": {
-            "listen": "127.0.0.1:10812",
-            "transport": "tcp"
-        }
-    }
-}

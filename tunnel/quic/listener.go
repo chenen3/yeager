@@ -95,6 +95,7 @@ func (l *listener) Addr() net.Addr {
 	return l.lis.Addr()
 }
 
+// Listen creates a QUIC server listening on a given address
 func Listen(addr string, tlsConf *tls.Config) (net.Listener, error) {
 	if tlsConf == nil {
 		return nil, errors.New("tls config required")

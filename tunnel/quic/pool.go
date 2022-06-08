@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"sync/atomic"
+	"time"
 
 	"github.com/lucas-clemente/quic-go"
 )
@@ -11,33 +12,33 @@ import (
 const defaultSize = 2
 
 type connPool struct {
-	size      int
-	i         uint32
-	conns     []quic.Connection
-	factory   connFactoryFunc
-	reconnect chan int
-	done      chan struct{}
+	size         int
+	i            uint32
+	conns        []quic.Connection
+	dialFunc     func() (quic.Connection, error)
+	reconnecting chan int
+	reconnected  chan quic.Connection
+	done         chan struct{}
 }
 
-type connFactoryFunc func() (quic.Connection, error)
-
-func newConnPool(size int, factory connFactoryFunc) *connPool {
+func NewConnPool(size int, dialFunc func() (quic.Connection, error)) *connPool {
 	if size <= 0 {
 		size = defaultSize
 	}
 
 	p := &connPool{
-		size:      size,
-		conns:     make([]quic.Connection, size),
-		factory:   factory,
-		reconnect: make(chan int, size*2),
-		done:      make(chan struct{}),
+		size:         size,
+		conns:        make([]quic.Connection, size),
+		dialFunc:     dialFunc,
+		reconnecting: make(chan int, size*2),
+		reconnected:  make(chan quic.Connection, size*4),
+		done:         make(chan struct{}),
 	}
 	go p.reconnectLoop()
 	for i := 0; i < size; i++ {
-		c, err := p.factory()
+		c, err := p.dialFunc()
 		if err != nil {
-			log.Printf("connect quic: %s", err)
+			log.Printf("dial quic: %s", err)
 			continue
 		}
 		p.conns[i] = c
@@ -63,8 +64,11 @@ func (p *connPool) reconnectLoop() {
 		select {
 		case <-p.done:
 			return
-		case i := <-p.reconnect:
+		case i := <-p.reconnecting:
 			if isValid(p.conns[i]) {
+				go func() {
+					p.reconnected <- p.conns[i]
+				}()
 				continue
 			}
 			if p.conns[i] != nil {
@@ -72,12 +76,15 @@ func (p *connPool) reconnectLoop() {
 				// release resource
 				p.conns[i].CloseWithError(e, "dead connection")
 			}
-			c, err := p.factory()
+			c, err := p.dialFunc()
 			if err != nil {
-				log.Printf("connect quic: %s", err)
+				log.Printf("reconnect quic: %s", err)
 				continue
 			}
 			p.conns[i] = c
+			go func() {
+				p.reconnected <- c
+			}()
 		}
 	}
 }
@@ -85,13 +92,23 @@ func (p *connPool) reconnectLoop() {
 func (p *connPool) Get() (quic.Connection, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	conn := p.conns[i]
-	if !isValid(conn) {
-		go func() {
-			p.reconnect <- i
-		}()
-		return nil, errors.New("dead connection")
+	if isValid(conn) {
+		return conn, nil
 	}
-	return conn, nil
+
+	go func() {
+		p.reconnecting <- i
+	}()
+	t := time.NewTimer(time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			return nil, errors.New("all dead")
+		case conn := <-p.reconnected:
+			return conn, nil
+		}
+	}
 }
 
 func (p *connPool) Close() error {

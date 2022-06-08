@@ -30,7 +30,7 @@ var version = "dev"
 
 var example = `
 Example:
-  yeager -config /usr/local/etc/yeager/config.json
+  yeager -config /usr/local/etc/yeager/config.yaml
       run service
 
   yeager -cert -host 127.0.0.1

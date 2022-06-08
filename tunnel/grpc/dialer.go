@@ -34,7 +34,7 @@ type dialer struct {
 // NewDialer return a gRPC dialer that implements the tunnel.Dialer interface
 func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 	d := &dialer{tlsConf: tlsConf}
-	factory := func() (*grpc.ClientConn, error) {
+	dialFunc := func() (*grpc.ClientConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 		defer cancel()
 		opts := []grpc.DialOption{
@@ -56,7 +56,7 @@ func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 		}
 		return grpc.DialContext(ctx, addr, opts...)
 	}
-	d.pool = newConnPool(poolSize, factory)
+	d.pool = newConnPool(poolSize, dialFunc)
 	return d
 }
 
@@ -67,7 +67,7 @@ func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 	go func() {
 		conn, err := d.pool.Get()
 		if err != nil {
-			log.Print(err)
+			log.Printf("get grpc conn: %s", err)
 			cancelS()
 			return
 		}
