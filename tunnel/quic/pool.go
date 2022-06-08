@@ -12,12 +12,13 @@ import (
 const defaultSize = 2
 
 type connPool struct {
-	size      int
-	i         uint32
-	conns     []quic.Connection
-	dialFunc  func() (quic.Connection, error)
-	reconnect chan int
-	done      chan struct{}
+	size         int
+	i            uint32
+	conns        []quic.Connection
+	dialFunc     func() (quic.Connection, error)
+	reconnecting chan int
+	reconnected  chan quic.Connection
+	done         chan struct{}
 }
 
 func NewConnPool(size int, dialFunc func() (quic.Connection, error)) *connPool {
@@ -26,11 +27,12 @@ func NewConnPool(size int, dialFunc func() (quic.Connection, error)) *connPool {
 	}
 
 	p := &connPool{
-		size:      size,
-		conns:     make([]quic.Connection, size),
-		dialFunc:  dialFunc,
-		reconnect: make(chan int, size*2),
-		done:      make(chan struct{}),
+		size:         size,
+		conns:        make([]quic.Connection, size),
+		dialFunc:     dialFunc,
+		reconnecting: make(chan int, size*2),
+		reconnected:  make(chan quic.Connection, size*4),
+		done:         make(chan struct{}),
 	}
 	go p.reconnectLoop()
 	for i := 0; i < size; i++ {
@@ -57,17 +59,16 @@ func isValid(conn quic.Connection) bool {
 	}
 }
 
-func (p *connPool) notifyReconnect(i int) {
-	p.reconnect <- i
-}
-
 func (p *connPool) reconnectLoop() {
 	for {
 		select {
 		case <-p.done:
 			return
-		case i := <-p.reconnect:
+		case i := <-p.reconnecting:
 			if isValid(p.conns[i]) {
+				go func() {
+					p.reconnected <- p.conns[i]
+				}()
 				continue
 			}
 			if p.conns[i] != nil {
@@ -81,6 +82,9 @@ func (p *connPool) reconnectLoop() {
 				continue
 			}
 			p.conns[i] = c
+			go func() {
+				p.reconnected <- c
+			}()
 		}
 	}
 }
@@ -92,20 +96,17 @@ func (p *connPool) Get() (quic.Connection, error) {
 		return conn, nil
 	}
 
-	go p.notifyReconnect(i)
+	go func() {
+		p.reconnecting <- i
+	}()
 	t := time.NewTimer(time.Second)
 	defer t.Stop()
-	// retry to find a valid connection
 	for {
 		select {
 		case <-t.C:
 			return nil, errors.New("all dead")
-		default:
-			for _, conn := range p.conns {
-				if isValid(conn) {
-					return conn, nil
-				}
-			}
+		case conn := <-p.reconnected:
+			return conn, nil
 		}
 	}
 }
