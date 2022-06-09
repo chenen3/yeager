@@ -14,7 +14,7 @@ import (
 
 type dialer struct {
 	tlsConf *tls.Config
-	pool    *connPool
+	pool    *Pool
 }
 
 // NewDialer return a QUIC dialer that implements the tunnel.Dialer interface
@@ -30,7 +30,7 @@ func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 		defer cancel()
 		return quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
 	}
-	d.pool = NewConnPool(poolSize, dialFunc)
+	d.pool = NewPool(poolSize, dialFunc)
 	return d
 }
 

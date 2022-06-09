@@ -8,75 +8,75 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
-// fakeQuicConn implements the quic.Connection interface
-type fakeQuicConn struct {
+// conn implements the quic.Connection interface
+type conn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func newFakeQuicConn() *fakeQuicConn {
+func fakeQuicConn() *conn {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &fakeQuicConn{ctx, cancel}
+	return &conn{ctx, cancel}
 }
 
-func (c *fakeQuicConn) AcceptStream(context.Context) (quic.Stream, error) {
+func (c *conn) AcceptStream(context.Context) (quic.Stream, error) {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) AcceptUniStream(context.Context) (quic.ReceiveStream, error) {
+func (c *conn) AcceptUniStream(context.Context) (quic.ReceiveStream, error) {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) OpenStream() (quic.Stream, error) {
+func (c *conn) OpenStream() (quic.Stream, error) {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) OpenStreamSync(context.Context) (quic.Stream, error) {
+func (c *conn) OpenStreamSync(context.Context) (quic.Stream, error) {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) OpenUniStream() (quic.SendStream, error) {
+func (c *conn) OpenUniStream() (quic.SendStream, error) {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) OpenUniStreamSync(context.Context) (quic.SendStream, error) {
+func (c *conn) OpenUniStreamSync(context.Context) (quic.SendStream, error) {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) LocalAddr() net.Addr {
+func (c *conn) LocalAddr() net.Addr {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) RemoteAddr() net.Addr {
+func (c *conn) RemoteAddr() net.Addr {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) CloseWithError(quic.ApplicationErrorCode, string) error {
+func (c *conn) CloseWithError(quic.ApplicationErrorCode, string) error {
 	c.cancel()
 	return nil
 }
 
-func (c *fakeQuicConn) Context() context.Context {
+func (c *conn) Context() context.Context {
 	return c.ctx
 }
 
-func (c *fakeQuicConn) ConnectionState() quic.ConnectionState {
+func (c *conn) ConnectionState() quic.ConnectionState {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) SendMessage([]byte) error {
+func (c *conn) SendMessage([]byte) error {
 	panic("to be implement")
 }
 
-func (c *fakeQuicConn) ReceiveMessage() ([]byte, error) {
+func (c *conn) ReceiveMessage() ([]byte, error) {
 	panic("to be implement")
 }
 
 func TestPoolGet(t *testing.T) {
-	makeConn := func() (quic.Connection, error) {
-		return newFakeQuicConn(), nil
+	dialFunc := func() (quic.Connection, error) {
+		return fakeQuicConn(), nil
 	}
-	p := NewConnPool(2, makeConn)
+	p := NewPool(2, dialFunc)
 	defer p.Close()
 
 	conn, err := p.Get()
@@ -90,8 +90,8 @@ func TestPoolGet(t *testing.T) {
 }
 
 func TestPoolReconnect(t *testing.T) {
-	p := NewConnPool(2, func() (quic.Connection, error) {
-		return newFakeQuicConn(), nil
+	p := NewPool(2, func() (quic.Connection, error) {
+		return fakeQuicConn(), nil
 	})
 	defer p.Close()
 

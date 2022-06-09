@@ -11,7 +11,8 @@ import (
 
 const defaultSize = 2
 
-type connPool struct {
+// QUIC connection pool
+type Pool struct {
 	size         int
 	i            uint32
 	conns        []quic.Connection
@@ -21,12 +22,13 @@ type connPool struct {
 	done         chan struct{}
 }
 
-func NewConnPool(size int, dialFunc func() (quic.Connection, error)) *connPool {
+// NewPool creates a QUIC connection pool
+func NewPool(size int, dialFunc func() (quic.Connection, error)) *Pool {
 	if size <= 0 {
 		size = defaultSize
 	}
 
-	p := &connPool{
+	p := &Pool{
 		size:         size,
 		conns:        make([]quic.Connection, size),
 		dialFunc:     dialFunc,
@@ -59,7 +61,7 @@ func isValid(conn quic.Connection) bool {
 	}
 }
 
-func (p *connPool) reconnectLoop() {
+func (p *Pool) reconnectLoop() {
 	for {
 		select {
 		case <-p.done:
@@ -89,7 +91,7 @@ func (p *connPool) reconnectLoop() {
 	}
 }
 
-func (p *connPool) Get() (quic.Connection, error) {
+func (p *Pool) Get() (quic.Connection, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
 	conn := p.conns[i]
 	if isValid(conn) {
@@ -104,14 +106,14 @@ func (p *connPool) Get() (quic.Connection, error) {
 	for {
 		select {
 		case <-t.C:
-			return nil, errors.New("all dead")
+			return nil, errors.New("dead connection")
 		case conn := <-p.reconnected:
 			return conn, nil
 		}
 	}
 }
 
-func (p *connPool) Close() error {
+func (p *Pool) Close() error {
 	close(p.done)
 	var err error
 	for _, c := range p.conns {

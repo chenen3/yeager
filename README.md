@@ -141,14 +141,14 @@ Routing rule specifies where the incomming request goes to. It supports two form
 
 The Outbound tag is specified by config, also yeager comes with two built-in outbound tags:
 
-- `direct` means sending traffic directly, do not pass through proxy
-- `reject` means rejecting traffic and close the connection
+- `direct` means directly sending traffic to destination, not the proxy server
+- `reject` means rejecting traffic
 
 For example:
 
 - `ip-cidr,127.0.0.1/8,direct` matches if destination IP is in specified CIDR
 - `domain,www.apple.com,direct` matches if destination domain is the given one
-- `domain-suffix,apple.com,direct` matches if destination domain has the suffix, AKA subdomain name
+- `domain-suffix,apple.com,direct` matches if destination domain has the suffix, AKA root domain
 - `domain-keyword,apple,direct` matches if destination domain has the keyword
 - `geosite,cn,direct` matches if destination domain is in [geosite](https://github.com/v2fly/domain-list-community/tree/master/data)
 - `final,proxy` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `final,direct`
