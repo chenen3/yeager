@@ -43,8 +43,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	go serverProxy.Serve()
-	defer serverProxy.Close()
+	go serverProxy.Start()
+	defer serverProxy.Stop()
 
 	httpProxyPort, err := util.ChoosePort()
 	if err != nil {
@@ -78,8 +78,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	go clientProxy.Serve()
-	defer clientProxy.Close()
+	go clientProxy.Start()
+	defer clientProxy.Stop()
 
 	os.Exit(m.Run())
 }

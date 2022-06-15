@@ -31,13 +31,13 @@ var version = "dev"
 var example = `
 Example:
   yeager -config /usr/local/etc/yeager/config.yaml
-      run service
+    	run service
 
   yeager -cert -host 127.0.0.1
-      generate certificates for mutual TLS
+    	generate certificates for mutual TLS
 
   yeager -version
-      print version number
+    	print version number
 `
 
 func main() {
@@ -120,10 +120,11 @@ func main() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 		<-ch
-		if err := p.Close(); err != nil {
-			panic("failed to close: " + err.Error())
+		if err := p.Stop(); err != nil {
+			panic("failed to stop service: " + err.Error())
 		}
 	}()
 	log.Printf("yeager %s starting", version)
-	p.Serve()
+	p.Start()
+	log.Print("service stopped")
 }

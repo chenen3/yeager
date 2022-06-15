@@ -107,8 +107,8 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 	return p, nil
 }
 
-// Serve start inbound proxy server.
-func (p *Proxy) Serve() {
+// Start starts proxy service
+func (p *Proxy) Start() {
 	var wg sync.WaitGroup
 	for _, inbound := range p.inbounds {
 		wg.Add(1)
@@ -124,7 +124,8 @@ func (p *Proxy) Serve() {
 	wg.Wait()
 }
 
-func (p *Proxy) Close() error {
+// Stop stops proxy service
+func (p *Proxy) Stop() error {
 	var err error
 	for _, ib := range p.inbounds {
 		if e := ib.Close(); e != nil {

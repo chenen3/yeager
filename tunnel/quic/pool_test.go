@@ -3,6 +3,7 @@ package quic
 import (
 	"context"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/lucas-clemente/quic-go"
@@ -79,14 +80,36 @@ func TestPoolGet(t *testing.T) {
 	p := NewPool(2, dialFunc)
 	defer p.Close()
 
-	conn, err := p.Get()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.CloseWithError(0, "")
-	if !isValid(conn) {
-		t.Fatal("dead connection")
-	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn, err := p.Get()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseWithError(0, "")
+		if !isValid(conn) {
+			t.Error("dead connection")
+			return
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn, err := p.Get()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseWithError(0, "")
+		if !isValid(conn) {
+			t.Error("dead connection")
+			return
+		}
+	}()
+	wg.Wait()
 }
 
 func TestPoolReconnect(t *testing.T) {
@@ -98,12 +121,35 @@ func TestPoolReconnect(t *testing.T) {
 	for _, conn := range p.conns {
 		conn.CloseWithError(0, "")
 	}
-	conn, err := p.Get()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.CloseWithError(0, "")
-	if !isValid(conn) {
-		t.Fatal("dead connection")
-	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn, err := p.Get()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseWithError(0, "")
+		if !isValid(conn) {
+			t.Error("dead connection")
+			return
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn, err := p.Get()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseWithError(0, "")
+		if !isValid(conn) {
+			t.Error("dead connection")
+			return
+		}
+	}()
+	wg.Wait()
 }

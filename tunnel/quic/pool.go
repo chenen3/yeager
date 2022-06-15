@@ -3,8 +3,8 @@ package quic
 import (
 	"errors"
 	"log"
+	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/lucas-clemente/quic-go"
 )
@@ -13,13 +13,12 @@ const defaultSize = 2
 
 // QUIC connection pool
 type Pool struct {
-	size         int
-	i            uint32
-	conns        []quic.Connection
-	dialFunc     func() (quic.Connection, error)
-	reconnecting chan int
-	reconnected  chan quic.Connection
-	done         chan struct{}
+	size     int
+	i        uint32
+	mu       sync.RWMutex
+	conns    []quic.Connection
+	dialFunc func() (quic.Connection, error)
+	done     chan struct{}
 }
 
 // NewPool creates a QUIC connection pool
@@ -29,14 +28,11 @@ func NewPool(size int, dialFunc func() (quic.Connection, error)) *Pool {
 	}
 
 	p := &Pool{
-		size:         size,
-		conns:        make([]quic.Connection, size),
-		dialFunc:     dialFunc,
-		reconnecting: make(chan int, size*2),
-		reconnected:  make(chan quic.Connection, size*4),
-		done:         make(chan struct{}),
+		size:     size,
+		conns:    make([]quic.Connection, size),
+		dialFunc: dialFunc,
+		done:     make(chan struct{}),
 	}
-	go p.reconnectLoop()
 	for i := 0; i < size; i++ {
 		c, err := p.dialFunc()
 		if err != nil {
@@ -61,61 +57,46 @@ func isValid(conn quic.Connection) bool {
 	}
 }
 
-func (p *Pool) reconnectLoop() {
-	for {
-		select {
-		case <-p.done:
-			return
-		case i := <-p.reconnecting:
-			if isValid(p.conns[i]) {
-				go func() {
-					p.reconnected <- p.conns[i]
-				}()
-				continue
-			}
-			if p.conns[i] != nil {
-				e := quic.ApplicationErrorCode(quic.ApplicationErrorErrorCode)
-				// release resource
-				p.conns[i].CloseWithError(e, "dead connection")
-			}
-			c, err := p.dialFunc()
-			if err != nil {
-				log.Printf("reconnect quic: %s", err)
-				continue
-			}
-			p.conns[i] = c
-			go func() {
-				p.reconnected <- c
-			}()
-		}
-	}
-}
-
 func (p *Pool) Get() (quic.Connection, error) {
+	select {
+	case <-p.done:
+		return nil, errors.New("pool closed")
+	default:
+	}
+
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
+	p.mu.RLock()
 	conn := p.conns[i]
+	p.mu.RUnlock()
 	if isValid(conn) {
 		return conn, nil
 	}
 
-	go func() {
-		p.reconnecting <- i
-	}()
-	t := time.NewTimer(time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			return nil, errors.New("dead connection")
-		case conn := <-p.reconnected:
-			return conn, nil
-		}
+	// release resource
+	if conn != nil {
+		e := quic.ApplicationErrorCode(quic.ApplicationErrorErrorCode)
+		conn.CloseWithError(e, "dead connection")
 	}
+
+	qc, err := p.dialFunc()
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if isValid(p.conns[i]) {
+		qc.CloseWithError(0, "")
+		return p.conns[i], nil
+	}
+	p.conns[i] = qc
+	return qc, nil
 }
 
 func (p *Pool) Close() error {
 	close(p.done)
 	var err error
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	for _, c := range p.conns {
 		e := c.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 		if e != nil {
