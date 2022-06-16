@@ -3,7 +3,6 @@ package quic
 import (
 	"context"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/lucas-clemente/quic-go"
@@ -74,82 +73,50 @@ func (c *conn) ReceiveMessage() ([]byte, error) {
 }
 
 func TestPoolGet(t *testing.T) {
-	dialFunc := func() (quic.Connection, error) {
-		return fakeQuicConn(), nil
-	}
-	p := NewPool(2, dialFunc)
-	defer p.Close()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		conn, err := p.Get()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer conn.CloseWithError(0, "")
-		if !isValid(conn) {
-			t.Error("dead connection")
-			return
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		conn, err := p.Get()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer conn.CloseWithError(0, "")
-		if !isValid(conn) {
-			t.Error("dead connection")
-			return
-		}
-	}()
-	wg.Wait()
-}
-
-func TestPoolReconnect(t *testing.T) {
 	p := NewPool(2, func() (quic.Connection, error) {
 		return fakeQuicConn(), nil
 	})
 	defer p.Close()
 
+	conn, err := p.Get()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.CloseWithError(0, "")
+	if !isValid(conn) {
+		t.Error("dead connection")
+		return
+	}
+}
+
+func TestReconnectParallel(t *testing.T) {
+	p := NewPool(2, func() (quic.Connection, error) {
+		return fakeQuicConn(), nil
+	})
+	defer p.Close()
+
+	// closing all connections, make Get reconnect
 	for _, conn := range p.conns {
 		conn.CloseWithError(0, "")
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		conn, err := p.Get()
-		if err != nil {
-			t.Error(err)
-			return
+	t.Run("group", func(t *testing.T) {
+		parallelTest := func(t *testing.T) {
+			t.Parallel()
+			conn, err := p.Get()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer conn.CloseWithError(0, "")
+			if !isValid(conn) {
+				t.Error("dead connection")
+				return
+			}
 		}
-		defer conn.CloseWithError(0, "")
-		if !isValid(conn) {
-			t.Error("dead connection")
-			return
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		conn, err := p.Get()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer conn.CloseWithError(0, "")
-		if !isValid(conn) {
-			t.Error("dead connection")
-			return
-		}
-	}()
-	wg.Wait()
+		t.Run("test1", parallelTest)
+		t.Run("test2", parallelTest)
+		t.Run("test3", parallelTest)
+	})
 }
