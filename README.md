@@ -102,7 +102,9 @@ outbounds:
 rules:
 - ip-cidr,127.0.0.1/8,direct
 - ip-cidr,192.168.0.0/16,direct
-- geosite,private,direct
+- ip-cidr,172.16.0.0/12,direct
+- ip-cidr,10.0.0.0/8,direct
+- domain,localhost,direct
 - geosite,google,proxy
 - geosite,twitter,proxy
 - geosite,cn,direct
