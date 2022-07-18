@@ -42,6 +42,7 @@ jobs:
         with:
           files: |
             yeager-linux-amd64.tar.gz
+            yeager-linux-arm64.tar.gz
             yeager-macos-amd64.tar.gz
             yeager-freebsd-amd64.tar.gz
             shasums.txt
