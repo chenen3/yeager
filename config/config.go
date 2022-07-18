@@ -15,7 +15,7 @@ type Config struct {
 	// http 代理监听地址
 	HTTPListen string `yaml:"httpListen,omitempty"`
 	// yeager入站代理
-	Inbounds []*YeagerServer `yaml:"inbounds,omitempty"`
+	Inbounds []YeagerServer `yaml:"inbounds,omitempty"`
 	// yeager出站代理
 	Outbounds []YeagerClient `yaml:"outbounds,omitempty"`
 	// 路由规则

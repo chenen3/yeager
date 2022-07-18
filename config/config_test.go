@@ -71,7 +71,7 @@ func TestLoad(t *testing.T) {
 			want: Config{
 				SOCKSListen: ":1081",
 				HTTPListen:  ":8081",
-				Inbounds: []*YeagerServer{
+				Inbounds: []YeagerServer{
 					{
 						Listen:    "127.0.0.1:10812",
 						Transport: "grpc",

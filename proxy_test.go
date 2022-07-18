@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	srvConf := config.Config{
-		Inbounds: []*config.YeagerServer{
+		Inbounds: []config.YeagerServer{
 			{
 				Listen:    fmt.Sprintf("127.0.0.1:%d", tunnelPort),
 				Transport: config.TransGRPC,

@@ -1,7 +1,7 @@
 inbounds:
 - listen: 0.0.0.0:9000
   transport: grpc
-  mtls:
+  tls:
     certFile: "/usr/local/etc/yeager/server-cert.pem"
     keyFile: "/usr/local/etc/yeager/server-key.pem"
     caFile: "/usr/local/etc/yeager/ca-cert.pem"

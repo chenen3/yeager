@@ -43,7 +43,7 @@ func TestYeager(t *testing.T) {
 			},
 		},
 		{
-			name: "grpc-mtls",
+			name: "grpc-tls",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
 				Transport: config.TransGRPC,
@@ -64,7 +64,7 @@ func TestYeager(t *testing.T) {
 			},
 		},
 		{
-			name: "quic-mtls",
+			name: "quic-tls",
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
 				Transport: config.TransQUIC,
