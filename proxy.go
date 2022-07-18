@@ -56,29 +56,26 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 		outbounds: make(map[string]Outbounder, 2+len(conf.Outbounds)),
 	}
 
-	if conf.Inbounds.SOCKS != nil {
-		srv, err := socks.NewServer(conf.Inbounds.SOCKS.Listen)
+	if conf.SOCKSListen != "" {
+		srv, err := socks.NewServer(conf.SOCKSListen)
 		if err != nil {
 			return nil, errors.New("init socks5 server: " + err.Error())
 		}
 		p.inbounds = append(p.inbounds, srv)
 	}
-	if conf.Inbounds.HTTP != nil {
-		srv, err := http.NewProxyServer(conf.Inbounds.HTTP.Listen)
+	if conf.HTTPListen != "" {
+		srv, err := http.NewProxyServer(conf.HTTPListen)
 		if err != nil {
 			return nil, errors.New("init http proxy server: " + err.Error())
 		}
 		p.inbounds = append(p.inbounds, srv)
 	}
-	if conf.Inbounds.Yeager != nil {
-		srv, err := tunnel.NewServer(conf.Inbounds.Yeager)
+	for _, ib := range conf.Inbounds {
+		srv, err := tunnel.NewServer(ib)
 		if err != nil {
 			return nil, errors.New("init yeager proxy server: " + err.Error())
 		}
 		p.inbounds = append(p.inbounds, srv)
-	}
-	if len(p.inbounds) == 0 {
-		return nil, errors.New("no inbound specified in config")
 	}
 
 	// built-in outbound

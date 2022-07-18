@@ -47,7 +47,7 @@ func TestYeager(t *testing.T) {
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
 				Transport: config.TransGRPC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: string(certInfo.ServerCert),
 					KeyPEM:  string(certInfo.ServerKey),
 					CAPEM:   string(certInfo.RootCert),
@@ -56,7 +56,7 @@ func TestYeager(t *testing.T) {
 			clientConf: &config.YeagerClient{
 				Address:   addr,
 				Transport: config.TransGRPC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: string(certInfo.ClientCert),
 					KeyPEM:  string(certInfo.ClientKey),
 					CAPEM:   string(certInfo.RootCert),
@@ -68,7 +68,7 @@ func TestYeager(t *testing.T) {
 			serverConf: &config.YeagerServer{
 				Listen:    addr,
 				Transport: config.TransQUIC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: string(certInfo.ServerCert),
 					KeyPEM:  string(certInfo.ServerKey),
 					CAPEM:   string(certInfo.RootCert),
@@ -77,7 +77,7 @@ func TestYeager(t *testing.T) {
 			clientConf: &config.YeagerClient{
 				Address:   addr,
 				Transport: config.TransQUIC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: string(certInfo.ClientCert),
 					KeyPEM:  string(certInfo.ClientKey),
 					CAPEM:   string(certInfo.RootCert),
