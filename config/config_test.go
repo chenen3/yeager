@@ -5,66 +5,26 @@ import (
 	"testing"
 )
 
-var jsons = `
-{
-	"debug": true,
-	"verbose": true,
-	"inbounds": {
-		"socks": {
-			"listen": ":1081"
-		},
-		"http": {
-			"listen": ":8081"
-		},
-		"yeager": {
-			"listen": "127.0.0.1:10812",
-			"transport": "grpc",
-			"mtls": {
-				"certFile": "/usr/local/etc/yeager/server-cert.pem",
-				"keyFile": "/usr/local/etc/yeager/server-key.pem",
-				"caFile": "/usr/local/etc/yeager/ca-cert.pem"
-			}
-		}
-	},
-	"outbounds": [
-		{
-			"tag": "PROXY",
-			"address": "127.0.0.1:9000",
-			"transport": "grpc",
-			"mtls": {
-				"certFile": "/usr/local/etc/yeager/client-cert.pem",
-				"keyFile": "/usr/local/etc/yeager/client-key.pem",
-				"caFile": "/usr/local/etc/yeager/ca-cert.pem"
-			},
-			"connectionPoolSize": 3
-		}
-	],
-	"rules": [
-		"FINAL,PROXY"
-	]
-}
-`
 var yamls = `
 debug: true
 verbose: true
+socksListen: ":1081"
+httpListen: ":8081"
 inbounds:
-  socks:
-    listen: ":1081"
-  http:
-    listen: ":8081"
-  yeager:
-    listen: 127.0.0.1:10812
-    transport: grpc
-    mtls:
-      certFile: /usr/local/etc/yeager/server-cert.pem
-      keyFile: /usr/local/etc/yeager/server-key.pem
-      caFile: /usr/local/etc/yeager/ca-cert.pem
+- listen: 127.0.0.1:10812
+  transport: grpc
+  tls:
+    certFile: /usr/local/etc/yeager/server-cert.pem
+    keyFile: /usr/local/etc/yeager/server-key.pem
+    caFile: /usr/local/etc/yeager/ca-cert.pem
+- listen: 127.0.0.1:10813
+  transport: tcp
 
 outbounds:
   - tag: PROXY
     address: 127.0.0.1:9000
     transport: grpc
-    mtls:
+    tls:
       certFile: /usr/local/etc/yeager/client-cert.pem
       keyFile: /usr/local/etc/yeager/client-key.pem
       caFile: /usr/local/etc/yeager/ca-cert.pem
@@ -106,55 +66,24 @@ func TestLoad(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "json",
-			bs:   []byte(jsons),
-			want: Config{
-				Inbounds: Inbounds{
-					SOCKS: &SOCKS{Listen: ":1081"},
-					HTTP:  &HTTP{Listen: ":8081"},
-					Yeager: &YeagerServer{
-						Listen:    "127.0.0.1:10812",
-						Transport: "grpc",
-						MutualTLS: MutualTLS{
-							CertFile: "/usr/local/etc/yeager/server-cert.pem",
-							KeyFile:  "/usr/local/etc/yeager/server-key.pem",
-							CAFile:   "/usr/local/etc/yeager/ca-cert.pem",
-						},
-					},
-				},
-				Outbounds: []YeagerClient{
-					{
-						Tag:       "PROXY",
-						Address:   "127.0.0.1:9000",
-						Transport: "grpc",
-						MutualTLS: MutualTLS{
-							CertFile: "/usr/local/etc/yeager/client-cert.pem",
-							KeyFile:  "/usr/local/etc/yeager/client-key.pem",
-							CAFile:   "/usr/local/etc/yeager/ca-cert.pem",
-						},
-						ConnectionPoolSize: 3,
-					},
-				},
-				Rules:   []string{"FINAL,PROXY"},
-				Verbose: true,
-				Debug:   true,
-			},
-		},
-		{
 			name: "yaml",
 			bs:   []byte(yamls),
 			want: Config{
-				Inbounds: Inbounds{
-					SOCKS: &SOCKS{Listen: ":1081"},
-					HTTP:  &HTTP{Listen: ":8081"},
-					Yeager: &YeagerServer{
+				SOCKSListen: ":1081",
+				HTTPListen:  ":8081",
+				Inbounds: []*YeagerServer{
+					{
 						Listen:    "127.0.0.1:10812",
 						Transport: "grpc",
-						MutualTLS: MutualTLS{
+						TLS: TLS{
 							CertFile: "/usr/local/etc/yeager/server-cert.pem",
 							KeyFile:  "/usr/local/etc/yeager/server-key.pem",
 							CAFile:   "/usr/local/etc/yeager/ca-cert.pem",
 						},
+					},
+					{
+						Listen:    "127.0.0.1:10813",
+						Transport: "tcp",
 					},
 				},
 				Outbounds: []YeagerClient{
@@ -162,7 +91,7 @@ func TestLoad(t *testing.T) {
 						Tag:       "PROXY",
 						Address:   "127.0.0.1:9000",
 						Transport: "grpc",
-						MutualTLS: MutualTLS{
+						TLS: TLS{
 							CertFile: "/usr/local/etc/yeager/client-cert.pem",
 							KeyFile:  "/usr/local/etc/yeager/client-key.pem",
 							CAFile:   "/usr/local/etc/yeager/ca-cert.pem",
@@ -187,16 +116,16 @@ func TestLoad(t *testing.T) {
 			}
 			want := test.want
 			if !reflect.DeepEqual(want, got) {
-				if !reflect.DeepEqual(want.Inbounds.HTTP, got.Inbounds.HTTP) {
-					t.Errorf("want inbound http: %+v, got %+v", want.Inbounds.HTTP, got.Inbounds.HTTP)
+				if !reflect.DeepEqual(want.HTTPListen, got.HTTPListen) {
+					t.Errorf("want httpListen: %+v, got %+v", want.HTTPListen, got.HTTPListen)
 					return
 				}
-				if !reflect.DeepEqual(want.Inbounds.SOCKS, got.Inbounds.SOCKS) {
-					t.Errorf("want inbound socks: %+v, got %+v", want.Inbounds.SOCKS, got.Inbounds.SOCKS)
+				if !reflect.DeepEqual(want.SOCKSListen, got.SOCKSListen) {
+					t.Errorf("want socksListen: %+v, got %+v", want.SOCKSListen, got.SOCKSListen)
 					return
 				}
-				if !reflect.DeepEqual(want.Inbounds.Yeager, got.Inbounds.Yeager) {
-					t.Errorf("want inbound yeager: %+v, \ngot %+v", want.Inbounds.Yeager, got.Inbounds.Yeager)
+				if !reflect.DeepEqual(want.Inbounds, got.Inbounds) {
+					t.Errorf("want inbounds: %+v, \ngot: %+v", want.Inbounds, got.Inbounds)
 					return
 				}
 				if !reflect.DeepEqual(want.Outbounds, got.Outbounds) {

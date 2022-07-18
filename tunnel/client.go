@@ -53,13 +53,13 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 	}
 
-	if conf.MutualTLS.CertFile != "" {
-		cert, err := tls.LoadX509KeyPair(conf.MutualTLS.CertFile, conf.MutualTLS.KeyFile)
+	if conf.TLS.CertFile != "" {
+		cert, err := tls.LoadX509KeyPair(conf.TLS.CertFile, conf.TLS.KeyFile)
 		if err != nil {
 			return nil, err
 		}
 		tlsConf.Certificates = []tls.Certificate{cert}
-		ca, err := os.ReadFile(conf.MutualTLS.CAFile)
+		ca, err := os.ReadFile(conf.TLS.CAFile)
 		if err != nil {
 			return nil, err
 		}
@@ -68,14 +68,14 @@ func makeClientTLSConfig(conf *config.YeagerClient) (*tls.Config, error) {
 			return nil, errors.New("failed to parse root certificate")
 		}
 		tlsConf.RootCAs = pool
-	} else if len(conf.MutualTLS.CertPEM) != 0 {
-		cert, err := tls.X509KeyPair([]byte(conf.MutualTLS.CertPEM), []byte(conf.MutualTLS.KeyPEM))
+	} else if len(conf.TLS.CertPEM) != 0 {
+		cert, err := tls.X509KeyPair([]byte(conf.TLS.CertPEM), []byte(conf.TLS.KeyPEM))
 		if err != nil {
 			return nil, err
 		}
 		tlsConf.Certificates = []tls.Certificate{cert}
 		pool := x509.NewCertPool()
-		if ok := pool.AppendCertsFromPEM([]byte(conf.MutualTLS.CAPEM)); !ok {
+		if ok := pool.AppendCertsFromPEM([]byte(conf.TLS.CAPEM)); !ok {
 			return nil, errors.New("failed to parse root certificate")
 		}
 		tlsConf.RootCAs = pool

@@ -27,11 +27,11 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	srvConf := config.Config{
-		Inbounds: config.Inbounds{
-			Yeager: &config.YeagerServer{
+		Inbounds: []*config.YeagerServer{
+			{
 				Listen:    fmt.Sprintf("127.0.0.1:%d", tunnelPort),
 				Transport: config.TransGRPC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: string(cert.ServerCert),
 					KeyPEM:  string(cert.ServerKey),
 					CAPEM:   string(cert.RootCert),
@@ -53,17 +53,13 @@ func TestMain(m *testing.M) {
 	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
 
 	cliConf := config.Config{
-		Inbounds: config.Inbounds{
-			HTTP: &config.HTTP{
-				Listen: fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
-			},
-		},
+		HTTPListen: fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
 		Outbounds: []config.YeagerClient{
 			{
 				Tag:       "PROXY",
 				Address:   fmt.Sprintf("127.0.0.1:%d", tunnelPort),
 				Transport: config.TransGRPC,
-				MutualTLS: config.MutualTLS{
+				TLS: config.TLS{
 					CertPEM: string(cert.ClientCert),
 					KeyPEM:  string(cert.ClientKey),
 					CAPEM:   string(cert.RootCert),

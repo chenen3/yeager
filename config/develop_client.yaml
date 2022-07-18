@@ -1,13 +1,11 @@
 verbose: true
-inbounds:
-  socks:
-    listen: ":1081"
-  http:
-    listen: ":8081"
+socksListen: ":1081"
+httpListen: ":8081"
 outbounds:
 - tag: PROXY
   address: 127.0.0.1:10812
   transport: tcp
+
 rules:
 - FINAL,PROXY
 

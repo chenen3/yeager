@@ -37,13 +37,12 @@ Create config file:
 ```sh
 cat > /usr/local/etc/yeager/config.yaml << EOF
 inbounds:
-  yeager:
-    listen: 0.0.0.0:9000
-    transport: grpc
-    mtls:
-      certFile: "/usr/local/etc/yeager/server-cert.pem"
-      keyFile: "/usr/local/etc/yeager/server-key.pem"
-      caFile: "/usr/local/etc/yeager/ca-cert.pem"
+- listen: 0.0.0.0:9000
+  transport: grpc
+  tls:
+    certFile: "/usr/local/etc/yeager/server-cert.pem"
+    keyFile: "/usr/local/etc/yeager/server-key.pem"
+    caFile: "/usr/local/etc/yeager/ca-cert.pem"
 rules:
 - ip-cidr,127.0.0.1/8,reject
 - ip-cidr,192.168.0.0/16,reject
@@ -86,16 +85,14 @@ create config file `/usr/local/etc/yeager/config.yaml`
 
 ```yaml
 inbounds:
-  socks:
-    address: 127.0.0.1:1080
-  http:
-    address: 127.0.0.1:8080
+  socksListen: "127.0.0.1:1080"
+  httpListen: "127.0.0.1:8080"
 outbounds:
 - tag: proxy
   # replace the example server IP
   address: example.server.ip:9000
   transport: grpc
-  mtls:
+  tls:
     certFile: "/usr/local/etc/yeager/client-cert.pem"
     keyFile: "/usr/local/etc/yeager/client-key.pem"
     caFile: "/usr/local/etc/yeager/ca-cert.pem"

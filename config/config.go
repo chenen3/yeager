@@ -1,49 +1,29 @@
 package config
 
-import (
-	"encoding/json"
-
-	"gopkg.in/yaml.v3"
-)
+import "gopkg.in/yaml.v3"
 
 // Load read config from bytes
 func Load(bs []byte) (Config, error) {
-	var yc Config
-	err := yaml.Unmarshal(bs, &yc)
-	if err == nil {
-		return yc, nil
-	}
-
-	var jc Config
-	err = json.Unmarshal(bs, &jc)
-	return jc, err
+	var c Config
+	err := yaml.Unmarshal(bs, &c)
+	return c, err
 }
 
 type Config struct {
-	// 入站代理
-	Inbounds Inbounds `json:"inbounds,omitempty" yaml:"inbounds,omitempty"`
-	// 出站代理
-	Outbounds []YeagerClient `json:"outbounds,omitempty" yaml:"outbounds,omitempty"`
+	// socks 代理监听地址
+	SOCKSListen string `yaml:"socksListen,omitempty"`
+	// http 代理监听地址
+	HTTPListen string `yaml:"httpListen,omitempty"`
+	// yeager入站代理
+	Inbounds []*YeagerServer `yaml:"inbounds,omitempty"`
+	// yeager出站代理
+	Outbounds []YeagerClient `yaml:"outbounds,omitempty"`
 	// 路由规则
-	Rules []string `json:"rules,omitempty" yaml:"rules,omitempty"`
+	Rules []string `yaml:"rules,omitempty"`
 	// verbose logging
-	Verbose bool `json:"verbose,omitempty" yaml:"verbose,omitempty"`
+	Verbose bool `yaml:"verbose,omitempty"`
 	// expose runtime metrics for debugging and profiling, developers only
-	Debug bool `json:"debug,omitempty" yaml:"debug,omitempty"`
-}
-
-type Inbounds struct {
-	SOCKS  *SOCKS        `json:"socks,omitempty" yaml:"socks,omitempty"`
-	HTTP   *HTTP         `json:"http,omitempty" yaml:"http,omitempty"`
-	Yeager *YeagerServer `json:"yeager,omitempty" yaml:"yeager,omitempty"`
-}
-
-type SOCKS struct {
-	Listen string `json:"listen" yaml:"listen"`
-}
-
-type HTTP struct {
-	Listen string `json:"listen" yaml:"listen"`
+	Debug bool `yaml:"debug,omitempty"`
 }
 
 type Transport string
@@ -57,30 +37,30 @@ const (
 	// TransTLS Transport = "tls"
 )
 
-type MutualTLS struct {
-	CertFile string `json:"certFile" yaml:"certFile"`
-	CertPEM  string `json:"certPEM,omitempty" yaml:"certPEM,omitempty"`
-	KeyFile  string `json:"keyFile" yaml:"keyFile"`
-	KeyPEM   string `json:"keyPEM,omitempty" yaml:"keyPEM,omitempty"`
-	CAFile   string `json:"caFile" yaml:"caFile"`
-	CAPEM    string `json:"caPEM,omitempty" yaml:"caPEM,omitempty"`
+type TLS struct {
+	CertFile string `yaml:"certFile"`
+	CertPEM  string `yaml:"certPEM,omitempty"`
+	KeyFile  string `yaml:"keyFile"`
+	KeyPEM   string `yaml:"keyPEM,omitempty"`
+	CAFile   string `yaml:"caFile"`
+	CAPEM    string `yaml:"caPEM,omitempty"`
 }
 
 type YeagerServer struct {
-	Listen    string    `json:"listen" yaml:"listen"`
-	Transport Transport `json:"transport" yaml:"transport"`
+	Listen    string    `yaml:"listen"`
+	Transport Transport `yaml:"transport"`
 	// unavailable when transport is tcp
-	MutualTLS MutualTLS `json:"mtls,omitempty" yaml:"mtls,omitempty"`
+	TLS TLS `yaml:"tls,omitempty"`
 }
 
 type YeagerClient struct {
-	Tag string `json:"tag" yaml:"tag"`
+	Tag string `yaml:"tag"`
 	// server address to be connected
-	Address   string    `json:"address" yaml:"address"`
-	Transport Transport `json:"transport" yaml:"transport"`
+	Address   string    `yaml:"address"`
+	Transport Transport `yaml:"transport"`
 	// unavailable when transport is tcp
-	MutualTLS MutualTLS `json:"mtls,omitempty" yaml:"mtls,omitempty"`
+	TLS TLS `yaml:"tls,omitempty"`
 
 	// optional
-	ConnectionPoolSize int `json:"connectionPoolSize,omitempty" yaml:"connectionPoolSize,omitempty"`
+	ConnectionPoolSize int `yaml:"connectionPoolSize,omitempty"`
 }
