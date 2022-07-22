@@ -53,6 +53,7 @@ const (
 	ClientKeyFile  = "client-key.pem"
 )
 
+// TODO: certificate files are no longer saved
 // GenerateCertificate generate TLS certificates for mutual authentication,
 // the output files are: ca.key, ca.cert, server.key, server.crt, client.key, client.crt
 func GenerateCertificate(host string, save bool) (*Cert, error) {
@@ -72,22 +73,22 @@ func GenerateCertificate(host string, save bool) (*Cert, error) {
 	}
 
 	if save {
-		if err = savePEM(CACertFile, rootCert); err != nil {
+		if err = os.WriteFile(CACertFile, rootCert, 0600); err != nil {
 			return nil, err
 		}
-		if err = savePEM(CAKeyFile, rootKey); err != nil {
+		if err = os.WriteFile(CAKeyFile, rootKey, 0600); err != nil {
 			return nil, err
 		}
-		if err = savePEM(ServerCertFile, serverCert); err != nil {
+		if err = os.WriteFile(ServerCertFile, serverCert, 0600); err != nil {
 			return nil, err
 		}
-		if err = savePEM(ServerKeyFile, serverKey); err != nil {
+		if err = os.WriteFile(ServerKeyFile, serverKey, 0600); err != nil {
 			return nil, err
 		}
-		if err = savePEM(ClientCertFile, clientCert); err != nil {
+		if err = os.WriteFile(ClientCertFile, clientCert, 0600); err != nil {
 			return nil, err
 		}
-		if err = savePEM(ClientKeyFile, clientKey); err != nil {
+		if err = os.WriteFile(ClientKeyFile, clientKey, 0600); err != nil {
 			return nil, err
 		}
 	}
@@ -199,15 +200,4 @@ func createCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, ke
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: b})
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	return certPEM, keyPEM, nil
-}
-
-func savePEM(filename string, pem []byte) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.Write(pem)
-	return err
 }

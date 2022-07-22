@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,35 +8,14 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/util"
 )
 
 var httpProxyURL string
 
 func TestMain(m *testing.M) {
-	cert, err := util.GenerateCertificate("127.0.0.1", false)
+	srvConf, cliConf, err := GenerateConfig("127.0.0.1")
 	if err != nil {
 		panic(err)
-	}
-
-	tunnelPort, err := util.ChoosePort()
-	if err != nil {
-		panic(err)
-	}
-	srvConf := config.Config{
-		Inbounds: []config.YeagerServer{
-			{
-				Listen:    fmt.Sprintf("127.0.0.1:%d", tunnelPort),
-				Transport: config.TransGRPC,
-				TLS: config.TLS{
-					CertPEM: string(cert.ServerCert),
-					KeyPEM:  string(cert.ServerKey),
-					CAPEM:   string(cert.RootCert),
-				},
-			},
-		},
 	}
 	serverProxy, err := NewProxy(srvConf)
 	if err != nil {
@@ -46,30 +24,7 @@ func TestMain(m *testing.M) {
 	go serverProxy.Start()
 	defer serverProxy.Stop()
 
-	httpProxyPort, err := util.ChoosePort()
-	if err != nil {
-		panic(err)
-	}
-	httpProxyURL = fmt.Sprintf("http://127.0.0.1:%d", httpProxyPort)
-
-	cliConf := config.Config{
-		HTTPListen: fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
-		Outbounds: []config.YeagerClient{
-			{
-				Tag:       "PROXY",
-				Address:   fmt.Sprintf("127.0.0.1:%d", tunnelPort),
-				Transport: config.TransGRPC,
-				TLS: config.TLS{
-					CertPEM: string(cert.ClientCert),
-					KeyPEM:  string(cert.ClientKey),
-					CAPEM:   string(cert.RootCert),
-				},
-			},
-		},
-		Rules: []string{
-			"FINAL,PROXY",
-		},
-	}
+	httpProxyURL = "http://" + cliConf.HTTPListen
 	clientProxy, err := NewProxy(cliConf)
 	if err != nil {
 		panic(err)
