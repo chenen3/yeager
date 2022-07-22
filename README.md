@@ -116,7 +116,7 @@ For example:
 - `domain-suffix,apple.com,direct`access directly if root domain name matches
 - `domain-keyword,apple,direct` access directly if keyword matches
 - `geosite,cn,direct` access directly if the domain name is located in mainland China
-- `final,proxy` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `final,direct`
+- `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
 
 ### Upgrade
 
