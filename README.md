@@ -28,8 +28,8 @@ ln -s server.yaml config.yaml
 ```
 
 the command generates two files:
-- `server.yaml` the server config
-- `client.yaml` the client config which should be **copyed to client device later**
+- `/usr/local/etc/yeager/server.yaml` the server config
+- `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
 
 Launch:
 
@@ -61,7 +61,7 @@ docker pull ghcr.io/chenen3/yeager
 
 #### Configure
 
-On remote host we have generated client config file `client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
+On remote host we have generated client config `usr/local/etc/yeager/client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
 
 #### Run via homebrew
 
