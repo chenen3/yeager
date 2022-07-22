@@ -4,7 +4,7 @@ This repository implements a proxy tool to help developers access restricted web
 I wrote it as a hobby and made it as simple and efficient as possible for personal use.
 
 Features:
-- SOCKS5 and HTTP proxy
+- SOCKS and HTTP proxy
 - lightweight tunnel proxy
   - transport over gRPC or QUIC
   - secure by mutual TLS
