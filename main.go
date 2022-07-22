@@ -185,6 +185,8 @@ func generateConfig(srvConfFile, cliConfFile string) error {
 		"geosite,apple@cn,direct",
 		"final,proxy",
 	}
+	// On client side, verbose logging helps to see where traffic is being sent to
+	cliConf.Verbose = true
 	bs, err = yaml.Marshal(cliConf)
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)
