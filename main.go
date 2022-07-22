@@ -27,7 +27,7 @@ func init() {
 	}
 }
 
-// set by Github Action at project release
+// set by Github Action on release
 var version = "dev"
 
 var example = `

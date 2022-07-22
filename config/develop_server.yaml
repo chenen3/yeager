@@ -1,4 +1,4 @@
 verbose: true
 inbounds:
-- listen: 127.0.0.1:10812
-  transport: tcp
+  - listen: 127.0.0.1:10812
+    transport: tcp
