@@ -8,6 +8,5 @@ FROM alpine:latest
 WORKDIR /
 COPY --from=builder /yeager/build/yeager /usr/local/bin/yeager
 COPY --from=builder /yeager/route/testdata/geosite.dat /usr/local/share/yeager/geosite.dat
-COPY --from=builder /yeager/config/example_server.yaml /usr/local/etc/yeager/config.yaml
 
 CMD ["/usr/local/bin/yeager", "-config", "/usr/local/etc/yeager/config.yaml"]

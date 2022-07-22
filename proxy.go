@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"expvar"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -216,4 +217,57 @@ func (p *Proxy) handle(ctx context.Context, ic net.Conn, addr string) {
 			log.Print(err)
 		}
 	}
+}
+
+func GenerateConfig(host string) (srv, cli config.Config, err error) {
+	cert, err := util.GenerateCertificate(host, false)
+	if err != nil {
+		return srv, cli, err
+	}
+	tunnelPort, err := util.ChoosePort()
+	if err != nil {
+		return srv, cli, err
+	}
+
+	srv = config.Config{
+		Inbounds: []config.YeagerServer{
+			{
+				Listen:    fmt.Sprintf(":%d", tunnelPort),
+				Transport: config.TransGRPC,
+				TLS: config.TLS{
+					CAPEM:   string(cert.RootCert),
+					CertPEM: string(cert.ServerCert),
+					KeyPEM:  string(cert.ServerKey),
+				},
+			},
+		},
+		Rules: []string{"final,direct"},
+	}
+
+	socksProxyPort, err := util.ChoosePort()
+	if err != nil {
+		return srv, cli, err
+	}
+	httpProxyPort, err := util.ChoosePort()
+	if err != nil {
+		return srv, cli, err
+	}
+	cli = config.Config{
+		SOCKSListen: fmt.Sprintf("127.0.0.1:%d", socksProxyPort),
+		HTTPListen:  fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
+		Outbounds: []config.YeagerClient{
+			{
+				Tag:       "proxy",
+				Address:   fmt.Sprintf("%s:%d", host, tunnelPort),
+				Transport: config.TransGRPC,
+				TLS: config.TLS{
+					CAPEM:   string(cert.RootCert),
+					CertPEM: string(cert.ClientCert),
+					KeyPEM:  string(cert.ClientKey),
+				},
+			},
+		},
+		Rules: []string{"final,proxy"},
+	}
+	return srv, cli, nil
 }

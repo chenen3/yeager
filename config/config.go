@@ -38,11 +38,11 @@ const (
 )
 
 type TLS struct {
-	CertFile string `yaml:"certFile"`
+	CertFile string `yaml:"certFile,omitempty"`
 	CertPEM  string `yaml:"certPEM,omitempty"`
-	KeyFile  string `yaml:"keyFile"`
+	KeyFile  string `yaml:"keyFile,omitempty"`
 	KeyPEM   string `yaml:"keyPEM,omitempty"`
-	CAFile   string `yaml:"caFile"`
+	CAFile   string `yaml:"caFile,omitempty"`
 	CAPEM    string `yaml:"caPEM,omitempty"`
 }
 
