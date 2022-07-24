@@ -1,6 +1,6 @@
 # yeager
 
-This repository implements a proxy that helps developers speed up the internet connection.
+This repository implements a proxy that helps speed up the internet connection.
 I wrote it as a hobby and made it as simple and efficient as possible for personal use.
 
 Features:
