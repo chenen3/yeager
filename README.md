@@ -122,8 +122,10 @@ For the pre-built binary:
 
 ```sh
 rm /usr/local/bin/yeager
-rm /usr/local/share/yeager/geosite.dat && rmdir /usr/local/share/yeager
-rm /usr/local/etc/yeager/*.yaml && rmdir /usr/local/etc/yeager
+rm /usr/local/share/yeager/geosite.dat
+rmdir /usr/local/share/yeager
+rm /usr/local/etc/yeager/*.yaml
+rmdir /usr/local/etc/yeager
 ```
 
 For homebrew:
