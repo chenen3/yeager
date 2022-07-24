@@ -1,6 +1,6 @@
 # yeager
 
-This repository implements a network proxy that help developers access restricted websites.
+This repository implements a network proxy that helps developers access restricted websites.
 I wrote it as a hobby and made it as simple and efficient as possible for personal use.
 
 Features:
