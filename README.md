@@ -4,7 +4,7 @@ This repository implements a proxy tool to help developers access restricted web
 I wrote it as a hobby and made it as simple and efficient as possible for personal use.
 
 Features:
-- SOCKS5 and HTTP proxy
+- SOCKS and HTTP proxy
 - lightweight tunnel proxy
   - transport over gRPC or QUIC
   - secure by mutual TLS
@@ -116,7 +116,7 @@ For example:
 - `domain-suffix,apple.com,direct`access directly if root domain name matches
 - `domain-keyword,apple,direct` access directly if keyword matches
 - `geosite,cn,direct` access directly if the domain name is located in mainland China
-- `final,proxy` determine where the traffic be send to while all above rules not match. It must be the last rule, by default is `final,direct`
+- `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
 
 ### Upgrade
 
