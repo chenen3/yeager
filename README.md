@@ -12,93 +12,83 @@ Features:
 
 ## Get started
 
-### As server on remote host
+### 1. Install
 
-Generate config (self-signed certificates included):
+Download the pre-built binary, see https://github.com/chenen3/yeager/releases
 
+Or via Docker
 ```sh
-mkdir -p /usr/local/etc/yeager
-cd /usr/local/etc/yeager
-docker run --rm \
-    --workdir /usr/local/etc/yeager \
-    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
-    ghcr.io/chenen3/yeager \
-    yeager -genconf
-ln -s server.yaml config.yaml
+docker pull ghcr.io/chenen3/yeager
 ```
 
-the command generates two files:
-- `/usr/local/etc/yeager/server.yaml` the server config
-- `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
-
-Launch:
-
-```sh
-docker run -d \
-    --name yeager \
-    --restart=always \
-    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
-    -p 9001:9001 \
-    ghcr.io/chenen3/yeager
-```
-
-Update the firewall of remote host, **allow TCP port 9001**
-
-### As client on local host
-
-#### Install via homebrew (macOS only)
-
+Or via homebrew (macOS only)
 ```sh
 brew tap chenen3/yeager
 brew install yeager
 ```
 
-#### Install via docker
+### 2. As server on remote host
+
+#### 2.1 Generate config
 
 ```sh
-docker pull ghcr.io/chenen3/yeager
+mkdir -p /usr/local/etc/yeager
+cd /usr/local/etc/yeager
+yeager -genconf
+# if you prefer docker:
+# docker run --rm --workdir /usr/local/etc/yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager ghcr.io/chenen3/yeager yeager -genconf
+ln -s server.yaml config.yaml
 ```
 
-#### Configure
+here generates a pair of config:
+- `/usr/local/etc/yeager/server.yaml` the server config that linked to `usr/local/etc/yeager/config.yaml`
+- `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
+
+#### 2.2 Run service
+
+```sh
+yeager -config /usr/local/etc/yeager/config.yaml
+# if you prefer docker:
+# docker run -d --restart=always --name yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager -p 9001:9001 ghcr.io/chenen3/yeager
+```
+
+#### 2.3 Update firewall
+**Allow TCP port 9001**
+
+### 3. As client on local host
+
+#### 3.1 Configure
 
 On remote host we have generated client config `usr/local/etc/yeager/client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
 
-#### Run via homebrew
+#### 3.2 Run service
 
+For the pre-built binary:
+```sh
+yeager -config /usr/local/etc/yeager/config.yaml
+```
+
+For homebrew:
 ```sh
 brew services start yeager
 ```
 
-#### Run via docker
-
+For docker:
 ```sh
 docker run -d \
-    --name yeager \
     --restart=always \
     --network host \
+    --name yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     ghcr.io/chenen3/yeager
 ```
 
-#### Setup proxy
+#### 3.3 Setup proxy
 **setup SOCKS proxy 127.0.0.1:1080 or HTTP proxy 127.0.0.1:8080 on local host**.
 
 That's all, good luck.
 
-## Usage
-
-### Generate config 
-```sh
-yeager -genconf
-# generates a pair of server and client configuration files.
-```
-
-### Run service
-```sh
-yeager -config config.yaml
-```
-
-### Routing rule
+## Routing rule
 
 Routing rule specifies where the incomming request goes to. It supports two forms:
 - `ruleType,value,outboundTag`
@@ -118,35 +108,16 @@ For example:
 - `geosite,cn,direct` access directly if the domain name is located in mainland China
 - `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
 
-### Upgrade
+## Uninstall
 
-Via homebrew on macOS
-
-```sh
-brew update
-brew upgrade yeager
-brew services restart yeager
-```
-
-Via docker
-
-```sh
-docker pull ghcr.io/chenen3/yeager
-docker stop yeager
-docker rm yeager
-# then create the container again as described above
-```
-
-### Uninstall
-
-via homebrew:
+For homebrew:
 
 ```sh
 brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-via docker:
+For docker:
 
 ```sh
 docker stop yeager
