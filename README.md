@@ -49,7 +49,7 @@ ln -s server.yaml config.yaml
 ```
 
 here generates a pair of config:
-- `/usr/local/etc/yeager/server.yaml` the server config that linked to `/usr/local/etc/yeager/config.yaml`
+- `/usr/local/etc/yeager/server.yaml` the server config
 - `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
 
 #### 2.2 Run service
