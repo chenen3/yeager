@@ -14,14 +14,22 @@ Features:
 
 ### 1. Install
 
-Download the pre-built binary, see https://github.com/chenen3/yeager/releases
+Download the [pre-built binary](https://github.com/chenen3/yeager/releases)
+```sh
+# assuming on Linux distribution, amd64 architecture
+curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
+tar -xzvf yeager-linux-amd64.tar.gz
+mv yeager /usr/local/bin/
+mkdir -p /usr/local/share/yeager
+mv geosite.dat /usr/local/share/yeager/
+```
 
-Or via Docker
+Or install via Docker
 ```sh
 docker pull ghcr.io/chenen3/yeager
 ```
 
-Or via homebrew (macOS only)
+Or intall via homebrew (macOS only)
 ```sh
 brew tap chenen3/yeager
 brew install yeager
@@ -41,7 +49,7 @@ ln -s server.yaml config.yaml
 ```
 
 here generates a pair of config:
-- `/usr/local/etc/yeager/server.yaml` the server config that linked to `usr/local/etc/yeager/config.yaml`
+- `/usr/local/etc/yeager/server.yaml` the server config that linked to `/usr/local/etc/yeager/config.yaml`
 - `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
 
 #### 2.2 Run service
@@ -68,7 +76,7 @@ For the pre-built binary:
 yeager -config /usr/local/etc/yeager/config.yaml
 ```
 
-For homebrew:
+For homebrew (macOS only):
 ```sh
 brew services start yeager
 ```
@@ -90,7 +98,7 @@ That's all, good luck.
 
 ## Routing rule
 
-Routing rule specifies where the incomming request goes to. It supports two forms:
+Routing rule specifies where the incomming traffic be sent to. It supports two forms:
 - `ruleType,value,outboundTag`
 - `final,outboundTag`
 
