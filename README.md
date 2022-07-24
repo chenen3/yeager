@@ -8,7 +8,7 @@ Features:
 - lightweight tunnel proxy
   - transport over gRPC or QUIC
   - secure by mutual TLS
-- Rule-based routing (supports [domain-list](https://github.com/v2fly/domain-list-community) from V2Ray)
+- Rule-based routing (supports [domain-list-community](https://github.com/v2fly/domain-list-community))
 
 ## Get started
 
