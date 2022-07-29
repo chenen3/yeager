@@ -14,9 +14,9 @@ Features:
 
 ### 1. Install
 
-Download the [pre-built binary](https://github.com/chenen3/yeager/releases)
+Install the [pre-built binary](https://github.com/chenen3/yeager/releases)
 ```sh
-# assuming on Linux distribution, amd64 architecture
+# assuming on Linux, amd64 architecture
 curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
 tar -xzvf yeager-linux-amd64.tar.gz
 mv yeager /usr/local/bin/
@@ -24,12 +24,12 @@ mkdir -p /usr/local/share/yeager
 mv geosite.dat /usr/local/share/yeager/
 ```
 
-Or install via Docker
+Or install from Docker
 ```sh
 docker pull ghcr.io/chenen3/yeager
 ```
 
-Or intall via homebrew (macOS only)
+Or install from Homebrew (macOS only)
 ```sh
 brew tap chenen3/yeager
 brew install yeager
@@ -76,12 +76,12 @@ For the pre-built binary:
 yeager -config /usr/local/etc/yeager/config.yaml
 ```
 
-For homebrew (macOS only):
+For Homebrew (macOS only):
 ```sh
 brew services start yeager
 ```
 
-For docker:
+For Docker:
 ```sh
 docker run -d \
     --restart=always \
@@ -128,14 +128,14 @@ rm /usr/local/etc/yeager/*.yaml
 rmdir /usr/local/etc/yeager
 ```
 
-For homebrew:
+For Homebrew:
 
 ```sh
 brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-For docker:
+For Docker:
 
 ```sh
 docker stop yeager
