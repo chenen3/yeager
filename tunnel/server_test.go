@@ -21,7 +21,7 @@ func TestYeager(t *testing.T) {
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
-	certInfo, err := util.GenerateCertificate("127.0.0.1", false)
+	certInfo, err := util.GenerateCertificate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -220,7 +220,7 @@ func (p *Proxy) handle(ctx context.Context, ic net.Conn, addr string) {
 }
 
 func GenerateConfig(host string) (srv, cli config.Config, err error) {
-	cert, err := util.GenerateCertificate(host, false)
+	cert, err := util.GenerateCertificate(host)
 	if err != nil {
 		return srv, cli, err
 	}

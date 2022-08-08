@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenerateCertificate(t *testing.T) {
-	certInfo, err := GenerateCertificate("127.0.0.1", false)
+	certInfo, err := GenerateCertificate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}

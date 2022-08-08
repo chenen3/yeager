@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"os"
 	"strings"
 	"time"
 )

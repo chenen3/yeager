@@ -38,7 +38,7 @@ Example:
   yeager -version
     	print version number
 
-  yeager -genconf [-srvconf server.yaml] [-cliconf client.yaml]
+  yeager -genconf [-ip 1.2.3.4] [-srvconf server.yaml] [-cliconf client.yaml]
     	generate a pair of configuration for server and client
 `
 
@@ -49,12 +49,14 @@ func main() {
 		host        string
 		version     bool
 		genConf     bool
+		ip          string
 		srvConfFile string
 		cliConfFile string
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.BoolVar(&flags.genConf, "genconf", false, "generate configuration")
+	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
 	flag.StringVar(&flags.srvConfFile, "srvconf", "server.yaml", "file name of server config, used with option -genconf")
 	flag.StringVar(&flags.cliConfFile, "cliconf", "client.yaml", "file name of client config, used with option -genconf")
 	flag.Parse()
@@ -65,7 +67,16 @@ func main() {
 	}
 
 	if flags.genConf {
-		err := generateConfig(flags.srvConfFile, flags.cliConfFile)
+		ip := flags.ip
+		if ip == "" {
+			i, err := getPublicIP()
+			if err != nil {
+				fmt.Printf("get public IP: %s\n", err)
+				return
+			}
+			ip = i
+		}
+		err := generateConfig(ip, flags.srvConfFile, flags.cliConfFile)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -120,7 +131,7 @@ func main() {
 	log.Print("service stopped")
 }
 
-func generateConfig(srvConfFile, cliConfFile string) error {
+func generateConfig(ip, srvConfFile, cliConfFile string) error {
 	_, err := os.Stat(srvConfFile)
 	if err == nil {
 		return fmt.Errorf("file already exists: %s, please specified another server config filename", srvConfFile)
@@ -130,17 +141,7 @@ func generateConfig(srvConfFile, cliConfFile string) error {
 		return fmt.Errorf("file already exists: %s, please specified another client config filename", cliConfFile)
 	}
 
-	resp, err := http.Get("https://checkip.amazonaws.com")
-	if err != nil {
-		return fmt.Errorf("failed to get plubic IP: %s", err)
-	}
-	defer resp.Body.Close()
-	ip, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read IP: %s", err)
-	}
-	ip = bytes.TrimSpace(ip)
-	srvConf, cliConf, err := GenerateConfig(string(ip))
+	srvConf, cliConf, err := GenerateConfig(ip)
 	if err != nil {
 		return fmt.Errorf("failed to generate config: %s", err)
 	}
@@ -192,4 +193,18 @@ func generateConfig(srvConfFile, cliConfFile string) error {
 	}
 	fmt.Printf("generated client config file: %s\n", cliConfFile)
 	return nil
+}
+
+func getPublicIP() (string, error) {
+	resp, err := http.Get("https://checkip.amazonaws.com")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	ip, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	ip = bytes.TrimSpace(ip)
+	return string(ip), nil
 }
