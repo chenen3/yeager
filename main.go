@@ -35,9 +35,6 @@ Example:
   yeager -config /usr/local/etc/yeager/config.yaml
     	run service
 
-  yeager -cert -host 127.0.0.1
-    	generate certificates for mutual TLS
-
   yeager -version
     	print version number
 
@@ -56,8 +53,6 @@ func main() {
 		cliConfFile string
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
-	flag.BoolVar(&flags.cert, "cert", false, "generate certificates")
-	flag.StringVar(&flags.host, "host", "", "IP to generate a certificate for, used with option -cert")
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.BoolVar(&flags.genConf, "genconf", false, "generate configuration")
 	flag.StringVar(&flags.srvConfFile, "srvconf", "server.yaml", "file name of server config, used with option -genconf")

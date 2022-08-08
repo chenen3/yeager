@@ -53,10 +53,9 @@ const (
 	ClientKeyFile  = "client-key.pem"
 )
 
-// TODO: certificate files are no longer saved
 // GenerateCertificate generate TLS certificates for mutual authentication,
 // the output files are: ca.key, ca.cert, server.key, server.crt, client.key, client.crt
-func GenerateCertificate(host string, save bool) (*Cert, error) {
+func GenerateCertificate(host string) (*Cert, error) {
 	rootCert, rootKey, err := createRootCA()
 	if err != nil {
 		return nil, err
@@ -70,27 +69,6 @@ func GenerateCertificate(host string, save bool) (*Cert, error) {
 	clientCert, clientKey, err := createCertificate(host, rootCert, rootKey)
 	if err != nil {
 		return nil, err
-	}
-
-	if save {
-		if err = os.WriteFile(CACertFile, rootCert, 0600); err != nil {
-			return nil, err
-		}
-		if err = os.WriteFile(CAKeyFile, rootKey, 0600); err != nil {
-			return nil, err
-		}
-		if err = os.WriteFile(ServerCertFile, serverCert, 0600); err != nil {
-			return nil, err
-		}
-		if err = os.WriteFile(ServerKeyFile, serverKey, 0600); err != nil {
-			return nil, err
-		}
-		if err = os.WriteFile(ClientCertFile, clientCert, 0600); err != nil {
-			return nil, err
-		}
-		if err = os.WriteFile(ClientKeyFile, clientKey, 0600); err != nil {
-			return nil, err
-		}
 	}
 
 	return &Cert{
