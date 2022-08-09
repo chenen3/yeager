@@ -3,6 +3,8 @@ package config
 import (
 	"reflect"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 var yamls = `
@@ -109,7 +111,8 @@ func TestLoad(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := Load(test.bs)
+			var got Config
+			err := yaml.Unmarshal(test.bs, &got)
 			if test.wantErr != (err != nil) {
 				t.Errorf("wantErr: %v, got error: %v", test.wantErr, err)
 				return

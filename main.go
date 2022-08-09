@@ -14,8 +14,9 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/chenen3/yeager/config"
 	"gopkg.in/yaml.v3"
+
+	"github.com/chenen3/yeager/config"
 )
 
 func init() {
@@ -94,7 +95,8 @@ func main() {
 		log.Print(err)
 		return
 	}
-	conf, err := config.Load(bs)
+	var conf config.Config
+	err = yaml.Unmarshal(bs, &conf)
 	if err != nil {
 		log.Printf("failed to load config: %s", err)
 		return

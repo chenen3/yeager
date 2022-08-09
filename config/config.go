@@ -1,14 +1,5 @@
 package config
 
-import "gopkg.in/yaml.v3"
-
-// Load read config from bytes
-func Load(bs []byte) (Config, error) {
-	var c Config
-	err := yaml.Unmarshal(bs, &c)
-	return c, err
-}
-
 type Config struct {
 	// socks 代理监听地址
 	SOCKSListen string `yaml:"socksListen,omitempty"`
