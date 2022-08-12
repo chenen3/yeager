@@ -22,7 +22,7 @@ func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 		qconf := &quic.Config{
 			HandshakeIdleTimeout: 5 * time.Second,
 			MaxIdleTimeout:       30 * time.Second,
-			KeepAlive:            true,
+			KeepAlivePeriod:      15 * time.Second,
 		}
 		d.tlsConf.NextProtos = []string{"quic"}
 		return quic.DialAddr(addr, d.tlsConf, qconf)
