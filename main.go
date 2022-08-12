@@ -152,8 +152,9 @@ func generateConfig(ip, srvConfFile, cliConfFile string) error {
 	}
 	srvConf.Inbounds[0].Listen = "0.0.0.0:9001"
 	srvConf.Rules = []string{
-		"ip-cidr,127.0.0.1/8,reject",
+		"ip-cidr,127.0.0.1,reject",
 		"ip-cidr,192.168.0.0/16,reject",
+		"ip-cidr,10.0.0.0/8,reject",
 		"domain,localhost,reject",
 		"final,direct",
 	}
@@ -174,7 +175,7 @@ func generateConfig(ip, srvConfFile, cliConfFile string) error {
 	cliConf.SOCKSListen = "127.0.0.1:1080"
 	cliConf.HTTPListen = "127.0.0.1:8080"
 	cliConf.Rules = []string{
-		"ip-cidr,127.0.0.1/8,direct",
+		"ip-cidr,127.0.0.1,direct",
 		"ip-cidr,192.168.0.0/16,direct",
 		"ip-cidr,172.16.0.0/12,direct",
 		"ip-cidr,10.0.0.0/8,direct",
