@@ -14,7 +14,7 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-func TestYeager(t *testing.T) {
+func TestTunnel(t *testing.T) {
 	port, err := util.ChoosePort()
 	if err != nil {
 		t.Fatal(err)

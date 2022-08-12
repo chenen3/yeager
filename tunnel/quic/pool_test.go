@@ -96,11 +96,6 @@ func TestReconnectParallel(t *testing.T) {
 	})
 	defer p.Close()
 
-	// closing all connections, make Get reconnect
-	for _, conn := range p.conns {
-		conn.CloseWithError(0, "")
-	}
-
 	t.Run("group", func(t *testing.T) {
 		parallelTest := func(t *testing.T) {
 			t.Parallel()
