@@ -2,7 +2,6 @@ package quic
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"sync/atomic"
 
@@ -27,21 +26,12 @@ func NewPool(size int, dialFunc func() (quic.Connection, error)) *Pool {
 		size = defaultSize
 	}
 
-	p := &Pool{
+	return &Pool{
 		size:     size,
 		conns:    make([]quic.Connection, size),
 		dialFunc: dialFunc,
 		done:     make(chan struct{}),
 	}
-	for i := 0; i < size; i++ {
-		c, err := p.dialFunc()
-		if err != nil {
-			log.Printf("dial quic: %s", err)
-			continue
-		}
-		p.conns[i] = c
-	}
-	return p
 }
 
 func isValid(conn quic.Connection) bool {
@@ -72,7 +62,7 @@ func (p *Pool) Get() (quic.Connection, error) {
 		return conn, nil
 	}
 
-	// release resource
+	// release resource of the dead connection
 	if conn != nil {
 		e := quic.ApplicationErrorCode(quic.ApplicationErrorErrorCode)
 		conn.CloseWithError(e, "dead connection")
@@ -98,6 +88,9 @@ func (p *Pool) Close() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	for _, c := range p.conns {
+		if c == nil {
+			continue
+		}
 		e := c.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 		if e != nil {
 			err = e

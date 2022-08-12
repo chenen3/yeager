@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
-
-	"github.com/chenen3/yeager/util"
 )
 
 type dialer struct {
@@ -21,14 +19,13 @@ type dialer struct {
 func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 	d := &dialer{tlsConf: tlsConf}
 	dialFunc := func() (quic.Connection, error) {
-		qc := &quic.Config{
-			KeepAlive:      true,
-			MaxIdleTimeout: 30 * time.Second,
+		qconf := &quic.Config{
+			HandshakeIdleTimeout: 5 * time.Second,
+			MaxIdleTimeout:       30 * time.Second,
+			KeepAlivePeriod:      15 * time.Second,
 		}
 		d.tlsConf.NextProtos = []string{"quic"}
-		ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
-		defer cancel()
-		return quic.DialAddrContext(ctx, addr, d.tlsConf, qc)
+		return quic.DialAddr(addr, d.tlsConf, qconf)
 	}
 	d.pool = NewPool(poolSize, dialFunc)
 	return d
@@ -37,7 +34,7 @@ func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 	qconn, err := d.pool.Get()
 	if err != nil {
-		return nil, errors.New("get quic conn: " + err.Error())
+		return nil, errors.New("dial quic: " + err.Error())
 	}
 
 	stream, err := qconn.OpenStreamSync(ctx)
