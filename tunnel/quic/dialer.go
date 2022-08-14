@@ -37,7 +37,7 @@ func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 		return nil, errors.New("dial quic: " + err.Error())
 	}
 
-	stream, err := qconn.OpenStreamSync(ctx)
+	stream, err := qconn.OpenStream()
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}

@@ -22,7 +22,6 @@ type connPool struct {
 	i        uint32
 	conns    []*grpc.ClientConn
 	dialFunc func() (*grpc.ClientConn, error)
-	done     chan struct{}
 }
 
 func newConnPool(size int, dialFunc func() (*grpc.ClientConn, error)) *connPool {
@@ -34,10 +33,10 @@ func newConnPool(size int, dialFunc func() (*grpc.ClientConn, error)) *connPool 
 		size:     size,
 		conns:    make([]*grpc.ClientConn, size),
 		dialFunc: dialFunc,
-		done:     make(chan struct{}),
 	}
 
 	for i := 0; i < size; i++ {
+		// this is non-blocking dial
 		c, err := dialFunc()
 		if err != nil {
 			log.Printf("dial grpc: %s", err)
@@ -62,7 +61,6 @@ func (p *connPool) Get() (*grpc.ClientConn, error) {
 }
 
 func (p *connPool) Close() error {
-	close(p.done)
 	var err error
 	for _, c := range p.conns {
 		if e := c.Close(); e != nil {

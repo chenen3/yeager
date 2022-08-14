@@ -23,7 +23,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
-	"github.com/chenen3/yeager/util"
 )
 
 type dialer struct {
@@ -35,8 +34,6 @@ type dialer struct {
 func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 	d := &dialer{tlsConf: tlsConf}
 	dialFunc := func() (*grpc.ClientConn, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
-		defer cancel()
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(credentials.NewTLS(d.tlsConf)),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -54,7 +51,8 @@ func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
 				MinConnectTimeout: 5 * time.Second,
 			}),
 		}
-		return grpc.DialContext(ctx, addr, opts...)
+		// non-blocking dial
+		return grpc.Dial(addr, opts...)
 	}
 	d.pool = newConnPool(poolSize, dialFunc)
 	return d

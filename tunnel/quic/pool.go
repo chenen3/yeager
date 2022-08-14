@@ -20,7 +20,7 @@ type Pool struct {
 	done     chan struct{}
 }
 
-// NewPool creates a QUIC connection pool
+// NewPool creates a connection pool
 func NewPool(size int, dialFunc func() (quic.Connection, error)) *Pool {
 	if size <= 0 {
 		size = defaultSize
