@@ -51,12 +51,11 @@ func (p *pool) Get() (*grpc.ClientConn, error) {
 	p.mu.RLock()
 	conn := p.conns[i]
 	p.mu.RUnlock()
-	if conn != nil && conn.GetState() != connectivity.Shutdown {
-		return conn, nil
-	}
-
 	if conn != nil {
-		return nil, errors.New("dead connection")
+		if conn.GetState() == connectivity.Shutdown {
+			return conn, errors.New("dead connection")
+		}
+		return conn, nil
 	}
 
 	cc, err := p.dialFunc()
