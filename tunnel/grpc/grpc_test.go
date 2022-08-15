@@ -25,7 +25,7 @@ func generateTLSConfig() *tls.Config {
 	}
 }
 
-func TestGRPC(t *testing.T) {
+func TestDial(t *testing.T) {
 	lis, err := Listen("127.0.0.1:0", generateTLSConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -64,4 +64,61 @@ func TestGRPC(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
+}
+
+func TestDial_Parallel(t *testing.T) {
+	lis, err := Listen("127.0.0.1:0", generateTLSConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lis.Close()
+
+	go func() {
+		for {
+			conn, e := lis.Accept()
+			if e != nil {
+				log.Printf("grpc listener accpet err: %s", e)
+				return
+			}
+			go func() {
+				defer conn.Close()
+				_, _ = io.Copy(conn, conn)
+			}()
+		}
+	}()
+
+	d := NewDialer(&tls.Config{InsecureSkipVerify: true}, lis.Addr().String(), 1)
+	t.Run("group", func(t *testing.T) {
+		parallelTest := func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			conn, err := d.DialContext(ctx)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer conn.Close()
+
+			want := []byte{1}
+			_, err = conn.Write(want)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			got := make([]byte, 1)
+			_, err = conn.Read(got[:])
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("want %v, got %v", want, got)
+				return
+			}
+		}
+		t.Run("test1", parallelTest)
+		t.Run("test2", parallelTest)
+		t.Run("test3", parallelTest)
+	})
 }

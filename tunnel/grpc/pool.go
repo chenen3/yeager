@@ -3,6 +3,7 @@ package grpc
 import (
 	"errors"
 	"log"
+	"sync"
 	"sync/atomic"
 
 	"google.golang.org/grpc"
@@ -17,53 +18,70 @@ import (
 //   例如预估有 100 个并发请求，需要 ceil(100 / 50) == 2 个 connection，连接池大小为 2
 const defaultPoolSize = 2
 
-type connPool struct {
+type pool struct {
 	size     int
 	i        uint32
+	mu       sync.RWMutex // guard conns
 	conns    []*grpc.ClientConn
 	dialFunc func() (*grpc.ClientConn, error)
+	done     chan struct{}
 }
 
-func newConnPool(size int, dialFunc func() (*grpc.ClientConn, error)) *connPool {
+func newPool(size int, dialFunc func() (*grpc.ClientConn, error)) *pool {
 	if size <= 0 {
 		size = defaultPoolSize
 	}
 
-	p := &connPool{
+	return &pool{
 		size:     size,
 		conns:    make([]*grpc.ClientConn, size),
 		dialFunc: dialFunc,
+		done:     make(chan struct{}),
 	}
-
-	for i := 0; i < size; i++ {
-		// this is non-blocking dial
-		c, err := dialFunc()
-		if err != nil {
-			log.Printf("dial grpc: %s", err)
-			continue
-		}
-		p.conns[i] = c
-	}
-	return p
 }
 
-func isValid(c *grpc.ClientConn) bool {
-	return c != nil && c.GetState() != connectivity.Shutdown
-}
+func (p *pool) Get() (*grpc.ClientConn, error) {
+	select {
+	case <-p.done:
+		return nil, errors.New("pool closed")
+	default:
+	}
 
-func (p *connPool) Get() (*grpc.ClientConn, error) {
 	i := int(atomic.AddUint32(&p.i, 1)) % p.size
+	p.mu.RLock()
 	conn := p.conns[i]
-	if !isValid(conn) {
+	p.mu.RUnlock()
+	if conn != nil && conn.GetState() != connectivity.Shutdown {
+		return conn, nil
+	}
+
+	if conn != nil {
 		return nil, errors.New("dead connection")
 	}
-	return conn, nil
+
+	cc, err := p.dialFunc()
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.conns[i] != nil {
+		cc.Close()
+		return p.conns[i], nil
+	}
+	p.conns[i] = cc
+	return cc, nil
 }
 
-func (p *connPool) Close() error {
+func (p *pool) Close() error {
+	close(p.done)
 	var err error
 	for _, c := range p.conns {
-		if e := c.Close(); e != nil {
+		if c == nil {
+			continue
+		}
+		e := c.Close()
+		if e != nil {
 			// still need to close other connections, do not return here
 			err = e
 			log.Printf("close grpc connection: %s", e)
