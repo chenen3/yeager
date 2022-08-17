@@ -59,13 +59,7 @@ func (s *Server) ListenAndServe() error {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			select {
-			case <-s.ctx.Done():
-				return nil
-			default:
-			}
-			log.Printf("failed to accept conn: %s", err)
-			continue
+			return err
 		}
 
 		s.wg.Add(1)
@@ -176,7 +170,8 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 
 // ReadAddr read SOCKS address from r
 // bytes order:
-//     ATYP BND.ADDR BND.PORT
+//
+//	ATYP BND.ADDR BND.PORT
 func readAddr(r io.Reader) (addr string, err error) {
 	b := make([]byte, maxAddrLen)
 	if _, err = io.ReadFull(r, b[:1]); err != nil {

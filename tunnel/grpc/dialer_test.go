@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"log"
+	"net"
 	"testing"
 
 	"github.com/chenen3/yeager/util"
@@ -35,7 +37,9 @@ func TestDial(t *testing.T) {
 	go func() {
 		conn, e := lis.Accept()
 		if e != nil {
-			log.Printf("grpc listener accpet err: %s", e)
+			if !errors.Is(e, net.ErrClosed) {
+				log.Printf("grpc listener accpet err: %s", e)
+			}
 			return
 		}
 		defer conn.Close()
@@ -77,7 +81,9 @@ func TestDial_Parallel(t *testing.T) {
 		for {
 			conn, e := lis.Accept()
 			if e != nil {
-				log.Printf("grpc listener accpet err: %s", e)
+				if !errors.Is(e, net.ErrClosed) {
+					log.Printf("grpc listener accpet err: %s", e)
+				}
 				return
 			}
 			go func() {

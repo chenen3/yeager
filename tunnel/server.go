@@ -116,7 +116,7 @@ func (s *Server) listen() (net.Listener, error) {
 		}
 		return quic.Listen(s.conf.Listen, tlsConf)
 	default:
-		return nil, fmt.Errorf("unsupported transport: %s", s.conf.Transport)
+		return nil, fmt.Errorf("unknown transport: %s", s.conf.Transport)
 	}
 }
 
@@ -132,23 +132,14 @@ func (s *Server) ListenAndServe() error {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			select {
-			case <-s.ctx.Done():
-				return nil
-			default:
-			}
-			log.Printf("failed to accpet conn: %s", err)
-			continue
+			return err
 		}
 
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
 			defer conn.Close()
-			err = conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
-			if err != nil {
-				return
-			}
+			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
 			dstAddr, err := parseHeader(conn)
 			if err != nil {
 				log.Printf("failed to parse header, peer: %s, err: %s", conn.RemoteAddr(), err)
@@ -157,11 +148,7 @@ func (s *Server) ListenAndServe() error {
 				}
 				return
 			}
-			err = conn.SetReadDeadline(time.Time{})
-			if err != nil {
-				return
-			}
-
+			conn.SetReadDeadline(time.Time{})
 			s.handler(s.ctx, conn, dstAddr)
 		}()
 	}

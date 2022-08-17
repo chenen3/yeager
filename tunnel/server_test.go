@@ -3,9 +3,9 @@ package tunnel
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"testing"
 	"time"
@@ -108,14 +108,15 @@ func TestTunnel(t *testing.T) {
 			})
 			go func() {
 				e := srv.ListenAndServe()
-				if e != nil {
-					log.Printf("yeager server exit: %s", err)
+				if e != nil && !errors.Is(e, net.ErrClosed) {
+					t.Log("tunnel server exit:", e)
 				}
 			}()
 
 			select {
 			case <-time.After(time.Second):
-				t.Fatalf("server not ready in time")
+				t.Error("server not ready in time")
+				return
 			case <-srv.ready:
 			}
 

@@ -3,6 +3,7 @@ package socks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -40,7 +41,7 @@ func TestServer(t *testing.T) {
 	})
 	go func() {
 		e := srv.ListenAndServe()
-		if e != nil {
+		if e != nil && !errors.Is(e, net.ErrClosed){
 			log.Printf("server exit: %s", err)
 		}
 	}()

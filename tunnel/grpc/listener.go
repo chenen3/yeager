@@ -46,7 +46,7 @@ func (l *listener) Stream(stream pb.Tunnel_StreamServer) error {
 func (l *listener) Accept() (net.Conn, error) {
 	conn, ok := <-l.connCh
 	if !ok {
-		return nil, errors.New("grpc service stopped")
+		return nil, net.ErrClosed
 	}
 	return conn, nil
 }

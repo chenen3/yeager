@@ -58,13 +58,7 @@ func (s *ProxyServer) ListenAndServe() error {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			select {
-			case <-s.ctx.Done():
-				return nil
-			default:
-			}
-			log.Printf("failed to accept conn: %s", err)
-			continue
+			return err
 		}
 
 		s.wg.Add(1)

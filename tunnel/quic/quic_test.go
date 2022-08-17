@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"log"
+	"net"
 	"testing"
 	"time"
 
@@ -27,16 +29,18 @@ func generateTLSConfig() *tls.Config {
 }
 
 func TestQUIC(t *testing.T) {
-	srv, err := Listen("127.0.0.1:0", generateTLSConfig())
+	listenr, err := Listen("127.0.0.1:0", generateTLSConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer srv.Close()
+	defer listenr.Close()
 
 	go func() {
-		srvConn, e := srv.Accept()
+		srvConn, e := listenr.Accept()
 		if e != nil {
-			log.Printf("quic listener accept err: %s", e)
+			if !errors.Is(e, net.ErrClosed) {
+				log.Printf("quic listener accept err: %s", e)
+			}
 			return
 		}
 		defer srvConn.Close()
@@ -46,7 +50,7 @@ func TestQUIC(t *testing.T) {
 	cliTLSConf := &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	dialer := NewDialer(cliTLSConf, srv.Addr().String(), 1)
+	dialer := NewDialer(cliTLSConf, listenr.Addr().String(), 1)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	clientConn, err := dialer.DialContext(ctx)

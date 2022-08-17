@@ -108,9 +108,11 @@ func (c *clientStreamConn) Read(b []byte) (n int, err error) {
 
 // Write wraps grpc client-side stream Send(), which is SendMsg() actually.
 // according to grpc doc:
-//     SendMsg does not wait until the message is received by the server. An
-//     untimely stream closure may result in lost messages. To ensure delivery,
-//     users should ensure the RPC completed successfully using RecvMsg.
+//
+//	SendMsg does not wait until the message is received by the server. An
+//	untimely stream closure may result in lost messages. To ensure delivery,
+//	users should ensure the RPC completed successfully using RecvMsg.
+//
 // back to clientStreamConn, once we've finished all the Write(), we need
 // to call CloseSend(), and wait for response from Read(), then Close()
 func (c *clientStreamConn) Write(b []byte) (n int, err error) {

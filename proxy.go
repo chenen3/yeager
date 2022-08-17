@@ -113,9 +113,9 @@ func (p *Proxy) Start() {
 		go func(ib Inbounder) {
 			defer wg.Done()
 			ib.Handle(p.handle)
-			if err := ib.ListenAndServe(); err != nil {
-				log.Printf("inbound server exit: %s", err)
-				return
+			err := ib.ListenAndServe()
+			if err != nil && !errors.Is(err, net.ErrClosed) {
+				log.Printf("inbound server exited abnormally: %s", err)
 			}
 		}(inbound)
 	}

@@ -26,52 +26,37 @@ func (l *listener) acceptLoop() {
 	for {
 		qconn, err := l.lis.Accept(l.ctx)
 		if err != nil {
-			select {
-			case <-l.ctx.Done():
-				return
-			default:
-				log.Printf("failed to accept quic connection: %s", err)
-				continue
+			if !errors.Is(err, context.Canceled) {
+				log.Printf("accept quic connection: %s", err)
 			}
+			break
 		}
+
 		l.wg.Add(1)
-		go l.acceptStream(qconn)
-	}
-}
+		go func() {
+			defer l.wg.Done()
+			defer qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+			for {
+				stream, err := qconn.AcceptStream(context.Background())
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						log.Printf("accept quic stream: %s", err)
+					}
+					break
+				}
 
-func (l *listener) acceptStream(qconn quic.Connection) {
-	defer func() {
-		err := qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-		if err != nil {
-			log.Printf("close quic connection: %s", err)
-		}
-		l.wg.Done()
-	}()
-
-	for {
-		stream, err := qconn.AcceptStream(l.ctx)
-		if err != nil {
-			select {
-			case <-l.ctx.Done():
-				return
-			case <-qconn.Context().Done():
-				return
-			default:
-				log.Printf("failed to accept quic stream: %s", err)
-				continue
+				select {
+				case <-stream.Context().Done():
+					continue
+				default:
+				}
+				l.conns <- &streamConn{
+					Stream:     stream,
+					localAddr:  qconn.LocalAddr(),
+					remoteAddr: qconn.RemoteAddr(),
+				}
 			}
-		}
-
-		select {
-		case <-stream.Context().Done():
-			continue
-		default:
-		}
-		l.conns <- &streamConn{
-			Stream:     stream,
-			localAddr:  qconn.LocalAddr(),
-			remoteAddr: qconn.RemoteAddr(),
-		}
+		}()
 	}
 }
 
@@ -80,7 +65,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	case <-l.ctx.Done():
 		// do not return until all connection closed
 		l.wg.Wait()
-		return nil, l.ctx.Err()
+		return nil, net.ErrClosed
 	case c := <-l.conns:
 		return c, nil
 	}
