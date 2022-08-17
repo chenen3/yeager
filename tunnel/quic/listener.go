@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"net"
-	"sync"
 
 	"github.com/lucas-clemente/quic-go"
 
@@ -19,7 +18,6 @@ type listener struct {
 	cancelCtx context.CancelFunc
 	lis       quic.Listener
 	conns     chan net.Conn
-	wg        sync.WaitGroup
 }
 
 func (l *listener) acceptLoop() {
@@ -32,9 +30,7 @@ func (l *listener) acceptLoop() {
 			break
 		}
 
-		l.wg.Add(1)
 		go func() {
-			defer l.wg.Done()
 			defer qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 			for {
 				stream, err := qconn.AcceptStream(context.Background())
@@ -63,8 +59,6 @@ func (l *listener) acceptLoop() {
 func (l *listener) Accept() (net.Conn, error) {
 	select {
 	case <-l.ctx.Done():
-		// do not return until all connection closed
-		l.wg.Wait()
 		return nil, net.ErrClosed
 	case c := <-l.conns:
 		return c, nil
