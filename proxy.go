@@ -72,6 +72,7 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 		p.inbounds = append(p.inbounds, srv)
 	}
 	for _, ib := range conf.Inbounds {
+		ib := ib
 		srv, err := tunnel.NewServer(&ib)
 		if err != nil {
 			return nil, errors.New("init yeager proxy server: " + err.Error())
