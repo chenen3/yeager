@@ -19,7 +19,7 @@ import (
 // Server implements the Inbounder interface
 type Server struct {
 	addr    string
-	handler func(ctx context.Context, c net.Conn, addr string)
+	handleConn func(ctx context.Context, c net.Conn, addr string)
 	lis     net.Listener
 
 	wg     sync.WaitGroup
@@ -43,8 +43,8 @@ func NewServer(addr string) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {
-	s.handler = handler
+func (s *Server) RegisterHandler(handleConn func(ctx context.Context, c net.Conn, addr string)) {
+	s.handleConn = handleConn
 }
 
 func (s *Server) ListenAndServe() error {
@@ -73,7 +73,7 @@ func (s *Server) ListenAndServe() error {
 				return
 			}
 
-			s.handler(s.ctx, conn, addr)
+			s.handleConn(s.ctx, conn, addr)
 		}()
 	}
 }

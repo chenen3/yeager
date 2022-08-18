@@ -31,7 +31,7 @@ func TestServer(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
+	srv.RegisterHandler(func(ctx context.Context, conn net.Conn, addr string) {
 		defer conn.Close()
 		if addr != "fake.domain.com:1234" {
 			panic("received unexpected dst addr: " + addr)

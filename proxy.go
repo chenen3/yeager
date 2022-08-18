@@ -22,10 +22,10 @@ import (
 )
 
 type Inbounder interface {
-	// Handle register handler function for incoming connection.
+	// RegisterHandler register handler function for incoming connection.
 	// Inbounder is responsible for closing the incoming connection,
 	// not the handler function.
-	Handle(func(ctx context.Context, conn net.Conn, addr string))
+	RegisterHandler(func(ctx context.Context, conn net.Conn, addr string))
 	// ListenAndServe start the proxy server,
 	// block until closed or encounter error
 	ListenAndServe() error
@@ -41,7 +41,7 @@ type Outbounder interface {
 type reject struct{}
 
 func (reject) DialContext(_ context.Context, _, _ string) (net.Conn, error) {
-	return nil, errors.New("traffic rejected")
+	return nil, errors.New("rejected")
 }
 
 type Proxy struct {
@@ -106,14 +106,14 @@ func NewProxy(conf config.Config) (*Proxy, error) {
 	return p, nil
 }
 
-// Start starts proxy service
+// Start starts proxy services
 func (p *Proxy) Start() {
 	var wg sync.WaitGroup
 	for _, inbound := range p.inbounds {
 		wg.Add(1)
 		go func(ib Inbounder) {
 			defer wg.Done()
-			ib.Handle(p.handle)
+			ib.RegisterHandler(p.handleConn)
 			err := ib.ListenAndServe()
 			if err != nil && !errors.Is(err, net.ErrClosed) {
 				log.Printf("inbound server exited abnormally: %s", err)
@@ -123,7 +123,7 @@ func (p *Proxy) Start() {
 	wg.Wait()
 }
 
-// Stop stops proxy service
+// Stop stops proxy services
 func (p *Proxy) Stop() error {
 	var err error
 	for _, ib := range p.inbounds {
@@ -145,7 +145,7 @@ func (p *Proxy) Stop() error {
 
 var numConn = expvar.NewInt("numConn")
 
-func (p *Proxy) handle(ctx context.Context, ic net.Conn, addr string) {
+func (p *Proxy) handleConn(ctx context.Context, ic net.Conn, addr string) {
 	if p.conf.Debug {
 		numConn.Add(1)
 		defer numConn.Add(-1)

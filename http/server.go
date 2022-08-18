@@ -19,7 +19,7 @@ import (
 // ProxyServer implements the Inbounder interface
 type ProxyServer struct {
 	addr    string
-	handler func(ctx context.Context, c net.Conn, addr string)
+	handleConn func(ctx context.Context, c net.Conn, addr string)
 	lis     net.Listener
 
 	wg     sync.WaitGroup
@@ -42,8 +42,8 @@ func NewProxyServer(addr string) (*ProxyServer, error) {
 	}, nil
 }
 
-func (s *ProxyServer) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {
-	s.handler = handler
+func (s *ProxyServer) RegisterHandler(handleConn func(ctx context.Context, c net.Conn, addr string)) {
+	s.handleConn = handleConn
 }
 
 func (s *ProxyServer) ListenAndServe() error {
@@ -75,7 +75,7 @@ func (s *ProxyServer) ListenAndServe() error {
 			if len(reqcopy) > 0 {
 				conn = connWithLazyRead(conn, reqcopy)
 			}
-			s.handler(s.ctx, conn, addr)
+			s.handleConn(s.ctx, conn, addr)
 		}()
 	}
 }

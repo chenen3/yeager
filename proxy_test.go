@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestProxy(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	// wait for the proxy server to start in the background
 	time.Sleep(time.Millisecond)
 

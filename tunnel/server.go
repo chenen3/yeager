@@ -25,7 +25,7 @@ import (
 type Server struct {
 	conf    *config.YeagerServer
 	lis     net.Listener
-	handler func(ctx context.Context, c net.Conn, addr string)
+	handleConn func(ctx context.Context, c net.Conn, addr string)
 
 	wg     sync.WaitGroup
 	ctx    context.Context
@@ -47,8 +47,8 @@ func NewServer(conf *config.YeagerServer) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Handle(handler func(ctx context.Context, c net.Conn, addr string)) {
-	s.handler = handler
+func (s *Server) RegisterHandler(handleConn func(ctx context.Context, c net.Conn, addr string)) {
+	s.handleConn = handleConn
 }
 
 // return tls.Config for mutual TLS usage
@@ -126,7 +126,7 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("tunnel listen: %s", err)
 	}
 	s.lis = lis
-	log.Printf("tunnel listening %s", lis.Addr())
+	log.Printf("tunnel listening %s %s", s.conf.Transport, lis.Addr())
 
 	close(s.ready)
 	for {
@@ -149,7 +149,7 @@ func (s *Server) ListenAndServe() error {
 				return
 			}
 			conn.SetReadDeadline(time.Time{})
-			s.handler(s.ctx, conn, dstAddr)
+			s.handleConn(s.ctx, conn, dstAddr)
 		}()
 	}
 }

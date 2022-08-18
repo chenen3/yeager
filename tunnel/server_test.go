@@ -99,7 +99,7 @@ func TestTunnel(t *testing.T) {
 				}
 			}()
 
-			srv.Handle(func(ctx context.Context, conn net.Conn, addr string) {
+			srv.RegisterHandler(func(ctx context.Context, conn net.Conn, addr string) {
 				defer conn.Close()
 				if addr != "fake.domain.com:1234" {
 					panic("received unexpected dst addr: " + addr)

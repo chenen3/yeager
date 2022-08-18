@@ -1,6 +1,6 @@
 # yeager
 
-This repository implements a proxy that helps speed up the internet connection.
+This repository implements a proxy for speeding up the network.
 I wrote it as a hobby and made it as simple and efficient as possible for personal use.
 
 Features:
@@ -16,7 +16,7 @@ Features:
 
 Install the [pre-built binary](https://github.com/chenen3/yeager/releases)
 ```sh
-# assuming on Linux, amd64 architecture
+# assuming Linux, amd64 architecture
 curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
 tar -xzvf yeager-linux-amd64.tar.gz
 mv yeager /usr/local/bin/
@@ -33,6 +33,11 @@ Or install from Homebrew (macOS only)
 ```sh
 brew tap chenen3/yeager
 brew install yeager
+```
+
+Or install from source
+```sh
+go install github.com/chenen3/yeager@latest
 ```
 
 ### 2. As server on remote host
@@ -92,7 +97,7 @@ docker run -d \
 ```
 
 #### 3.3 Setup proxy
-**setup SOCKS proxy 127.0.0.1:1080 or HTTP proxy 127.0.0.1:8080 on local host**.
+**setup HTTP proxy 127.0.0.1:8080 or SOCKS proxy 127.0.0.1:1080 on local host**.
 
 That's all, good luck.
 
