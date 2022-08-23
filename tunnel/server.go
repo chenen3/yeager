@@ -23,14 +23,13 @@ import (
 
 // Server implements the Inbounder interface
 type Server struct {
-	conf    *config.YeagerServer
-	lis     net.Listener
+	conf       *config.YeagerServer
+	lis        net.Listener
 	handleConn func(ctx context.Context, c net.Conn, addr string)
-
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cancel context.CancelFunc
-	ready  chan struct{}
+	wg         sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
+	ready      chan struct{}
 }
 
 func NewServer(conf *config.YeagerServer) (*Server, error) {

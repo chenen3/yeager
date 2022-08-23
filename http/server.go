@@ -18,14 +18,13 @@ import (
 
 // ProxyServer implements the Inbounder interface
 type ProxyServer struct {
-	addr    string
+	addr       string
 	handleConn func(ctx context.Context, c net.Conn, addr string)
-	lis     net.Listener
-
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cancel context.CancelFunc
-	ready  chan struct{} // imply that server is ready to accept connection, testing only
+	lis        net.Listener
+	wg         sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
+	ready      chan struct{} // imply that server is ready to accept connection, testing only
 }
 
 func NewProxyServer(addr string) (*ProxyServer, error) {

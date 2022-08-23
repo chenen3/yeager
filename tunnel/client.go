@@ -33,13 +33,13 @@ func NewClient(conf *config.YeagerClient) (*Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = grpc.NewDialer(tc, conf.Address, conf.ConnectionPoolSize)
+		c.dialer = grpc.NewDialer(conf.Address, tc, conf.ConnectionPoolSize)
 	case config.TransQUIC:
 		tc, err := makeClientTLSConfig(conf)
 		if err != nil {
 			return nil, err
 		}
-		c.dialer = quic.NewDialer(tc, conf.Address, conf.ConnectionPoolSize)
+		c.dialer = quic.NewDialer(conf.Address, tc, conf.ConnectionPoolSize)
 	default:
 		return nil, fmt.Errorf("unsupported transport: %s", conf.Transport)
 	}

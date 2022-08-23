@@ -46,7 +46,7 @@ func TestDial(t *testing.T) {
 		_, _ = io.Copy(conn, conn)
 	}()
 
-	d := NewDialer(&tls.Config{InsecureSkipVerify: true}, lis.Addr().String(), 1)
+	d := NewDialer(lis.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	conn, err := d.DialContext(ctx)
@@ -93,7 +93,7 @@ func TestDial_Parallel(t *testing.T) {
 		}
 	}()
 
-	d := NewDialer(&tls.Config{InsecureSkipVerify: true}, lis.Addr().String(), 1)
+	d := NewDialer(lis.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
 	t.Run("group", func(t *testing.T) {
 		parallelTest := func(t *testing.T) {
 			t.Parallel()
