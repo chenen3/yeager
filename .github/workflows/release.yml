@@ -58,8 +58,8 @@ jobs:
         uses: mislav/bump-homebrew-formula-action@v1.12
         with:
           formula-name: yeager
-          formula-path: homebrew/yeager.rb
-          homebrew-tap: chenen3/yeager
+          formula-path: Formula/yeager.rb
+          homebrew-tap: chenen3/homebrew-yeager
           base-branch: master
           download-url: https://github.com/chenen3/yeager/releases/download/${{ steps.extract-version.outputs.tag-name }}/yeager-macos-amd64.tar.gz
           commit-message: |
