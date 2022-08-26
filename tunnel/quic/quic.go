@@ -19,7 +19,7 @@ type dialer struct {
 }
 
 // NewDialer return a QUIC dialer that implements the tunnel.Dialer interface
-func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
+func NewDialer(addr string, tlsConf *tls.Config, poolSize int) *dialer {
 	d := &dialer{tlsConf: tlsConf}
 	dialFunc := func() (quic.Connection, error) {
 		qconf := &quic.Config{

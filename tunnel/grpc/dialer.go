@@ -30,7 +30,7 @@ type dialer struct {
 }
 
 // NewDialer return a gRPC dialer that implements the tunnel.Dialer interface
-func NewDialer(tlsConf *tls.Config, addr string, poolSize int) *dialer {
+func NewDialer(addr string, tlsConf *tls.Config, poolSize int) *dialer {
 	dialFunc := func() (*grpc.ClientConn, error) {
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)),

@@ -120,6 +120,9 @@ func (p *Proxy) Start() {
 			}
 		}(inbound)
 	}
+	for _, oc := range p.conf.Outbounds {
+		log.Printf("tunnel: %s, addr: %s, transport: %s \n", oc.Tag, oc.Address, oc.Transport)
+	}
 	wg.Wait()
 }
 
@@ -145,7 +148,7 @@ func (p *Proxy) Stop() error {
 
 var numConn = expvar.NewInt("numConn")
 
-func (p *Proxy) handleConn(ctx context.Context, ic net.Conn, addr string) {
+func (p *Proxy) handleConn(ctx context.Context, inconn net.Conn, addr string) {
 	if p.conf.Debug {
 		numConn.Add(1)
 		defer numConn.Add(-1)
@@ -168,35 +171,34 @@ func (p *Proxy) handleConn(ctx context.Context, ic net.Conn, addr string) {
 	}
 
 	if p.conf.Verbose {
-		log.Printf("relay %s <-> %s <-> %s", ic.RemoteAddr(), tag, addr)
+		log.Printf("relay %s <-> %s <-> %s", inconn.RemoteAddr(), tag, addr)
 	}
 
 	dctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 	defer cancel()
-	oc, err := outbound.DialContext(dctx, "tcp", addr)
+	outconn, err := outbound.DialContext(dctx, "tcp", addr)
 	if err != nil {
 		log.Printf("connect %s: %s", addr, err)
 		return
 	}
-	defer oc.Close()
+	defer outconn.Close()
 
-	errCh := make(chan error, 1)
-	go func() {
+	relay := func(inconn, outconn net.Conn, errCh chan error) {
 		inboundErrCh := make(chan error, 1)
 		go func() {
-			_, err := io.Copy(oc, ic)
+			_, err := io.Copy(outconn, inconn)
 			inboundErrCh <- err
 			// unblock Read on outbound connection
-			oc.SetReadDeadline(time.Now().Add(5 * time.Second))
+			outconn.SetReadDeadline(time.Now().Add(5 * time.Second))
 			// grpc stream does nothing on SetReadDeadline()
-			if cs, ok := oc.(interface{ CloseSend() error }); ok {
+			if cs, ok := outconn.(interface{ CloseSend() error }); ok {
 				cs.CloseSend()
 			}
 		}()
 
-		_, errOb := io.Copy(ic, oc)
+		_, errOb := io.Copy(inconn, outconn)
 		// unblock Read on inbound connection
-		ic.SetReadDeadline(time.Now().Add(5 * time.Second))
+		inconn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 		errIb := <-inboundErrCh
 		if errIb != nil && !errors.Is(errIb, os.ErrDeadlineExceeded) {
@@ -208,7 +210,9 @@ func (p *Proxy) handleConn(ctx context.Context, ic net.Conn, addr string) {
 			return
 		}
 		close(errCh)
-	}()
+	}
+	errCh := make(chan error, 1)
+	go relay(inconn, outconn, errCh)
 
 	select {
 	case <-ctx.Done():

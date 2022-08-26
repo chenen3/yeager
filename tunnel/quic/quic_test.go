@@ -50,7 +50,7 @@ func TestQUIC(t *testing.T) {
 	cliTLSConf := &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	dialer := NewDialer(cliTLSConf, listenr.Addr().String(), 1)
+	dialer := NewDialer(listenr.Addr().String(), cliTLSConf, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	clientConn, err := dialer.DialContext(ctx)

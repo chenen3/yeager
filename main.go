@@ -136,11 +136,11 @@ func main() {
 func generateConfig(ip, srvConfFile, cliConfFile string) error {
 	_, err := os.Stat(srvConfFile)
 	if err == nil {
-		return fmt.Errorf("file already exists: %s, please specified another server config filename", srvConfFile)
+		return fmt.Errorf("found %s, operation aborted", srvConfFile)
 	}
 	_, err = os.Stat(cliConfFile)
 	if err == nil {
-		return fmt.Errorf("file already exists: %s, please specified another client config filename", cliConfFile)
+		return fmt.Errorf("found %s, operation aborted", cliConfFile)
 	}
 
 	srvConf, cliConf, err := GenerateConfig(ip)
