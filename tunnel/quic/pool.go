@@ -10,7 +10,6 @@ import (
 
 const defaultSize = 2
 
-// QUIC connection pool
 type Pool struct {
 	size     int
 	i        uint32

@@ -125,7 +125,8 @@ func (s *ProxyServer) handshake(conn net.Conn) (addr string, reqcopy []byte, err
 			port = "443"
 		}
 		// reply https proxy request
-		if _, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto); err != nil {
+		_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
+		if err != nil {
 			return "", nil, err
 		}
 	} else {
