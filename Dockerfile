@@ -1,4 +1,4 @@
-FROM golang:1.17.3-alpine AS builder
+FROM golang:1.19-alpine AS builder
 WORKDIR /yeager
 COPY . .
 RUN mkdir build &&\

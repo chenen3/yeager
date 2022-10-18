@@ -1,6 +1,6 @@
 module github.com/chenen3/yeager
 
-go 1.17
+go 1.19
 
 require (
 	github.com/lucas-clemente/quic-go v0.29.2
