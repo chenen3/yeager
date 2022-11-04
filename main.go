@@ -75,7 +75,7 @@ func main() {
 			}
 			ip = i
 		}
-		err := writeConfig(ip, flags.srvConfFile, flags.cliConfFile)
+		err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -128,5 +128,5 @@ func main() {
 	}()
 	log.Printf("yeager %s starting", version)
 	p.Start()
-	log.Print("service stopped")
+	log.Print("bye bye")
 }

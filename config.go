@@ -65,7 +65,7 @@ func makeConfig(host string) (srv, cli config.Config, err error) {
 	return srv, cli, nil
 }
 
-func writeConfig(ip, srvConfFile, cliConfFile string) error {
+func GenerateConfig(ip, srvConfFile, cliConfFile string) error {
 	_, err := os.Stat(srvConfFile)
 	if err == nil {
 		return fmt.Errorf("found %s, operation aborted", srvConfFile)

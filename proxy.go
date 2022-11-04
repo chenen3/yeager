@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -182,43 +181,30 @@ func (p *Proxy) handleConn(ctx context.Context, inconn net.Conn, addr string) {
 	}
 	defer outconn.Close()
 
-	relay := func(inconn, outconn net.Conn, errCh chan error) {
-		inboundErrCh := make(chan error, 1)
-		go func() {
-			_, err := io.Copy(outconn, inconn)
-			inboundErrCh <- err
-			// unblock Read on outbound connection
-			outconn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			// grpc stream does nothing on SetReadDeadline()
-			if cs, ok := outconn.(interface{ CloseSend() error }); ok {
-				cs.CloseSend()
-			}
-		}()
-
-		_, errOb := io.Copy(inconn, outconn)
-		// unblock Read on inbound connection
-		inconn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
-		errIb := <-inboundErrCh
-		if errIb != nil && !errors.Is(errIb, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay from inbound: " + errIb.Error())
-			return
-		}
-		if errOb != nil && !errors.Is(errOb, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay from outbound: " + errOb.Error())
-			return
-		}
-		close(errCh)
-	}
 	errCh := make(chan error, 1)
-	go relay(inconn, outconn, errCh)
+	r := relay{inConn: inconn, outConn: outconn}
+	go r.copyToOutbound(errCh)
+	go r.copyFromOutbound(errCh)
 
 	select {
 	case <-ctx.Done():
-	case err := <-errCh:
-		// avoid confusing user by insignificant logs
-		if err != nil && p.conf.Verbose {
-			log.Print(err)
-		}
+	case <-errCh:
 	}
+}
+
+type relay struct {
+	inConn  net.Conn
+	outConn net.Conn
+}
+
+func (r *relay) copyToOutbound(errCh chan<- error) {
+	_, err := io.Copy(r.outConn, r.inConn)
+	r.outConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	errCh <- err
+}
+
+func (r *relay) copyFromOutbound(errCh chan<- error) {
+	_, err := io.Copy(r.inConn, r.outConn)
+	r.inConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	errCh <- err
 }
