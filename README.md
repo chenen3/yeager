@@ -74,7 +74,7 @@ yeager -config /usr/local/etc/yeager/config.yaml
 
 ### 1. Configure
 
-On remote host we have generated client config `usr/local/etc/yeager/client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
+On remote host we have generated client config `/usr/local/etc/yeager/client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
 
 ### 2. Run service
 
