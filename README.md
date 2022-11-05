@@ -1,20 +1,23 @@
 # yeager
 
-This repository implements a proxy for speeding up the network.
+This repository implements a proxy tool for speeding up the network.
 I wrote it as a hobby and made it as simple and efficient as possible for personal use.
 
 Features:
+- tunnel over gRPC or QUIC, secure by mutual TLS
+- rule-based routing
 - SOCKS and HTTP proxy
-- lightweight tunnel proxy
-  - transport over gRPC or QUIC
-  - secure by mutual TLS
-- Rule-based routing (supports [domain-list-community](https://github.com/v2fly/domain-list-community))
 
-## Get started
+Here is how the traffic flows:
 
-### 1. Install
+```
+browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] <-> endpoints
+```
 
-Install the [pre-built binary](https://github.com/chenen3/yeager/releases)
+## Install
+
+### Binaries
+Manually download the [release](https://github.com/chenen3/yeager/releases)
 ```sh
 # assuming Linux, amd64 architecture
 curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
@@ -24,25 +27,25 @@ mkdir -p /usr/local/share/yeager
 mv geosite.dat /usr/local/share/yeager/
 ```
 
-Or install from Docker
+### Docker
 ```sh
 docker pull ghcr.io/chenen3/yeager
 ```
 
-Or install from Homebrew (macOS only)
+### Homebrew
 ```sh
 brew tap chenen3/yeager
 brew install yeager
 ```
 
-Or install from source
+### Source
 ```sh
 go install github.com/chenen3/yeager@latest
 ```
 
-### 2. As server on remote host
+## As remote server
 
-#### 2.1 Generate config
+### 1. Generate config
 
 ```sh
 mkdir -p /usr/local/etc/yeager
@@ -57,7 +60,7 @@ here generates a pair of config:
 - `/usr/local/etc/yeager/server.yaml` the server config
 - `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
 
-#### 2.2 Run service
+### 2. Run service
 
 ```sh
 yeager -config /usr/local/etc/yeager/config.yaml
@@ -65,18 +68,18 @@ yeager -config /usr/local/etc/yeager/config.yaml
 # docker run -d --restart=always --name yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager -p 9001:9001 ghcr.io/chenen3/yeager
 ```
 
-#### 2.3 Update firewall
+### 3. Update firewall
 **Allow TCP port 9001**
 
-### 3. As client on local host
+## As local client
 
-#### 3.1 Configure
+### 1. Configure
 
 On remote host we have generated client config `usr/local/etc/yeager/client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
 
-#### 3.2 Run service
+### 2. Run service
 
-For the pre-built binary:
+For the binary:
 ```sh
 yeager -config /usr/local/etc/yeager/config.yaml
 ```
@@ -96,10 +99,12 @@ docker run -d \
     ghcr.io/chenen3/yeager
 ```
 
-#### 3.3 Setup proxy
+### 3. Setup proxy
 **setup HTTP proxy 127.0.0.1:8080 or SOCKS proxy 127.0.0.1:1080 on local host**.
 
 That's all, good luck.
+
+(For more details, see below...)
 
 ## Routing rule
 
@@ -118,7 +123,7 @@ For example:
 - `domain,www.apple.com,direct` access directly if domain name matches
 - `domain-suffix,apple.com,direct`access directly if root domain name matches
 - `domain-keyword,apple,direct` access directly if keyword matches
-- `geosite,cn,direct` access directly if the domain name is located in mainland China
+- `geosite,cn,direct` access directly if the domain name is located in mainland China. The geosite rule supports [domain-list-community](https://github.com/v2fly/domain-list-community)
 - `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
 
 ## Uninstall
@@ -150,6 +155,7 @@ docker image rm ghcr.io/chenen3/yeager
 
 ## Credit
 
-- [trojan](https://github.com/trojan-gfw/trojan)
-- [v2ray](https://github.com/v2fly/v2ray-core)
-- [quic-go](https://github.com/lucas-clemente/quic-go)
+- [trojan-gfw/trojan](https://github.com/trojan-gfw/trojan)
+- [v2fly/v2ray-core](https://github.com/v2fly/v2ray-core)
+- [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community)
+- [lucas-clemente/quic-go](https://github.com/lucas-clemente/quic-go)
