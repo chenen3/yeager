@@ -1,7 +1,6 @@
 # yeager
 
-This repository implements a proxy tool for speeding up the network.
-I wrote it as a hobby and made it as simple and efficient as possible for personal use.
+A proxy that helps speed up the internet connection.
 
 Features:
 - tunnel over gRPC or QUIC, secure by mutual TLS
@@ -11,7 +10,7 @@ Features:
 Here is how the traffic flows:
 
 ```
-browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] <-> endpoints
+browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpoints
 ```
 
 ## Install
