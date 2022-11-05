@@ -21,9 +21,9 @@ Manually download the [release](https://github.com/chenen3/yeager/releases)
 # assuming Linux, amd64 architecture
 curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
 tar -xzvf yeager-linux-amd64.tar.gz
-mv yeager /usr/local/bin/
+mv yeager /usr/local/bin/yeager
 mkdir -p /usr/local/share/yeager
-mv geosite.dat /usr/local/share/yeager/
+mv geosite.dat /usr/local/share/yeager/geosite.dat
 ```
 
 ### Docker
@@ -56,8 +56,8 @@ ln -s server.yaml config.yaml
 ```
 
 here generates a pair of config:
-- `/usr/local/etc/yeager/server.yaml` the server config
-- `/usr/local/etc/yeager/client.yaml` the client config that should be **copyed to client device later**
+- `/usr/local/etc/yeager/server.yaml`
+- `/usr/local/etc/yeager/client.yaml` (**should be copyed to client device later**)
 
 ### 2. Run service
 
@@ -133,8 +133,9 @@ For the pre-built binary:
 rm /usr/local/bin/yeager
 rm /usr/local/share/yeager/geosite.dat
 rmdir /usr/local/share/yeager
-rm /usr/local/etc/yeager/*.yaml
-rmdir /usr/local/etc/yeager
+# remove the configuration files if you wish:
+#   rm /usr/local/etc/yeager/config.yaml
+#   rmdir /usr/local/etc/yeager
 ```
 
 For Homebrew:
