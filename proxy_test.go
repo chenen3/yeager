@@ -13,7 +13,7 @@ import (
 var httpProxyURL string
 
 func TestMain(m *testing.M) {
-	srvConf, cliConf, err := GenerateConfig("127.0.0.1")
+	srvConf, cliConf, err := makeConfig("127.0.0.1")
 	if err != nil {
 		panic(err)
 	}

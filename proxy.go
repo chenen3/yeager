@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"expvar"
-	"fmt"
 	"io"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -183,96 +181,30 @@ func (p *Proxy) handleConn(ctx context.Context, inconn net.Conn, addr string) {
 	}
 	defer outconn.Close()
 
-	relay := func(inconn, outconn net.Conn, errCh chan error) {
-		inboundErrCh := make(chan error, 1)
-		go func() {
-			_, err := io.Copy(outconn, inconn)
-			inboundErrCh <- err
-			// unblock Read on outbound connection
-			outconn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			// grpc stream does nothing on SetReadDeadline()
-			if cs, ok := outconn.(interface{ CloseSend() error }); ok {
-				cs.CloseSend()
-			}
-		}()
-
-		_, errOb := io.Copy(inconn, outconn)
-		// unblock Read on inbound connection
-		inconn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
-		errIb := <-inboundErrCh
-		if errIb != nil && !errors.Is(errIb, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay from inbound: " + errIb.Error())
-			return
-		}
-		if errOb != nil && !errors.Is(errOb, os.ErrDeadlineExceeded) {
-			errCh <- errors.New("relay from outbound: " + errOb.Error())
-			return
-		}
-		close(errCh)
-	}
 	errCh := make(chan error, 1)
-	go relay(inconn, outconn, errCh)
+	r := relay{inConn: inconn, outConn: outconn}
+	go r.copyToOutbound(errCh)
+	go r.copyFromOutbound(errCh)
 
 	select {
 	case <-ctx.Done():
-	case err := <-errCh:
-		// avoid confusing user by insignificant logs
-		if err != nil && p.conf.Verbose {
-			log.Print(err)
-		}
+	case <-errCh:
 	}
 }
 
-func GenerateConfig(host string) (srv, cli config.Config, err error) {
-	cert, err := util.GenerateCertificate(host)
-	if err != nil {
-		return srv, cli, err
-	}
-	tunnelPort, err := util.ChoosePort()
-	if err != nil {
-		return srv, cli, err
-	}
+type relay struct {
+	inConn  net.Conn
+	outConn net.Conn
+}
 
-	srv = config.Config{
-		Inbounds: []config.YeagerServer{
-			{
-				Listen:    fmt.Sprintf(":%d", tunnelPort),
-				Transport: config.TransGRPC,
-				TLS: config.TLS{
-					CAPEM:   string(cert.RootCert),
-					CertPEM: string(cert.ServerCert),
-					KeyPEM:  string(cert.ServerKey),
-				},
-			},
-		},
-		Rules: []string{"final,direct"},
-	}
+func (r *relay) copyToOutbound(errCh chan<- error) {
+	_, err := io.Copy(r.outConn, r.inConn)
+	r.outConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	errCh <- err
+}
 
-	socksProxyPort, err := util.ChoosePort()
-	if err != nil {
-		return srv, cli, err
-	}
-	httpProxyPort, err := util.ChoosePort()
-	if err != nil {
-		return srv, cli, err
-	}
-	cli = config.Config{
-		SOCKSListen: fmt.Sprintf("127.0.0.1:%d", socksProxyPort),
-		HTTPListen:  fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
-		Outbounds: []config.YeagerClient{
-			{
-				Tag:       "proxy",
-				Address:   fmt.Sprintf("%s:%d", host, tunnelPort),
-				Transport: config.TransGRPC,
-				TLS: config.TLS{
-					CAPEM:   string(cert.RootCert),
-					CertPEM: string(cert.ClientCert),
-					KeyPEM:  string(cert.ClientKey),
-				},
-			},
-		},
-		Rules: []string{"final,proxy"},
-	}
-	return srv, cli, nil
+func (r *relay) copyFromOutbound(errCh chan<- error) {
+	_, err := io.Copy(r.inConn, r.outConn)
+	r.inConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	errCh <- err
 }

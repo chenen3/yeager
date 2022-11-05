@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	_ "expvar"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -70,14 +68,14 @@ func main() {
 	if flags.genConf {
 		ip := flags.ip
 		if ip == "" {
-			i, err := getPublicIP()
+			i, err := publicIP()
 			if err != nil {
 				fmt.Printf("get public IP: %s\n", err)
 				return
 			}
 			ip = i
 		}
-		err := generateConfig(ip, flags.srvConfFile, flags.cliConfFile)
+		err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -130,83 +128,5 @@ func main() {
 	}()
 	log.Printf("yeager %s starting", version)
 	p.Start()
-	log.Print("service stopped")
-}
-
-func generateConfig(ip, srvConfFile, cliConfFile string) error {
-	_, err := os.Stat(srvConfFile)
-	if err == nil {
-		return fmt.Errorf("found %s, operation aborted", srvConfFile)
-	}
-	_, err = os.Stat(cliConfFile)
-	if err == nil {
-		return fmt.Errorf("found %s, operation aborted", cliConfFile)
-	}
-
-	srvConf, cliConf, err := GenerateConfig(ip)
-	if err != nil {
-		return fmt.Errorf("failed to generate config: %s", err)
-	}
-	if len(srvConf.Inbounds) == 0 {
-		return fmt.Errorf("no inbound in server config")
-	}
-	srvConf.Inbounds[0].Listen = "0.0.0.0:9001"
-	srvConf.Rules = []string{
-		"ip-cidr,127.0.0.1/8,reject",
-		"ip-cidr,192.168.0.0/16,reject",
-		"domain,localhost,reject",
-		"final,direct",
-	}
-	bs, err := yaml.Marshal(srvConf)
-	if err != nil {
-		return fmt.Errorf("failed to marshal server config: %s", err)
-	}
-	err = os.WriteFile(srvConfFile, bs, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write server config: %s", err)
-	}
-	fmt.Printf("generated server config file: %s\n", srvConfFile)
-
-	if len(cliConf.Outbounds) == 0 {
-		return fmt.Errorf("no outbound in client config")
-	}
-	cliConf.Outbounds[0].Address = fmt.Sprintf("%s:%d", ip, 9001)
-	cliConf.SOCKSListen = "127.0.0.1:1080"
-	cliConf.HTTPListen = "127.0.0.1:8080"
-	cliConf.Rules = []string{
-		"ip-cidr,127.0.0.1/8,direct",
-		"ip-cidr,192.168.0.0/16,direct",
-		"ip-cidr,172.16.0.0/12,direct",
-		"ip-cidr,10.0.0.0/8,direct",
-		"domain,localhost,direct",
-		"geosite,cn,direct",
-		"geosite,apple@cn,direct",
-		"final,proxy",
-	}
-	// On client side, verbose logging helps to see where traffic is being sent to
-	cliConf.Verbose = true
-	bs, err = yaml.Marshal(cliConf)
-	if err != nil {
-		return fmt.Errorf("failed to marshal client config: %s", err)
-	}
-	err = os.WriteFile(cliConfFile, bs, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write client config: %s", err)
-	}
-	fmt.Printf("generated client config file: %s\n", cliConfFile)
-	return nil
-}
-
-func getPublicIP() (string, error) {
-	resp, err := http.Get("https://checkip.amazonaws.com")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	ip, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	ip = bytes.TrimSpace(ip)
-	return string(ip), nil
+	log.Print("bye bye")
 }

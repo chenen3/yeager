@@ -161,7 +161,7 @@ func (sc *streamConn) RemoteAddr() net.Addr {
 }
 
 func (sc *streamConn) Close() error {
-	// here need to close both read-direction and write-direction of the stream,
+	// here close both read-direction and write-direction of the stream,
 	// while quic.Stream.Close() only closes the write-direction
 	sc.CancelRead(0)
 	return sc.Stream.Close()
