@@ -74,7 +74,7 @@ func (d *dialer) DialContext(ctx context.Context) (net.Conn, error) {
 			cancelS()
 			return
 		}
-		ch <- clientStreamAsConn(stream, cancelS)
+		ch <- wrapClientStream(stream, cancelS)
 	}()
 
 	select {

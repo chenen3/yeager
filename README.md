@@ -99,7 +99,8 @@ docker run -d \
 ```
 
 ### 3. Setup proxy
-**setup HTTP proxy 127.0.0.1:8080 or SOCKS proxy 127.0.0.1:1080 on local host**.
+- setting HTTP and HTTPS proxy to localhost:8080
+- setting SOCKS proxy to localhost:1080
 
 That's all, good luck.
 

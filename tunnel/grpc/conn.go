@@ -19,10 +19,10 @@ type serverStreamConn struct {
 	remoteAddr net.Addr
 }
 
-func serverStreamAsConn(stream pb.Tunnel_StreamServer, onClose func()) *serverStreamConn {
+func wrapServerStream(stream pb.Tunnel_StreamServer, onClose func()) *serverStreamConn {
 	conn := serverStreamConn{stream: stream, onClose: onClose}
 	conn.localAddr = &net.TCPAddr{IP: []byte{0, 0, 0, 0}, Port: 0}
-	p, ok := peer.FromContext(conn.stream.Context())
+	p, ok := peer.FromContext(stream.Context())
 	if ok {
 		conn.remoteAddr = p.Addr
 	} else {
@@ -85,7 +85,7 @@ type clientStreamConn struct {
 	remoteAddr net.Addr
 }
 
-func clientStreamAsConn(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamConn {
+func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamConn {
 	conn := clientStreamConn{stream: stream, onClose: onClose}
 	conn.localAddr = &net.TCPAddr{IP: []byte{0, 0, 0, 0}, Port: 0}
 	conn.remoteAddr = &net.TCPAddr{IP: []byte{0, 0, 0, 0}, Port: 0}
