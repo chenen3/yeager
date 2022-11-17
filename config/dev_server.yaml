@@ -1,0 +1,7 @@
+verbose: true
+tunnelListens:
+  - type: tcp
+    listen: 127.0.0.1:10812
+    # Check if it works with multiple services
+  - type: tcp
+    listen: 127.0.0.1:10813
