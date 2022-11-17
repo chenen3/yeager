@@ -11,21 +11,25 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-type TcpTunnel struct {
-	Address  string
+type TcpTunnelServer struct {
+	address  string
 	listener net.Listener
 }
 
-// Serve will return a non-nil error unless Close is called.
-func (t *TcpTunnel) Serve() error {
-	lis, err := net.Listen("tcp", t.Address)
+func NewTcpTunnelServer(address string) (*TcpTunnelServer, error) {
+	t := &TcpTunnelServer{address: address}
+	lis, err := net.Listen("tcp", t.address)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	t.listener = lis
+	return t, nil
+}
 
+// Serve will return a non-nil error unless Close is called.
+func (t *TcpTunnelServer) Serve() error {
 	for {
-		conn, err := lis.Accept()
+		conn, err := t.listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				err = nil
@@ -56,9 +60,24 @@ func (t *TcpTunnel) Serve() error {
 	}
 }
 
-func (t *TcpTunnel) DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error) {
+func (t *TcpTunnelServer) Close() error {
+	if t.listener != nil {
+		return t.listener.Close()
+	}
+	return nil
+}
+
+type TcpTunnelClient struct {
+	address string
+}
+
+func NewTcpTunnelClient(address string) *TcpTunnelClient {
+	return &TcpTunnelClient{address: address}
+}
+
+func (tc *TcpTunnelClient) DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error) {
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", t.Address)
+	conn, err := d.DialContext(ctx, "tcp", tc.address)
 	if err != nil {
 		return nil, err
 	}
@@ -72,11 +91,4 @@ func (t *TcpTunnel) DialContext(ctx context.Context, dstAddr string) (io.ReadWri
 		return nil, err
 	}
 	return conn, nil
-}
-
-func (t *TcpTunnel) Close() error {
-	if t.listener != nil {
-		return t.listener.Close()
-	}
-	return nil
 }

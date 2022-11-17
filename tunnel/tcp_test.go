@@ -13,23 +13,6 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-var tcptun TcpTunnel
-
-func TestMain(m *testing.M) {
-	port, _ := util.AllocatePort()
-	ready := make(chan struct{})
-	tcptun = TcpTunnel{Address: fmt.Sprintf("127.0.0.1:%d", port)}
-	defer tcptun.Close()
-	go func() {
-		close(ready)
-		err := tcptun.Serve()
-		if err != nil {
-			panic(err)
-		}
-	}()
-	m.Run()
-}
-
 func TestTcpTunnel(t *testing.T) {
 	want := "ok"
 	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,11 +20,29 @@ func TestTcpTunnel(t *testing.T) {
 	}))
 	defer hs.Close()
 
+	port, _ := util.AllocatePort()
+	address := fmt.Sprintf("127.0.0.1:%d", port)
+	ready := make(chan struct{})
+	tunSrv, err := NewTcpTunnelServer(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tunSrv.Close()
+	go func() {
+		close(ready)
+		err := tunSrv.Serve()
+		if err != nil {
+			panic(err)
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	<-ready
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
-	rwc, err := tcptun.DialContext(ctx, hs.Listener.Addr().String())
+	tunCli := NewTcpTunnelClient(address)
+	rwc, err := tunCli.DialContext(ctx, hs.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
