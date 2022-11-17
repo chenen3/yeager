@@ -57,6 +57,8 @@ func TestGrpcTunnel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	<-ready
+	// the proxy server may not started yet
+	time.Sleep(time.Millisecond)
 	rwc, err := tc.DialContext(ctx, hs.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
@@ -111,6 +113,8 @@ func TestDial_Parallel(t *testing.T) {
 	tc := NewTunnelClient(address, &tls.Config{InsecureSkipVerify: true}, 1)
 	defer tc.Close()
 	<-ready
+	// the proxy server may not started yet
+	time.Sleep(time.Millisecond)
 	t.Run("group", func(t *testing.T) {
 		parallelTest := func(t *testing.T) {
 			t.Parallel()

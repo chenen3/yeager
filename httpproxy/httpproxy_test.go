@@ -48,6 +48,8 @@ func TestHttpProxy(t *testing.T) {
 		},
 	}
 	<-ready
+	// the proxy server may not started yet
+	time.Sleep(time.Millisecond)
 	res, err := client.Get(httpSrv.URL)
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +88,8 @@ func TestHttpsProxy(t *testing.T) {
 	tr.Proxy = http.ProxyURL(proxyUrl)
 	client.Transport = tr
 	<-ready
+	// the proxy server may not started yet
+	time.Sleep(time.Millisecond)
 	res, err := client.Get(httpsSrv.URL)
 	if err != nil {
 		t.Fatal(err)

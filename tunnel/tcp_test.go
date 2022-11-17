@@ -35,6 +35,8 @@ func TestTcpTunnel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	<-ready
+	// the tunnel server may not started yet
+	time.Sleep(time.Millisecond)
 	rwc, err := tcptun.DialContext(ctx, hs.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)

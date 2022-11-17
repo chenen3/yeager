@@ -49,6 +49,8 @@ func TestSocksProxy(t *testing.T) {
 		Timeout: time.Second,
 	}
 	<-ready
+	// the proxy server may not started yet
+	time.Sleep(time.Millisecond)
 	resp, err := client.Get(httpSrv.URL)
 	if err != nil {
 		t.Fatal(err)
