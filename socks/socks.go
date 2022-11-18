@@ -9,13 +9,16 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/util"
 )
 
 type Server struct {
-	lis net.Listener
+	mu          sync.Mutex
+	lis         net.Listener
+	activeConns map[net.Conn]struct{}
 }
 
 type Tunneler interface {
@@ -28,7 +31,9 @@ func (s *Server) Serve(address string, tunnel Tunneler) error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
 	s.lis = lis
+	s.mu.Unlock()
 
 	for {
 		conn, err := lis.Accept()
@@ -39,7 +44,9 @@ func (s *Server) Serve(address string, tunnel Tunneler) error {
 			return err
 		}
 
+		s.trackConn(conn, true)
 		go func() {
+			s.trackConn(conn, false)
 			defer conn.Close()
 			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
 			dstAddr, err := handshake(conn)
@@ -64,11 +71,31 @@ func (s *Server) Serve(address string, tunnel Tunneler) error {
 	}
 }
 
-func (s *Server) Close() error {
-	if s.lis != nil {
-		return s.lis.Close()
+func (s *Server) trackConn(c net.Conn, add bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.activeConns == nil {
+		s.activeConns = make(map[net.Conn]struct{})
 	}
-	return nil
+	if add {
+		s.activeConns[c] = struct{}{}
+	} else {
+		delete(s.activeConns, c)
+	}
+}
+
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var err error
+	if s.lis != nil {
+		err = s.lis.Close()
+	}
+	for c := range s.activeConns {
+		c.Close()
+		delete(s.activeConns, c)
+	}
+	return err
 }
 
 // maxAddrLen is the maximum size of SOCKS address in bytes.

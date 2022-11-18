@@ -79,11 +79,11 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		tl := tl
 		switch tl.Type {
 		case config.TunTCP:
-			t := &tunnel.TcpTunnel{Address: tl.Listen}
-			closers = append(closers, t)
+			var t tunnel.TcpTunnelServer
+			closers = append(closers, &t)
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
-				err := t.Serve()
+				err := t.Serve(tl.Listen)
 				if err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
@@ -151,7 +151,7 @@ func NewDispatcher(rules []string, tunnelClients []config.TunnelClient, verbose 
 		}
 		switch tc.Type {
 		case config.TunTCP:
-			tunnels[policy] = &tunnel.TcpTunnel{Address: tc.Address}
+			tunnels[policy] = tunnel.NewTcpTunnelClient(tc.Address)
 		case config.TunGRPC:
 			tlsConf, err := makeClientTLSConfig(tc)
 			if err != nil {

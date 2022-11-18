@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/tunnel"
@@ -15,6 +16,7 @@ import (
 )
 
 type TunnelServer struct {
+	mu  sync.Mutex
 	lis quic.Listener
 }
 
@@ -30,7 +32,9 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
 	s.lis = lis
+	s.mu.Unlock()
 
 	for {
 		qconn, err := lis.Accept(context.Background())
@@ -83,7 +87,10 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 }
 
 func (s *TunnelServer) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.lis != nil {
+		// will close all active connections
 		return s.lis.Close()
 	}
 	return nil

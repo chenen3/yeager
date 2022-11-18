@@ -6,37 +6,41 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/util"
 )
 
 type TcpTunnelServer struct {
-	address  string
-	listener net.Listener
-}
-
-func NewTcpTunnelServer(address string) (*TcpTunnelServer, error) {
-	t := &TcpTunnelServer{address: address}
-	lis, err := net.Listen("tcp", t.address)
-	if err != nil {
-		return nil, err
-	}
-	t.listener = lis
-	return t, nil
+	mu          sync.Mutex
+	listener    net.Listener
+	activeConns map[net.Conn]struct{}
 }
 
 // Serve will return a non-nil error unless Close is called.
-func (t *TcpTunnelServer) Serve() error {
+// TODO: would it be better if given net.Listener instead of address ?
+func (srv *TcpTunnelServer) Serve(address string) error {
+	lis, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+	srv.mu.Lock()
+	srv.listener = lis
+	srv.mu.Unlock()
+
 	for {
-		conn, err := t.listener.Accept()
+		conn, err := lis.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				err = nil
 			}
 			return err
 		}
+
+		srv.trackConn(conn, true)
 		go func() {
+			defer srv.trackConn(conn, false)
 			defer conn.Close()
 			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
 			dstAddr, err := ReadHeader(conn)
@@ -60,11 +64,34 @@ func (t *TcpTunnelServer) Serve() error {
 	}
 }
 
-func (t *TcpTunnelServer) Close() error {
-	if t.listener != nil {
-		return t.listener.Close()
+func (srv *TcpTunnelServer) trackConn(c net.Conn, add bool) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if srv.activeConns == nil {
+		srv.activeConns = make(map[net.Conn]struct{})
 	}
-	return nil
+	if add {
+		srv.activeConns[c] = struct{}{}
+	} else {
+		delete(srv.activeConns, c)
+	}
+}
+
+// Close closes the TCP tunnel server. It immediately
+// closes all active connections and listener
+func (srv *TcpTunnelServer) Close() error {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	var err error
+	if srv.listener != nil {
+		err = srv.listener.Close()
+	}
+
+	for c := range srv.activeConns {
+		c.Close()
+		delete(srv.activeConns, c)
+	}
+	return err
 }
 
 type TcpTunnelClient struct {

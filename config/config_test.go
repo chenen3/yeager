@@ -68,7 +68,7 @@ func TestConfig(t *testing.T) {
 		},
 		TunnelClients: []TunnelClient{
 			{
-				Policy:                "proxy",
+				Policy:             "proxy",
 				Type:               "grpc",
 				Address:            "127.0.0.1:9000",
 				CertFile:           "/path/to/client-cert.pem",

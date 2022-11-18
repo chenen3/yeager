@@ -134,8 +134,8 @@ func (c *rwcClientStream) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-// Write wraps grpc client-side stream Send(), which is SendMsg() actually.
-// according to grpc doc:
+// Write wraps method Send of client side stream, which is SendMsg actually.
+// according to gRPC doc:
 //
 //	SendMsg does not wait until the message is received by the server. An
 //	untimely stream closure may result in lost messages. To ensure delivery,

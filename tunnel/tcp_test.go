@@ -23,14 +23,11 @@ func TestTcpTunnel(t *testing.T) {
 	port, _ := util.AllocatePort()
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	ready := make(chan struct{})
-	tunSrv, err := NewTcpTunnelServer(address)
-	if err != nil {
-		t.Fatal(err)
-	}
+	var tunSrv TcpTunnelServer
 	defer tunSrv.Close()
 	go func() {
 		close(ready)
-		err := tunSrv.Serve()
+		err := tunSrv.Serve(address)
 		if err != nil {
 			panic(err)
 		}

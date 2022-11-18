@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -18,6 +19,7 @@ import (
 
 type TunnelServer struct {
 	pb.UnimplementedTunnelServer
+	mu sync.Mutex
 	gs *grpc.Server
 }
 
@@ -42,7 +44,9 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
+	s.mu.Lock()
 	s.gs = grpcServer
+	s.mu.Unlock()
 	return grpcServer.Serve(lis)
 }
 
@@ -69,7 +73,10 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 }
 
 func (s *TunnelServer) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.gs != nil {
+		// will close all active connections and listener
 		s.gs.Stop()
 	}
 	return nil

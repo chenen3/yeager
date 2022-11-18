@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/util"
@@ -16,7 +17,9 @@ import (
 
 // Server implement interface Service
 type Server struct {
-	lis net.Listener
+	mu          sync.Mutex
+	lis         net.Listener
+	activeConns map[net.Conn]struct{}
 }
 
 type Tunneler interface {
@@ -29,7 +32,10 @@ func (s *Server) Serve(addr string, tunnel Tunneler) error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
 	s.lis = lis
+	s.mu.Unlock()
+
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -39,7 +45,9 @@ func (s *Server) Serve(addr string, tunnel Tunneler) error {
 			return err
 		}
 
+		s.trackConn(conn, true)
 		go func() {
+			s.trackConn(conn, false)
 			defer conn.Close()
 			conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
 			dstAddr, httpReq, err := handshake(conn)
@@ -70,11 +78,31 @@ func (s *Server) Serve(addr string, tunnel Tunneler) error {
 	}
 }
 
-func (s *Server) Close() error {
-	if s.lis != nil {
-		return s.lis.Close()
+func (s *Server) trackConn(c net.Conn, add bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.activeConns == nil {
+		s.activeConns = make(map[net.Conn]struct{})
 	}
-	return nil
+	if add {
+		s.activeConns[c] = struct{}{}
+	} else {
+		delete(s.activeConns, c)
+	}
+}
+
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var err error
+	if s.lis != nil {
+		err = s.lis.Close()
+	}
+	for c := range s.activeConns {
+		c.Close()
+		delete(s.activeConns, c)
+	}
+	return err
 }
 
 // HTTP代理服务器接收到请求时：

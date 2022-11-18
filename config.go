@@ -125,7 +125,7 @@ func makeConfig(host string) (srv, cli config.Config, err error) {
 		HTTPListen:  fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
 		TunnelClients: []config.TunnelClient{
 			{
-				Policy:     "proxy",
+				Policy:  "proxy",
 				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
 				Type:    config.TunGRPC,
 				CAPEM:   string(cert.RootCert),
