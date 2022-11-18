@@ -9,7 +9,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"gopkg.in/yaml.v3"
@@ -65,29 +64,28 @@ func main() {
 		return
 	}
 
-	if flags.genConf {
-		ip := flags.ip
-		if ip == "" {
-			i, err := publicIP()
-			if err != nil {
-				fmt.Printf("get public IP: %s\n", err)
-				return
-			}
-			ip = i
-		}
-		err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		return
-	}
+	// if flags.genConf {
+	// 	ip := flags.ip
+	// 	if ip == "" {
+	// 		i, err := publicIP()
+	// 		if err != nil {
+	// 			fmt.Printf("get public IP: %s\n", err)
+	// 			return
+	// 		}
+	// 		ip = i
+	// 	}
+	// 	err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return
+	// 	}
+	// 	return
+	// }
 
 	if flags.configFile == "" {
 		flag.Usage()
 		return
 	}
-
 	bs, err := os.ReadFile(flags.configFile)
 	if err != nil {
 		log.Print(err)
@@ -100,15 +98,15 @@ func main() {
 		return
 	}
 
-	p, err := NewProxy(conf)
+	log.Printf("yeager %s starting", version)
+	closers, err := StartServices(conf)
 	if err != nil {
-		log.Printf("init proxy: %s", err)
+		log.Printf("failed to start services: %s", err)
+		CloseAll(closers)
 		return
 	}
-	// reduce the memory usage boosted by parsing rules of geosite.dat
-	runtime.GC()
+	defer CloseAll(closers)
 
-	// for profiling
 	if conf.Debug {
 		go func() {
 			err := http.ListenAndServe("localhost:6060", nil)
@@ -118,15 +116,8 @@ func main() {
 		}()
 	}
 
-	go func() {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-		<-ch
-		if err := p.Stop(); err != nil {
-			panic("failed to stop service: " + err.Error())
-		}
-	}()
-	log.Printf("yeager %s starting", version)
-	p.Start()
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
+	<-ch
 	log.Print("bye bye")
 }

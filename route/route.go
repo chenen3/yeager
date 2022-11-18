@@ -23,7 +23,7 @@ const (
 	// ruleGeoIP = "geoip" // 预定义IP集合
 )
 
-// built-in outbound tag
+// built-in proxy policy
 const (
 	Direct = "direct"
 	Reject = "reject"
@@ -32,28 +32,28 @@ const (
 var defaultFinalRule, _ = newRule(ruleFinal, "", Direct)
 
 type rule struct {
-	type_       string
-	value       string
-	outboundTag string
-	matcher     matcher
+	rtype   string
+	value   string
+	policy  string
+	matcher matcher
 }
 
-func newRule(type_ string, value string, outboundTag string) (*rule, error) {
-	type_ = strings.ToLower(type_)
-	outboundTag = strings.ToLower(outboundTag)
+func newRule(ruleType string, value string, policy string) (*rule, error) {
+	ruleType = strings.ToLower(ruleType)
+	policy = strings.ToLower(policy)
 	ru := &rule{
-		type_:       type_,
-		value:       value,
-		outboundTag: outboundTag,
+		rtype:  ruleType,
+		value:  value,
+		policy: policy,
 	}
 
 	var err error
-	ru.matcher, err = newRuleMatcher(type_, value)
+	ru.matcher, err = newRuleMatcher(ruleType, value)
 	return ru, err
 }
 
 func (r *rule) Match(addr *util.Addr) bool {
-	switch r.type_ {
+	switch r.rtype {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
 		if addr.Type != util.AddrDomainName {
 			return false
@@ -64,7 +64,6 @@ func (r *rule) Match(addr *util.Addr) bool {
 			return false
 		}
 	}
-
 	return r.matcher.Match(addr)
 }
 
@@ -84,7 +83,7 @@ func NewRouter(rules []string) (*Router, error) {
 		if err != nil {
 			return nil, err
 		}
-		if ru.type_ == ruleFinal && i != len(rules)-1 {
+		if ru.rtype == ruleFinal && i != len(rules)-1 {
 			return nil, errors.New("the final rule must be placed at last")
 		}
 		parsedRules = append(parsedRules, ru)
@@ -98,33 +97,31 @@ func NewRouter(rules []string) (*Router, error) {
 	return &r, nil
 }
 
-// 规则格式分两种：
-// - 普通规则: ruleType,value,outboundTag
-// - 最终规则: FINAL,outboundTag
+// there are two form of rules:
+//   - ordinary rule: type,value,policy
+//   - final rule: FINAL,policy
 func parseRule(rule string) (*rule, error) {
 	parts := strings.Split(rule, ",")
 	switch len(parts) {
 	case 2:
-		typ := parts[0]
-		if !strings.EqualFold(typ, ruleFinal) {
+		rtype := parts[0]
+		if !strings.EqualFold(rtype, ruleFinal) {
 			return nil, errors.New("invalid final rule: " + rule)
 		}
-		outboundTag := parts[1]
-		return newRule(typ, "", outboundTag)
+		return newRule(rtype, "", parts[1])
 	case 3:
 		typ := parts[0]
 		val := parts[1]
 		if val == "" {
 			return nil, errors.New("empty rule value: " + rule)
 		}
-		outboundTag := parts[2]
-		return newRule(typ, val, outboundTag)
+		return newRule(typ, val, parts[2])
 	default:
-		return nil, errors.New("invalid rule: " + rule)
+		return nil, errors.New("wrong form of rule: " + rule)
 	}
 }
 
-func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
+func (r *Router) Dispatch(addr string) (policy string, err error) {
 	var dst *util.Addr
 	dst, err = util.ParseAddr("tcp", addr)
 	if err != nil {
@@ -132,8 +129,8 @@ func (r *Router) Dispatch(addr string) (outboundTag string, err error) {
 	}
 	for _, ru := range r.rules {
 		if ru.Match(dst) {
-			return ru.outboundTag, nil
+			return ru.policy, nil
 		}
 	}
-	return defaultFinalRule.outboundTag, nil
+	return defaultFinalRule.policy, nil
 }

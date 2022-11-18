@@ -1,34 +1,31 @@
 package config
 
 type Config struct {
-	// socks 代理监听地址
-	SOCKSListen string `yaml:"socksListen,omitempty"`
-	// http 代理监听地址
-	HTTPListen string `yaml:"httpListen,omitempty"`
-	// yeager入站代理
-	Inbounds []YeagerServer `yaml:"inbounds,omitempty"`
-	// yeager出站代理
-	Outbounds []YeagerClient `yaml:"outbounds,omitempty"`
-	// 路由规则
-	Rules []string `yaml:"rules,omitempty"`
+	SOCKSListen   string         `yaml:"socksListen,omitempty"`
+	HTTPListen    string         `yaml:"httpListen,omitempty"`
+	TunnelListens []TunnelListen `yaml:"tunnelListens,omitempty"`
+	TunnelClients []TunnelClient `yaml:"tunnelClients,omitempty"`
+	Rules         []string       `yaml:"rules,omitempty"`
 	// verbose logging
 	Verbose bool `yaml:"verbose,omitempty"`
-	// expose runtime metrics for debugging and profiling, developers only
+	// enable HTTP server for debugging and profiling, developers only
 	Debug bool `yaml:"debug,omitempty"`
 }
 
-type Transport string
+type TunnelType string
 
 const (
-	TransTCP  Transport = "tcp" // plain text
-	TransGRPC Transport = "grpc"
-	TransQUIC Transport = "quic"
-
+	TunTCP  TunnelType = "tcp" // plain text
+	TunGRPC TunnelType = "grpc"
+	TunQUIC TunnelType = "quic"
 	// deprecated. Infrequently used
-	// TransTLS Transport = "tls"
+	// TunTCP TunnelType = "tls"
 )
 
-type TLS struct {
+type TunnelListen struct {
+	Type   TunnelType `yaml:"type"`
+	Listen string     `yaml:"listen"`
+	// the TLS config is unavailable when the tunnel server is plain TCP
 	CertFile string `yaml:"certFile,omitempty"`
 	CertPEM  string `yaml:"certPEM,omitempty"`
 	KeyFile  string `yaml:"keyFile,omitempty"`
@@ -37,20 +34,18 @@ type TLS struct {
 	CAPEM    string `yaml:"caPEM,omitempty"`
 }
 
-type YeagerServer struct {
-	Listen    string    `yaml:"listen"`
-	Transport Transport `yaml:"transport"`
-	// unavailable when transport is tcp
-	TLS TLS `yaml:"tls,omitempty"`
-}
+type TunnelClient struct {
+	Type    TunnelType `yaml:"type"`
+	Policy  string     `yaml:"policy"`
+	Address string     `yaml:"address"` // target server address
 
-type YeagerClient struct {
-	Tag string `yaml:"tag"`
-	// server address to be connected
-	Address   string    `yaml:"address"`
-	Transport Transport `yaml:"transport"`
-	// unavailable when transport is tcp
-	TLS TLS `yaml:"tls,omitempty"`
+	// the TLS config is unavailable when the tunnel server is plain TCP
+	CertFile string `yaml:"certFile,omitempty"`
+	CertPEM  string `yaml:"certPEM,omitempty"`
+	KeyFile  string `yaml:"keyFile,omitempty"`
+	KeyPEM   string `yaml:"keyPEM,omitempty"`
+	CAFile   string `yaml:"caFile,omitempty"`
+	CAPEM    string `yaml:"caPEM,omitempty"`
 
 	// optional
 	ConnectionPoolSize int `yaml:"connectionPoolSize,omitempty"`

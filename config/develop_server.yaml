@@ -1,7 +1,0 @@
-verbose: true
-inbounds:
-  - listen: 127.0.0.1:10812
-    transport: tcp
-  # Check if error happened when starting multiple services
-  - listen: 127.0.0.1:10813
-    transport: tcp

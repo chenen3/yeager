@@ -1,4 +1,3 @@
-// Package socks provides a SOCKS version 5 server implementation.
 package socks
 
 import (
@@ -16,102 +15,87 @@ import (
 	"github.com/chenen3/yeager/util"
 )
 
-// Server implements the Inbounder interface
 type Server struct {
-	addr       string
-	handleConn func(ctx context.Context, c net.Conn, addr string)
-	lis        net.Listener
-	wg         sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	ready      chan struct{} // imply that server is ready to accept connection, testing only
+	mu          sync.Mutex
+	lis         net.Listener
+	activeConns map[net.Conn]struct{}
 }
 
-func NewServer(addr string) (*Server, error) {
-	if addr == "" {
-		return nil, errors.New("empty address")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{
-		addr:   addr,
-		ready:  make(chan struct{}),
-		ctx:    ctx,
-		cancel: cancel,
-	}
-	return s, nil
+type Tunneler interface {
+	DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error)
 }
 
-func (s *Server) RegisterHandler(handleConn func(ctx context.Context, c net.Conn, addr string)) {
-	s.handleConn = handleConn
-}
-
-func (s *Server) ListenAndServe() error {
-	lis, err := net.Listen("tcp", s.addr)
+// Serve will return a non-nil error unless Close is called.
+func (s *Server) Serve(address string, tunnel Tunneler) error {
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
-		return fmt.Errorf("socks5 proxy listen: %s", err)
+		return err
 	}
+	s.mu.Lock()
 	s.lis = lis
-	log.Printf("socks5 proxy listening %s", s.addr)
+	s.mu.Unlock()
 
-	close(s.ready)
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				err = nil
+			}
 			return err
 		}
 
-		s.wg.Add(1)
+		s.trackConn(conn, true)
 		go func() {
-			defer s.wg.Done()
+			s.trackConn(conn, false)
 			defer conn.Close()
-			addr, err := s.handshake(conn)
+			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
+			dstAddr, err := handshake(conn)
+			conn.SetReadDeadline(time.Time{})
 			if err != nil {
 				log.Printf("failed to handshake: %s", err)
-				conn.Close()
 				return
 			}
 
-			s.handleConn(s.ctx, conn, addr)
+			ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
+			defer cancel()
+			rwc, err := tunnel.DialContext(ctx, dstAddr)
+			if err != nil {
+				log.Printf("dial %s error: %s", dstAddr, err)
+				return
+			}
+			defer rwc.Close()
+
+			go io.Copy(rwc, conn)
+			io.Copy(conn, rwc)
 		}()
 	}
 }
 
+func (s *Server) trackConn(c net.Conn, add bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.activeConns == nil {
+		s.activeConns = make(map[net.Conn]struct{})
+	}
+	if add {
+		s.activeConns[c] = struct{}{}
+	} else {
+		delete(s.activeConns, c)
+	}
+}
+
 func (s *Server) Close() error {
-	s.cancel()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var err error
 	if s.lis != nil {
 		err = s.lis.Close()
 	}
-	return err
-}
-
-// Shutdown gracefully shuts down the server,
-// it works by first closing listener,
-// then wait for all connection to close
-func (s *Server) Shutdown() error {
-	s.cancel()
-	var err error
-	if s.lis != nil {
-		err = s.lis.Close()
+	for c := range s.activeConns {
+		c.Close()
+		delete(s.activeConns, c)
 	}
-	s.wg.Wait()
 	return err
-}
-
-func (s *Server) handshake(conn net.Conn) (addr string, err error) {
-	err = conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
-	if err != nil {
-		return
-	}
-	defer func() {
-		er := conn.SetDeadline(time.Time{})
-		if er != nil && err == nil {
-			err = er
-		}
-	}()
-
-	return handshake(conn)
 }
 
 // maxAddrLen is the maximum size of SOCKS address in bytes.

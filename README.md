@@ -99,7 +99,8 @@ docker run -d \
 ```
 
 ### 3. Setup proxy
-**setup HTTP proxy 127.0.0.1:8080 or SOCKS proxy 127.0.0.1:1080 on local host**.
+- setting HTTP and HTTPS proxy to localhost:8080
+- setting SOCKS proxy to localhost:1080
 
 That's all, good luck.
 
@@ -108,13 +109,13 @@ That's all, good luck.
 ## Routing rule
 
 Routing rule specifies where the incomming traffic be sent to. It supports two forms:
-- `ruleType,value,outboundTag`
-- `final,outboundTag`
+- `type,value,policy`
+- `final,policy`
 
-The Outbound tag is specified by config, also yeager comes with two built-in outbound tags:
+The proxy policy is specified by config, also yeager comes with two built-in proxy policy:
 
-- `direct` means access directly, not through a proxy server
-- `reject` means access denied
+- `direct` means connecting directly, not through a tunnel server
+- `reject` means connection rejected
 
 For example:
 
