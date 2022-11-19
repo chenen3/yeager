@@ -1,4 +1,4 @@
-package tunnel
+package tcp
 
 import (
 	"context"
@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/relay"
+	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/util"
 )
 
-type TcpTunnelServer struct {
+// TunnelServer is a TCP tunnel server, its zero value is ready to use
+type TunnelServer struct {
 	mu          sync.Mutex
 	listener    net.Listener
 	activeConns map[net.Conn]struct{}
@@ -21,7 +23,7 @@ type TcpTunnelServer struct {
 
 // Serve will return a non-nil error unless Close is called.
 // TODO: would it be better if given net.Listener instead of address ?
-func (ts *TcpTunnelServer) Serve(address string) error {
+func (ts *TunnelServer) Serve(address string) error {
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
@@ -44,7 +46,7 @@ func (ts *TcpTunnelServer) Serve(address string) error {
 			defer ts.trackConn(conn, false)
 			defer conn.Close()
 			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
-			dstAddr, err := ReadHeader(conn)
+			dstAddr, err := tunnel.ReadHeader(conn)
 			if err != nil {
 				log.Printf("parse header from peer: %s, error: %s", conn.RemoteAddr(), err)
 				// drain the bad connection
@@ -69,7 +71,7 @@ func (ts *TcpTunnelServer) Serve(address string) error {
 	}
 }
 
-func (ts *TcpTunnelServer) trackConn(c net.Conn, add bool) {
+func (ts *TunnelServer) trackConn(c net.Conn, add bool) {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 	if ts.activeConns == nil {
@@ -84,7 +86,7 @@ func (ts *TcpTunnelServer) trackConn(c net.Conn, add bool) {
 
 // Close closes the TCP tunnel server. It immediately
 // closes all active connections and listener
-func (ts *TcpTunnelServer) Close() error {
+func (ts *TunnelServer) Close() error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 	var err error
@@ -99,22 +101,22 @@ func (ts *TcpTunnelServer) Close() error {
 	return err
 }
 
-type TcpTunnelClient struct {
+type TunnelClient struct {
 	address string
 }
 
-func NewTcpTunnelClient(address string) *TcpTunnelClient {
-	return &TcpTunnelClient{address: address}
+func NewTunnelClient(address string) *TunnelClient {
+	return &TunnelClient{address: address}
 }
 
-func (tc *TcpTunnelClient) DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error) {
+func (tc *TunnelClient) DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", tc.address)
 	if err != nil {
 		return nil, err
 	}
 
-	header, err := MakeHeader(dstAddr)
+	header, err := tunnel.MakeHeader(dstAddr)
 	if err != nil {
 		return nil, err
 	}

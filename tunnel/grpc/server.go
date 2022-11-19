@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+// TunnelServer is a GRPC tunnel server, its zero value is ready to use
 type TunnelServer struct {
 	pb.UnimplementedTunnelServer
 	mu sync.Mutex
@@ -79,9 +80,10 @@ func (s *TunnelServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.gs != nil {
-		// will close all active connections and listener
 		s.gs.Stop()
 	}
+	// stopping GRPC server will close all active connections and listener,
+	// no need to do it again.
 	return nil
 }
 

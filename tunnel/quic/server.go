@@ -15,6 +15,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
+// TunnelServer is a QUIC tunnel server, its zero value is ready to use
 type TunnelServer struct {
 	mu  sync.Mutex
 	lis quic.Listener
@@ -93,8 +94,9 @@ func (s *TunnelServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.lis != nil {
-		// will close all active connections
 		return s.lis.Close()
 	}
+	// closing the QUIC listener will close all active connections, 
+	// no need to do it again.
 	return nil
 }

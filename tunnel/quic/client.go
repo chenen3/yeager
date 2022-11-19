@@ -53,7 +53,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, addr string) (io.ReadWri
 		return nil, err
 	}
 
-	return wrapStream(rawStream), nil
+	return stream, nil
 }
 
 func (c *TunnelClient) Close() error {

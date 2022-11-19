@@ -16,6 +16,7 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/quic"
+	"github.com/chenen3/yeager/tunnel/tcp"
 )
 
 func CloseAll(closers []io.Closer) {
@@ -31,25 +32,25 @@ func CloseAll(closers []io.Closer) {
 // any started service will be return as io.Closer for future stopping
 func StartServices(conf config.Config) ([]io.Closer, error) {
 	var closers []io.Closer
-	var dispatcher *Dispatcher
+	var tunneler *Tunneler
 	if len(conf.TunnelClients) > 0 {
-		d, err := NewDispatcher(conf.Rules, conf.TunnelClients, conf.Verbose)
+		t, err := NewTunneler(conf.Rules, conf.TunnelClients, conf.Verbose)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init dispatcher: %s", err)
 		}
-		dispatcher = d
-		closers = append(closers, dispatcher)
+		tunneler = t
+		closers = append(closers, tunneler)
 	}
 
 	if conf.HTTPListen != "" {
-		if dispatcher == nil {
+		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
 		var hs httpproxy.Server
 		closers = append(closers, &hs)
 		go func() {
 			log.Printf("http proxy listening %s", conf.HTTPListen)
-			err := hs.Serve(conf.HTTPListen, dispatcher)
+			err := hs.Serve(conf.HTTPListen, tunneler)
 			if err != nil {
 				log.Printf("failed to serve http proxy: %s", err)
 			}
@@ -57,14 +58,14 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 	}
 
 	if conf.SOCKSListen != "" {
-		if dispatcher == nil {
+		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
 		var ss socks.Server
 		closers = append(closers, &ss)
 		go func() {
 			log.Printf("socks proxy listening %s", conf.SOCKSListen)
-			err := ss.Serve(conf.SOCKSListen, dispatcher)
+			err := ss.Serve(conf.SOCKSListen, tunneler)
 			if err != nil {
 				log.Printf("failed to serve socks proxy: %s", err)
 			}
@@ -75,11 +76,11 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		tl := tl
 		switch tl.Type {
 		case config.TunTCP:
-			var t tunnel.TcpTunnelServer
-			closers = append(closers, &t)
+			var s tcp.TunnelServer
+			closers = append(closers, &s)
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
-				err := t.Serve(tl.Listen)
+				err := s.Serve(tl.Listen)
 				if err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
@@ -117,100 +118,97 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 	return closers, nil
 }
 
-type Tunneler interface {
-	DialContext(ctx context.Context, addr string) (io.ReadWriteCloser, error)
-}
-
-// Dispatcher dispatches traffic to tunnels, determined by router rules
-type Dispatcher struct {
-	tunnels map[string]Tunneler
+// Tunneler integrates tunnel dialers with router
+type Tunneler struct {
+	dialers map[string]tunnel.Dialer
 	router  *route.Router
 	verbose bool
 	closers []io.Closer
 }
 
-func NewDispatcher(rules []string, tunnelClients []config.TunnelClient, verbose bool) (*Dispatcher, error) {
-	var d Dispatcher
+func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool) (*Tunneler, error) {
+	var t Tunneler
 	if len(rules) > 0 {
 		r, err := route.NewRouter(rules)
 		if err != nil {
 			return nil, err
 		}
-		d.router = r
+		t.router = r
 	}
 
-	tunnels := make(map[string]Tunneler)
-	for _, tc := range tunnelClients {
+	dialers := make(map[string]tunnel.Dialer)
+	for _, tc := range tunClients {
 		policy := strings.ToLower(tc.Policy)
-		if _, ok := tunnels[policy]; ok {
+		if _, ok := dialers[policy]; ok {
 			return nil, fmt.Errorf("duplicated tunnel policy: %s", policy)
 		}
 		switch tc.Type {
 		case config.TunTCP:
-			tunnels[policy] = tunnel.NewTcpTunnelClient(tc.Address)
+			dialers[policy] = tcp.NewTunnelClient(tc.Address)
 		case config.TunGRPC:
 			tlsConf, err := makeClientTLSConfig(tc)
 			if err != nil {
 				return nil, err
 			}
 			client := grpc.NewTunnelClient(tc.Address, tlsConf, tc.ConnectionPoolSize)
-			tunnels[policy] = client
+			dialers[policy] = client
 			// clean up connection pool
-			d.closers = append(d.closers, client)
+			t.closers = append(t.closers, client)
+			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
 			tlsConf, err := makeClientTLSConfig(tc)
 			if err != nil {
 				return nil, err
 			}
 			client := quic.NewTunnelClient(tc.Address, tlsConf, tc.ConnectionPoolSize)
-			tunnels[policy] = client
+			dialers[policy] = client
 			// clean up connection pool
-			d.closers = append(d.closers, client)
+			t.closers = append(t.closers, client)
+			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
 		default:
 			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
 		}
 	}
-	d.tunnels = tunnels
-	d.verbose = verbose
-	return &d, nil
+	t.dialers = dialers
+	t.verbose = verbose
+	return &t, nil
 }
 
-// DialContext connects to the given address via tunnel or directly
-func (d *Dispatcher) DialContext(ctx context.Context, addr string) (rwc io.ReadWriteCloser, err error) {
+// DialContext connects to address directly or through a tunnel, determined by the routing
+func (t *Tunneler) DialContext(ctx context.Context, address string) (rwc io.ReadWriteCloser, err error) {
 	policy := route.Direct
-	if d.router != nil {
-		p, e := d.router.Dispatch(addr)
+	if t.router != nil {
+		p, e := t.router.Dispatch(address)
 		if e != nil {
 			return nil, e
 		}
 		policy = p
 	}
 
-	if policy == route.Reject {
+	switch policy {
+	case route.Reject:
 		return nil, errors.New("rule rejected")
-	}
-
-	if policy == route.Direct {
-		if d.verbose {
-			log.Printf("%s -> %s", addr, policy)
+	case route.Direct:
+		if t.verbose {
+			log.Printf("%s -> %s", address, policy)
 		}
-		var dialer net.Dialer
-		return dialer.DialContext(ctx, "tcp", addr)
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", address)
+	default:
+		d, ok := t.dialers[policy]
+		if !ok {
+			return nil, fmt.Errorf("unknown proxy policy: %s", policy)
+		}
+		if t.verbose {
+			log.Printf("%s -> %s", address, policy)
+		}
+		return d.DialContext(ctx, address)
 	}
-
-	tunnel, ok := d.tunnels[policy]
-	if !ok {
-		return nil, fmt.Errorf("unknown proxy policy: %s", policy)
-	}
-	if d.verbose {
-		log.Printf("%s -> %s", addr, policy)
-	}
-	return tunnel.DialContext(ctx, addr)
 }
 
-func (d *Dispatcher) Close() error {
+func (t *Tunneler) Close() error {
 	var err error
-	for _, c := range d.closers {
+	for _, c := range t.closers {
 		e := c.Close()
 		if e != nil {
 			err = e

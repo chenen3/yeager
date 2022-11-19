@@ -1,4 +1,4 @@
-package tunnel
+package tcp
 
 import (
 	"bufio"
@@ -23,7 +23,7 @@ func TestTcpTunnel(t *testing.T) {
 	port, _ := util.AllocatePort()
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	ready := make(chan struct{})
-	var tunSrv TcpTunnelServer
+	var tunSrv TunnelServer
 	defer tunSrv.Close()
 	go func() {
 		close(ready)
@@ -38,7 +38,7 @@ func TestTcpTunnel(t *testing.T) {
 	<-ready
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
-	tunCli := NewTcpTunnelClient(address)
+	tunCli := NewTunnelClient(address)
 	rwc, err := tunCli.DialContext(ctx, hs.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/relay"
+	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -24,13 +24,9 @@ type Server struct {
 	activeConns map[net.Conn]struct{}
 }
 
-type Tunneler interface {
-	DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error)
-}
-
 // Serve will return a non-nil error unless Close is called.
-func (s *Server) Serve(addr string, tun Tunneler) error {
-	lis, err := net.Listen("tcp", addr)
+func (s *Server) Serve(address string, d tunnel.Dialer) error {
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
@@ -49,11 +45,11 @@ func (s *Server) Serve(addr string, tun Tunneler) error {
 
 		// tracking connection in handleConn synchronously will casue unnecessary blocking
 		s.trackConn(conn, true)
-		go s.handleConn(conn, tun)
+		go s.handleConn(conn, d)
 	}
 }
 
-func (s *Server) handleConn(conn net.Conn, tun Tunneler) {
+func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
@@ -66,7 +62,7 @@ func (s *Server) handleConn(conn net.Conn, tun Tunneler) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 	defer cancel()
-	rwc, err := tun.DialContext(ctx, dstAddr)
+	rwc, err := d.DialContext(ctx, dstAddr)
 	if err != nil {
 		log.Printf("dial %s error: %s", dstAddr, err)
 		return
