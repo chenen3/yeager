@@ -64,18 +64,17 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer cancel()
 	rwc, err := d.DialContext(ctx, dstAddr)
 	if err != nil {
-		log.Printf("dial %s error: %s", dstAddr, err)
+		log.Printf("dial %s: %s", dstAddr, err)
 		return
 	}
 	defer rwc.Close()
+
 	if httpReq != nil {
-		err = httpReq.Write(rwc)
-		if err != nil {
+		if err := httpReq.Write(rwc); err != nil {
 			log.Print(err)
 			return
 		}
 	}
-
 	ch := make(chan error, 2)
 	r := relay.New(conn, rwc)
 	go r.ToDst(ch)

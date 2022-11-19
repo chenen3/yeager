@@ -54,11 +54,11 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
 	dstAddr, err := handshake(conn)
-	conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		log.Printf("failed to handshake: %s", err)
 		return
 	}
+	conn.SetReadDeadline(time.Time{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
 	defer cancel()

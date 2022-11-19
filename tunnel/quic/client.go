@@ -47,8 +47,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, addr string) (io.ReadWri
 		stream.Close()
 		return nil, err
 	}
-	_, err = stream.Write(header)
-	if err != nil {
+	if _, err := stream.Write(header); err != nil {
 		stream.Close()
 		return nil, err
 	}

@@ -67,8 +67,7 @@ func TestGrpcTunnel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = req.Write(rwc)
-	if err != nil {
+	if err = req.Write(rwc); err != nil {
 		t.Fatal(err)
 	}
 	resp, err := http.ReadResponse(bufio.NewReader(rwc), req)
@@ -130,8 +129,7 @@ func TestDial_Parallel(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			err = req.Write(rwc)
-			if err != nil {
+			if err = req.Write(rwc); err != nil {
 				t.Error(err)
 				return
 			}

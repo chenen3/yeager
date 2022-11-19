@@ -30,7 +30,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	if err != nil {
 		return err
 	}
-	// method grpc.Server.Serve() will close the listener
+	// don't hold the listener, grpc.Server will close it
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
@@ -79,11 +79,11 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 func (s *TunnelServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.gs != nil {
-		s.gs.Stop()
+	if s.gs == nil {
+		return nil
 	}
-	// stopping GRPC server will close all active connections and listener,
-	// no need to do it again.
+	// stopping GRPC server will close all active connections and listener
+	s.gs.Stop()
 	return nil
 }
 

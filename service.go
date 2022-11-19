@@ -206,11 +206,12 @@ func (t *Tunneler) DialContext(ctx context.Context, address string) (rwc io.Read
 	}
 }
 
+// Close closes all the tunnel dialers and return the first error encountered
 func (t *Tunneler) Close() error {
 	var err error
 	for _, c := range t.closers {
 		e := c.Close()
-		if e != nil {
+		if e != nil && err == nil {
 			err = e
 		}
 	}

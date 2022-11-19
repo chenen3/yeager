@@ -93,10 +93,9 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 func (s *TunnelServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.lis != nil {
-		return s.lis.Close()
+	if s.lis == nil {
+		return nil
 	}
-	// closing the QUIC listener will close all active connections, 
-	// no need to do it again.
-	return nil
+	// closing the QUIC listener will close all active connections
+	return s.lis.Close()
 }

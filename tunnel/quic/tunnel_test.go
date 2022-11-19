@@ -63,8 +63,7 @@ func TestQuicTunnel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = req.Write(rwc)
-	if err != nil {
+	if err = req.Write(rwc); err != nil {
 		t.Fatal(err)
 	}
 	resp, err := http.ReadResponse(bufio.NewReader(rwc), req)
