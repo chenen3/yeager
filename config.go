@@ -109,7 +109,6 @@ func makeConfig(host string) (srv, cli config.Config, err error) {
 				KeyPEM:  string(cert.ServerKey),
 			},
 		},
-		Rules: []string{"final,direct"},
 	}
 
 	socksProxyPort, err := util.AllocatePort()

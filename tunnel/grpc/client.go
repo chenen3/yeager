@@ -1,13 +1,3 @@
-/*
- * refer to gRPC performance best practices:
- *     - reuse gRPC connection (grpc.ClientConn)
- *     - use a pool of gRPC connection
- *     - use keepalive pings
- *
- * https://grpc.io/docs/guides/performance/
- * https://grpc.io/blog/grpc-on-http2/
- */
-
 package grpc
 
 import (

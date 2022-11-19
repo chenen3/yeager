@@ -20,14 +20,14 @@ type TcpTunnelServer struct {
 
 // Serve will return a non-nil error unless Close is called.
 // TODO: would it be better if given net.Listener instead of address ?
-func (srv *TcpTunnelServer) Serve(address string) error {
+func (ts *TcpTunnelServer) Serve(address string) error {
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
-	srv.mu.Lock()
-	srv.listener = lis
-	srv.mu.Unlock()
+	ts.mu.Lock()
+	ts.listener = lis
+	ts.mu.Unlock()
 
 	for {
 		conn, err := lis.Accept()
@@ -38,9 +38,9 @@ func (srv *TcpTunnelServer) Serve(address string) error {
 			return err
 		}
 
-		srv.trackConn(conn, true)
+		ts.trackConn(conn, true)
 		go func() {
-			defer srv.trackConn(conn, false)
+			defer ts.trackConn(conn, false)
 			defer conn.Close()
 			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
 			dstAddr, err := ReadHeader(conn)
@@ -64,32 +64,32 @@ func (srv *TcpTunnelServer) Serve(address string) error {
 	}
 }
 
-func (srv *TcpTunnelServer) trackConn(c net.Conn, add bool) {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	if srv.activeConns == nil {
-		srv.activeConns = make(map[net.Conn]struct{})
+func (ts *TcpTunnelServer) trackConn(c net.Conn, add bool) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	if ts.activeConns == nil {
+		ts.activeConns = make(map[net.Conn]struct{})
 	}
 	if add {
-		srv.activeConns[c] = struct{}{}
+		ts.activeConns[c] = struct{}{}
 	} else {
-		delete(srv.activeConns, c)
+		delete(ts.activeConns, c)
 	}
 }
 
 // Close closes the TCP tunnel server. It immediately
 // closes all active connections and listener
-func (srv *TcpTunnelServer) Close() error {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+func (ts *TcpTunnelServer) Close() error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	var err error
-	if srv.listener != nil {
-		err = srv.listener.Close()
+	if ts.listener != nil {
+		err = ts.listener.Close()
 	}
 
-	for c := range srv.activeConns {
+	for c := range ts.activeConns {
 		c.Close()
-		delete(srv.activeConns, c)
+		delete(ts.activeConns, c)
 	}
 	return err
 }

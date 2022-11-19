@@ -97,6 +97,10 @@ func main() {
 		log.Printf("failed to load config: %s", err)
 		return
 	}
+	if len(conf.TunnelClients) == 0 && len(conf.TunnelListens) == 0 {
+		log.Printf("config error: at least one tunnel client or server is required")
+		return
+	}
 
 	log.Printf("yeager %s starting", version)
 	closers, err := StartServices(conf)
