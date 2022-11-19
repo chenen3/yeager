@@ -44,7 +44,7 @@ func ParseAddr(network, addr string) (*Addr, error) {
 		return nil, errors.New("unsupported network: " + network)
 	}
 
-	host, port, err := net.SplitHostPort(addr)
+	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -52,29 +52,29 @@ func ParseAddr(network, addr string) (*Addr, error) {
 		host = "0.0.0.0"
 	}
 
-	uintPort, err := strconv.ParseUint(port, 10, 16)
+	portUint, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return nil, errors.New("failed to parse port: " + err.Error())
 	}
-	portnum := int(uintPort)
+	port := int(portUint)
 
-	var atyp int
+	var addrType int
 	ip := net.ParseIP(host)
 	if ip == nil {
-		atyp = AddrDomainName
+		addrType = AddrDomainName
 	} else if ipv4 := ip.To4(); ipv4 != nil {
-		atyp = AddrIPv4
+		addrType = AddrIPv4
 		ip = ipv4
 	} else {
-		atyp = AddrIPv6
+		addrType = AddrIPv6
 		ip = ip.To16()
 	}
 
 	a := &Addr{
 		network: network,
-		Type:    atyp,
+		Type:    addrType,
 		Host:    host,
-		Port:    portnum,
+		Port:    port,
 		IP:      ip,
 	}
 	return a, nil

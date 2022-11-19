@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/relay"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/util"
 	"github.com/lucas-clemente/quic-go"
@@ -75,15 +75,18 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 		return
 	}
 
-	conn, err := net.DialTimeout("tcp", dstAddr, util.DialTimeout)
+	dstConn, err := net.DialTimeout("tcp", dstAddr, util.DialTimeout)
 	if err != nil {
 		log.Print(err)
 		return
 	}
-	defer conn.Close()
+	defer dstConn.Close()
 
-	go io.Copy(conn, stream)
-	io.Copy(stream, conn)
+	ch := make(chan error, 2)
+	r := relay.New(stream, dstConn)
+	go r.ToDst(ch)
+	go r.FromDst(ch)
+	<-ch
 }
 
 func (s *TunnelServer) Close() error {

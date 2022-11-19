@@ -156,12 +156,6 @@ func GenerateConfig(ip, srvConfOutput, cliConfOutput string) error {
 		return fmt.Errorf("no tunnelListens in server config")
 	}
 	srvConf.TunnelListens[0].Listen = "0.0.0.0:9001"
-	srvConf.Rules = []string{
-		"ip-cidr,127.0.0.1/8,reject",
-		"ip-cidr,192.168.0.0/16,reject",
-		"domain,localhost,reject",
-		"final,direct",
-	}
 	bs, err := yaml.Marshal(srvConf)
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)

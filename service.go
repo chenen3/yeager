@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"runtime"
 	"strings"
 
 	"github.com/chenen3/yeager/config"
@@ -40,9 +39,6 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}
 		dispatcher = d
 		closers = append(closers, dispatcher)
-		// TODO
-		// reduce the memory usage boosted by parsing rules of geosite.dat
-		runtime.GC()
 	}
 
 	if conf.HTTPListen != "" {

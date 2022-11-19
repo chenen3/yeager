@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/relay"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -58,8 +59,12 @@ func (ts *TcpTunnelServer) Serve(address string) error {
 				return
 			}
 			defer dstConn.Close()
-			go io.Copy(dstConn, conn)
-			io.Copy(conn, dstConn)
+
+			ch := make(chan error, 2)
+			r := relay.New(conn, dstConn)
+			go r.ToDst(ch)
+			go r.FromDst(ch)
+			<-ch
 		}()
 	}
 }

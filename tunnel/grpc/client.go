@@ -7,13 +7,12 @@ import (
 	"log"
 	"time"
 
+	"github.com/chenen3/yeager/tunnel"
+	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
-
-	"github.com/chenen3/yeager/tunnel"
-	"github.com/chenen3/yeager/tunnel/grpc/pb"
 )
 
 type TunnelClient struct {

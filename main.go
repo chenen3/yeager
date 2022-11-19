@@ -11,9 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/chenen3/yeager/config"
+	"gopkg.in/yaml.v3"
 )
 
 func init() {
@@ -64,23 +63,23 @@ func main() {
 		return
 	}
 
-	// if flags.genConf {
-	// 	ip := flags.ip
-	// 	if ip == "" {
-	// 		i, err := publicIP()
-	// 		if err != nil {
-	// 			fmt.Printf("get public IP: %s\n", err)
-	// 			return
-	// 		}
-	// 		ip = i
-	// 	}
-	// 	err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 		return
-	// 	}
-	// 	return
-	// }
+	if flags.genConf {
+		ip := flags.ip
+		if ip == "" {
+			i, err := publicIP()
+			if err != nil {
+				fmt.Printf("get public IP: %s\n", err)
+				return
+			}
+			ip = i
+		}
+		err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		return
+	}
 
 	if flags.configFile == "" {
 		flag.Usage()

@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
-
+	"github.com/chenen3/yeager/relay"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"github.com/chenen3/yeager/util"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 type TunnelServer struct {
@@ -61,14 +61,17 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 		return fmt.Errorf("read header: %s", err)
 	}
 
-	conn, err := net.DialTimeout("tcp", addr, util.DialTimeout)
+	dstConn, err := net.DialTimeout("tcp", addr, util.DialTimeout)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer dstConn.Close()
 
-	go io.Copy(conn, rwStream)
-	io.Copy(rwStream, conn)
+	ch := make(chan error, 2)
+	r := relay.New(rwStream, dstConn)
+	go r.ToDst(ch)
+	go r.FromDst(ch)
+	<-ch
 	return nil
 }
 

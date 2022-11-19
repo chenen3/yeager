@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/relay"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -26,7 +28,7 @@ type Tunneler interface {
 }
 
 // Serve will return a non-nil error unless Close is called.
-func (s *Server) Serve(address string, tunnel Tunneler) error {
+func (s *Server) Serve(address string, tun Tunneler) error {
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
@@ -44,32 +46,41 @@ func (s *Server) Serve(address string, tunnel Tunneler) error {
 			return err
 		}
 
+		// tracking connection in handleConn synchronously will casue unnecessary blocking
 		s.trackConn(conn, true)
-		go func() {
-			s.trackConn(conn, false)
-			defer conn.Close()
-			conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
-			dstAddr, err := handshake(conn)
-			conn.SetReadDeadline(time.Time{})
-			if err != nil {
-				log.Printf("failed to handshake: %s", err)
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
-			defer cancel()
-			rwc, err := tunnel.DialContext(ctx, dstAddr)
-			if err != nil {
-				log.Printf("dial %s error: %s", dstAddr, err)
-				return
-			}
-			defer rwc.Close()
-
-			go io.Copy(rwc, conn)
-			io.Copy(conn, rwc)
-		}()
+		go s.handleConn(conn, tun)
 	}
 }
+
+func (s *Server) handleConn(conn net.Conn, tun Tunneler) {
+	defer s.trackConn(conn, false)
+	defer conn.Close()
+	conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
+	dstAddr, err := handshake(conn)
+	conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		log.Printf("failed to handshake: %s", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
+	defer cancel()
+	rwc, err := tun.DialContext(ctx, dstAddr)
+	if err != nil {
+		log.Printf("dial %s error: %s", dstAddr, err)
+		return
+	}
+	defer rwc.Close()
+
+	ch := make(chan error, 2)
+	r := relay.New(conn, rwc)
+	// would like to see the goroutine's explicit name while profiling
+	go r.ToDst(ch)
+	go r.FromDst(ch)
+	<-ch
+}
+
+var connCount = expvar.NewInt("socksConnCount")
 
 func (s *Server) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
@@ -79,8 +90,10 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 	}
 	if add {
 		s.activeConns[c] = struct{}{}
+		connCount.Add(1)
 	} else {
 		delete(s.activeConns, c)
+		connCount.Add(-1)
 	}
 }
 
@@ -195,4 +208,19 @@ func readAddr(r io.Reader) (addr string, err error) {
 
 	port := binary.BigEndian.Uint16(b[:2])
 	return net.JoinHostPort(host, strconv.Itoa(int(port))), nil
+}
+
+type relayer struct {
+	local  net.Conn
+	tunnel io.ReadWriteCloser
+}
+
+func (r *relayer) copyToTunnel(ch chan<- error) {
+	_, err := io.Copy(r.tunnel, r.local)
+	ch <- err
+}
+
+func (r *relayer) copyFromTunnel(ch chan<- error) {
+	_, err := io.Copy(r.local, r.tunnel)
+	ch <- err
 }

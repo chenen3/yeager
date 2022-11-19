@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/relay"
 	"github.com/chenen3/yeager/util"
 )
 
@@ -27,7 +29,7 @@ type Tunneler interface {
 }
 
 // Serve will return a non-nil error unless Close is called.
-func (s *Server) Serve(addr string, tunnel Tunneler) error {
+func (s *Server) Serve(addr string, tun Tunneler) error {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -45,38 +47,47 @@ func (s *Server) Serve(addr string, tunnel Tunneler) error {
 			return err
 		}
 
+		// tracking connection in handleConn synchronously will casue unnecessary blocking
 		s.trackConn(conn, true)
-		go func() {
-			s.trackConn(conn, false)
-			defer conn.Close()
-			conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
-			dstAddr, httpReq, err := handshake(conn)
-			conn.SetDeadline(time.Time{})
-			if err != nil {
-				log.Printf("handshake: %s", err.Error())
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
-			defer cancel()
-			rwc, err := tunnel.DialContext(ctx, dstAddr)
-			if err != nil {
-				log.Printf("dial %s error: %s", dstAddr, err)
-				return
-			}
-			defer rwc.Close()
-			if httpReq != nil {
-				err = httpReq.Write(rwc)
-				if err != nil {
-					log.Print(err)
-					return
-				}
-			}
-			go io.Copy(rwc, conn)
-			io.Copy(conn, rwc)
-		}()
+		go s.handleConn(conn, tun)
 	}
 }
+
+func (s *Server) handleConn(conn net.Conn, tun Tunneler) {
+	defer s.trackConn(conn, false)
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
+	dstAddr, httpReq, err := handshake(conn)
+	conn.SetDeadline(time.Time{})
+	if err != nil {
+		log.Printf("handshake: %s", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
+	defer cancel()
+	rwc, err := tun.DialContext(ctx, dstAddr)
+	if err != nil {
+		log.Printf("dial %s error: %s", dstAddr, err)
+		return
+	}
+	defer rwc.Close()
+	if httpReq != nil {
+		err = httpReq.Write(rwc)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+	}
+
+	ch := make(chan error, 2)
+	r := relay.New(conn, rwc)
+	go r.ToDst(ch)
+	go r.FromDst(ch)
+	<-ch
+}
+
+var connCount = expvar.NewInt("httpProxyConnCount")
 
 func (s *Server) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
@@ -86,8 +97,10 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 	}
 	if add {
 		s.activeConns[c] = struct{}{}
+		connCount.Add(1)
 	} else {
 		delete(s.activeConns, c)
+		connCount.Add(-1)
 	}
 }
 
