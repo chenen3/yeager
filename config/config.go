@@ -15,23 +15,19 @@ type Config struct {
 type TunnelType string
 
 const (
-	TunTCP  TunnelType = "tcp" // plain text
 	TunGRPC TunnelType = "grpc"
 	TunQUIC TunnelType = "quic"
-	// deprecated. Infrequently used
-	// TunTCP TunnelType = "tls"
 )
 
 type TunnelListen struct {
-	Type   TunnelType `yaml:"type"`
-	Listen string     `yaml:"listen"`
-	// the TLS config is unavailable when the tunnel server is plain TCP
-	CertFile string `yaml:"certFile,omitempty"`
-	CertPEM  string `yaml:"certPEM,omitempty"`
-	KeyFile  string `yaml:"keyFile,omitempty"`
-	KeyPEM   string `yaml:"keyPEM,omitempty"`
-	CAFile   string `yaml:"caFile,omitempty"`
-	CAPEM    string `yaml:"caPEM,omitempty"`
+	Type     TunnelType `yaml:"type"`
+	Listen   string     `yaml:"listen"`
+	CertFile string     `yaml:"certFile,omitempty"`
+	CertPEM  string     `yaml:"certPEM,omitempty"`
+	KeyFile  string     `yaml:"keyFile,omitempty"`
+	KeyPEM   string     `yaml:"keyPEM,omitempty"`
+	CAFile   string     `yaml:"caFile,omitempty"`
+	CAPEM    string     `yaml:"caPEM,omitempty"`
 }
 
 type TunnelClient struct {
@@ -39,7 +35,6 @@ type TunnelClient struct {
 	Policy  string     `yaml:"policy"`
 	Address string     `yaml:"address"` // target server address
 
-	// the TLS config is unavailable when the tunnel server is plain TCP
 	CertFile string `yaml:"certFile,omitempty"`
 	CertPEM  string `yaml:"certPEM,omitempty"`
 	KeyFile  string `yaml:"keyFile,omitempty"`

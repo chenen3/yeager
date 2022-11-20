@@ -16,7 +16,6 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/quic"
-	"github.com/chenen3/yeager/tunnel/tcp"
 )
 
 func CloseAll(closers []io.Closer) {
@@ -75,16 +74,6 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 	for _, tl := range conf.TunnelListens {
 		tl := tl
 		switch tl.Type {
-		case config.TunTCP:
-			var s tcp.TunnelServer
-			closers = append(closers, &s)
-			go func() {
-				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
-				err := s.Serve(tl.Listen)
-				if err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Type, err)
-				}
-			}()
 		case config.TunGRPC:
 			tlsConf, err := makeServerTLSConfig(tl)
 			if err != nil {
@@ -143,8 +132,6 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool)
 			return nil, fmt.Errorf("duplicated tunnel policy: %s", policy)
 		}
 		switch tc.Type {
-		case config.TunTCP:
-			dialers[policy] = tcp.NewTunnelClient(tc.Address)
 		case config.TunGRPC:
 			tlsConf, err := makeClientTLSConfig(tc)
 			if err != nil {
