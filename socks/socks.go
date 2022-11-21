@@ -206,18 +206,3 @@ func readAddr(r io.Reader) (addr string, err error) {
 	port := binary.BigEndian.Uint16(b[:2])
 	return net.JoinHostPort(host, strconv.Itoa(int(port))), nil
 }
-
-type relayer struct {
-	local  net.Conn
-	tunnel io.ReadWriteCloser
-}
-
-func (r *relayer) copyToTunnel(ch chan<- error) {
-	_, err := io.Copy(r.tunnel, r.local)
-	ch <- err
-}
-
-func (r *relayer) copyFromTunnel(ch chan<- error) {
-	_, err := io.Copy(r.local, r.tunnel)
-	ch <- err
-}
