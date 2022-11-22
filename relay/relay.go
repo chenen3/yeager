@@ -19,30 +19,30 @@ func New(src, dst io.ReadWriter) *Relayer {
 
 // ToDst relays from src to dst, sends the first error encountered to ch, if any
 func (c *Relayer) ToDst(ch chan<- error) {
-	_, err := copyBufferPool(c.dst, c.src)
+	_, err := copyBufferred(c.dst, c.src)
 	ch <- err
 }
 
 // FromDst relays from dst to src, sends the first error encountered to ch, if any
 func (c *Relayer) FromDst(ch chan<- error) {
-	_, err := copyBufferPool(c.src, c.dst)
+	_, err := copyBufferred(c.src, c.dst)
 	ch <- err
 }
 
-var pool = sync.Pool{
+var slicePool = sync.Pool{
 	New: func() any {
 		slice := make([]byte, 32*1024)
-		// using pointer to avoid variable leaking to heap while calling pool.Put
+		// A pointer can be put into the return interface value without an allocation.
 		return &slice
 	},
 }
 
-// copyBufferPool is similar to the actual implementation of io.Copy and io.CopyBuffer,
-// except that the buffer used to perform the copy will come from pool to avoid allocation.
+// copyBufferred is mostly taken from the actual implementation of io.Copy and io.CopyBuffer,
+// except that the buffer used to perform the copy will come from slicePool to avoid allocation.
 //
 // If either src implements io.WriterTo or dst implements io.ReaderFrom,
 // no buffer will be used to perform the copy.
-func copyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
+func copyBufferred(dst io.Writer, src io.Reader) (written int64, err error) {
 	// If the reader has a WriteTo method, use it to do the copy.
 	// Avoids an allocation and a copy.
 	if wt, ok := src.(io.WriterTo); ok {
@@ -53,12 +53,11 @@ func copyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
 		return rt.ReadFrom(src)
 	}
 
-	slice := pool.Get().(*[]byte)
-	buf := *slice
+	s := slicePool.Get().(*[]byte)
 	for {
-		nr, er := src.Read(buf)
+		nr, er := src.Read(*s)
 		if nr > 0 {
-			nw, ew := dst.Write(buf[0:nr])
+			nw, ew := dst.Write((*s)[0:nr])
 			if nw < 0 || nr < nw {
 				nw = 0
 				if ew == nil {
@@ -82,6 +81,6 @@ func copyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
 			break
 		}
 	}
-	pool.Put(slice)
+	slicePool.Put(s)
 	return written, err
 }

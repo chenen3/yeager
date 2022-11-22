@@ -20,8 +20,7 @@ import (
 
 func CloseAll(closers []io.Closer) {
 	for _, c := range closers {
-		err := c.Close()
-		if err != nil {
+		if err := c.Close(); err != nil {
 			log.Printf("failed to close: %s", err)
 		}
 	}
@@ -49,8 +48,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		closers = append(closers, &hs)
 		go func() {
 			log.Printf("http proxy listening %s", conf.HTTPListen)
-			err := hs.Serve(conf.HTTPListen, tunneler)
-			if err != nil {
+			if err := hs.Serve(conf.HTTPListen, tunneler); err != nil {
 				log.Printf("failed to serve http proxy: %s", err)
 			}
 		}()
@@ -64,8 +62,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		closers = append(closers, &ss)
 		go func() {
 			log.Printf("socks proxy listening %s", conf.SOCKSListen)
-			err := ss.Serve(conf.SOCKSListen, tunneler)
-			if err != nil {
+			if err := ss.Serve(conf.SOCKSListen, tunneler); err != nil {
 				log.Printf("failed to serve socks proxy: %s", err)
 			}
 		}()
@@ -83,8 +80,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			closers = append(closers, &s)
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
-				err := s.Serve(tl.Listen, tlsConf)
-				if err != nil {
+				if err := s.Serve(tl.Listen, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()
@@ -97,8 +93,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			closers = append(closers, &s)
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
-				err := s.Serve(tl.Listen, tlsConf)
-				if err != nil {
+				if err := s.Serve(tl.Listen, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()
