@@ -1,4 +1,4 @@
-package util
+package cert
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenerateCertificate(t *testing.T) {
-	certInfo, err := GenerateCertificate("127.0.0.1")
+	certInfo, err := Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	_ "expvar"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -39,6 +41,20 @@ Example:
     	generate a pair of configuration for server and client
 `
 
+func publicIP() (string, error) {
+	resp, err := http.Get("https://checkip.amazonaws.com")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	ip, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	ip = bytes.TrimSpace(ip)
+	return string(ip), nil
+}
+
 func main() {
 	var flags struct {
 		configFile  string
@@ -73,8 +89,7 @@ func main() {
 			}
 			ip = i
 		}
-		err := GenerateConfig(ip, flags.srvConfFile, flags.cliConfFile)
-		if err != nil {
+		if err := config.Generate(ip, flags.srvConfFile, flags.cliConfFile); err != nil {
 			fmt.Println(err)
 			return
 		}

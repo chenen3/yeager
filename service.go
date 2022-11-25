@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/chenen3/yeager/config"
@@ -17,14 +20,6 @@ import (
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/quic"
 )
-
-func CloseAll(closers []io.Closer) {
-	for _, c := range closers {
-		if err := c.Close(); err != nil {
-			log.Printf("failed to close: %s", err)
-		}
-	}
-}
 
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
@@ -100,6 +95,14 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}
 	}
 	return closers, nil
+}
+
+func CloseAll(closers []io.Closer) {
+	for _, c := range closers {
+		if err := c.Close(); err != nil {
+			log.Printf("failed to close: %s", err)
+		}
+	}
 }
 
 // Tunneler integrates tunnel dialers with router
@@ -198,4 +201,77 @@ func (t *Tunneler) Close() error {
 		}
 	}
 	return err
+}
+
+func readDataOrFile(data string, filename string) ([]byte, error) {
+	if data != "" {
+		return []byte(data), nil
+	}
+	if filename != "" {
+		return os.ReadFile(filename)
+	}
+	return nil, errors.New("no data nor filename provided")
+}
+
+// make server config for mutual TLS
+func makeServerTLSConfig(tl config.TunnelListen) (*tls.Config, error) {
+	certPEM, err := readDataOrFile(tl.CertPEM, tl.CertFile)
+	if err != nil {
+		return nil, fmt.Errorf("read TLS certificate: %s", err)
+	}
+	keyPEM, err := readDataOrFile(tl.KeyPEM, tl.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("read TLS key: %s", err)
+	}
+	caPEM, err := readDataOrFile(tl.CAPEM, tl.CAFile)
+	if err != nil {
+		return nil, fmt.Errorf("read TLS CA: %s", err)
+	}
+	tlsConf := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, errors.New("parse cert pem: " + err.Error())
+	}
+	tlsConf.Certificates = []tls.Certificate{cert}
+
+	pool := x509.NewCertPool()
+	ok := pool.AppendCertsFromPEM(caPEM)
+	if !ok {
+		return nil, errors.New("failed to parse root cert pem")
+	}
+	tlsConf.ClientCAs = pool
+	tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+	return tlsConf, nil
+}
+
+// make client config for mutual TLS
+func makeClientTLSConfig(tl config.TunnelClient) (*tls.Config, error) {
+	certPEM, err := readDataOrFile(tl.CertPEM, tl.CertFile)
+	if err != nil {
+		return nil, fmt.Errorf("read TLS certificate: %s", err)
+	}
+	keyPEM, err := readDataOrFile(tl.KeyPEM, tl.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("read TLS key: %s", err)
+	}
+	caPEM, err := readDataOrFile(tl.CAPEM, tl.CAFile)
+	if err != nil {
+		return nil, fmt.Errorf("read TLS CA: %s", err)
+	}
+	tlsConf := &tls.Config{
+		ClientSessionCache: tls.NewLRUClientSessionCache(64),
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+	tlsConf.Certificates = []tls.Certificate{cert}
+	pool := x509.NewCertPool()
+	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
+		return nil, errors.New("failed to parse root certificate")
+	}
+	tlsConf.RootCAs = pool
+	return tlsConf, nil
 }

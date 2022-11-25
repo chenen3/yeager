@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/relay"
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
-	"github.com/chenen3/yeager/util"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -28,7 +27,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	}
 
 	tlsConf.NextProtos = append(tlsConf.NextProtos, "quic")
-	qConf := &quic.Config{MaxIdleTimeout: util.MaxConnectionIdle}
+	qConf := &quic.Config{MaxIdleTimeout: ynet.MaxConnectionIdle}
 	lis, err := quic.ListenAddr(address, tlsConf, qConf)
 	if err != nil {
 		return err
@@ -68,7 +67,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 
 func (s *TunnelServer) handleStream(stream quic.Stream) {
 	defer stream.Close()
-	stream.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
+	stream.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dstAddr, err := tunnel.ReadHeader(stream)
 	stream.SetReadDeadline(time.Time{})
 	if err != nil {
@@ -76,7 +75,7 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 		return
 	}
 
-	dstConn, err := net.DialTimeout("tcp", dstAddr, util.DialTimeout)
+	dstConn, err := net.DialTimeout("tcp", dstAddr, ynet.DialTimeout)
 	if err != nil {
 		log.Print(err)
 		return
@@ -84,7 +83,7 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 	defer dstConn.Close()
 
 	ch := make(chan error, 2)
-	r := relay.New(stream, dstConn)
+	r := ynet.NewRelayer(stream, dstConn)
 	go r.ToDst(ch)
 	go r.FromDst(ch)
 	<-ch

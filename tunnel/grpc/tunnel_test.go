@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/util"
+	"github.com/chenen3/yeager/cert"
+	ynet "github.com/chenen3/yeager/net"
 )
 
 func generateTLSConfig() *tls.Config {
-	certPEM, keyPEM, err := util.SelfSignedCertificate()
+	certPEM, keyPEM, err := cert.SelfSign()
 	if err != nil {
 		panic(err)
 	}
@@ -37,7 +38,7 @@ func TestGrpcTunnel(t *testing.T) {
 	}))
 	defer hs.Close()
 
-	port, _ := util.AllocatePort()
+	port, _ := ynet.AllocatePort()
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	ready := make(chan struct{})
 
@@ -94,7 +95,7 @@ func TestDial_Parallel(t *testing.T) {
 	}))
 	defer hs.Close()
 
-	port, _ := util.AllocatePort()
+	port, _ := ynet.AllocatePort()
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	ready := make(chan struct{})
 

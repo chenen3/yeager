@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/chenen3/yeager/util"
+	ynet "github.com/chenen3/yeager/net"
 )
 
 const maxAddrLen = 1 + 1 + 255 + 2
@@ -26,7 +26,7 @@ const (
 
 // MakeHeader 构造 header，包含目的地址
 func MakeHeader(addr string) ([]byte, error) {
-	dstAddr, err := util.ParseAddr("tcp", addr)
+	dstAddr, err := ynet.ParseAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -41,14 +41,14 @@ func MakeHeader(addr string) ([]byte, error) {
 	b = append(b, 0x00)
 
 	switch dstAddr.Type {
-	case util.AddrIPv4:
+	case ynet.AddrIPv4:
 		b = append(b, addrIPv4)
 		b = append(b, dstAddr.IP...)
-	case util.AddrDomainName:
+	case ynet.AddrDomainName:
 		b = append(b, addrDomain)
 		b = append(b, byte(len(dstAddr.Host)))
 		b = append(b, []byte(dstAddr.Host)...)
-	case util.AddrIPv6:
+	case ynet.AddrIPv6:
 		b = append(b, addrIPv6)
 		b = append(b, dstAddr.IP...)
 	default:

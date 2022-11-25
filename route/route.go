@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/chenen3/yeager/util"
+	ynet "github.com/chenen3/yeager/net"
 )
 
 // rule type
@@ -52,14 +52,14 @@ func newRule(ruleType string, value string, policy string) (*rule, error) {
 	return ru, err
 }
 
-func (r *rule) Match(addr *util.Addr) bool {
+func (r *rule) Match(addr *ynet.Addr) bool {
 	switch r.rtype {
 	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
-		if addr.Type != util.AddrDomainName {
+		if addr.Type != ynet.AddrDomainName {
 			return false
 		}
 	case ruleIPCIDR:
-		if addr.Type != util.AddrIPv4 {
+		if addr.Type != ynet.AddrIPv4 {
 			// ipv6 not supported yet
 			return false
 		}
@@ -122,8 +122,8 @@ func parseRule(rule string) (*rule, error) {
 }
 
 func (r *Router) Dispatch(addr string) (policy string, err error) {
-	var dst *util.Addr
-	dst, err = util.ParseAddr("tcp", addr)
+	var dst *ynet.Addr
+	dst, err = ynet.ParseAddr("tcp", addr)
 	if err != nil {
 		return "", err
 	}

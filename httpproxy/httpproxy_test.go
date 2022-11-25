@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/util"
+	ynet "github.com/chenen3/yeager/net"
 )
 
 type direct struct{}
@@ -28,7 +28,7 @@ func TestHttpProxy(t *testing.T) {
 	}))
 	defer httpSrv.Close()
 
-	port, _ := util.AllocatePort()
+	port, _ := ynet.AllocatePort()
 	proxyAddr := fmt.Sprintf("127.0.0.1:%d", port)
 	ready := make(chan struct{})
 	var s Server
@@ -71,7 +71,7 @@ func TestHttpsProxy(t *testing.T) {
 	}))
 	defer httpsSrv.Close()
 
-	port, _ := util.AllocatePort()
+	port, _ := ynet.AllocatePort()
 	proxyAddr := fmt.Sprintf("127.0.0.1:%d", port)
 	var s Server
 	defer s.Close()

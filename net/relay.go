@@ -1,4 +1,4 @@
-package relay
+package net
 
 import (
 	"errors"
@@ -12,8 +12,8 @@ type Relayer struct {
 	dst io.ReadWriter
 }
 
-// New returns a Relayer that relays data between src and dst bidirectionally
-func New(src, dst io.ReadWriter) *Relayer {
+// NewRelayer returns a Relayer that relays data between src and dst bidirectionally
+func NewRelayer(src, dst io.ReadWriter) *Relayer {
 	return &Relayer{src: src, dst: dst}
 }
 

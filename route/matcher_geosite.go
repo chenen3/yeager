@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/route/pb"
-	"github.com/chenen3/yeager/util"
 )
 
 const (
@@ -107,7 +107,7 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 	return g, nil
 }
 
-func (g geoSiteMatcher) Match(addr *util.Addr) bool {
+func (g geoSiteMatcher) Match(addr *ynet.Addr) bool {
 	for _, m := range g {
 		if m.Match(addr) {
 			return true

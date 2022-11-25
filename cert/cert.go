@@ -1,4 +1,4 @@
-package util
+package cert
 
 import (
 	"crypto/ecdsa"
@@ -16,8 +16,8 @@ import (
 	"time"
 )
 
-// SelfSignedCertificate generate self-signed certificate, test only
-func SelfSignedCertificate() (certPEM, keyPEM []byte, err error) {
+// SelfSign generate self-signed certificate, test only
+func SelfSign() (certPEM, keyPEM []byte, err error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err
@@ -52,9 +52,8 @@ const (
 	ClientKeyFile  = "client-key.pem"
 )
 
-// GenerateCertificate generate TLS certificates for mutual authentication,
-// the output files are: ca.key, ca.cert, server.key, server.crt, client.key, client.crt
-func GenerateCertificate(host string) (*Cert, error) {
+// Generate generate TLS certificates for mutual authentication,
+func Generate(host string) (*Cert, error) {
 	rootCert, rootKey, err := createRootCA()
 	if err != nil {
 		return nil, err

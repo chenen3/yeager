@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/relay"
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
-	"github.com/chenen3/yeager/util"
 )
 
 type Server struct {
@@ -52,7 +51,7 @@ func (s *Server) Serve(address string, d tunnel.Dialer) error {
 func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
-	conn.SetReadDeadline(time.Now().Add(util.HandshakeTimeout))
+	conn.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dstAddr, err := handshake(conn)
 	if err != nil {
 		log.Printf("failed to handshake: %s", err)
@@ -60,7 +59,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	}
 	conn.SetReadDeadline(time.Time{})
 
-	ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
 	defer cancel()
 	rwc, err := d.DialContext(ctx, dstAddr)
 	if err != nil {
@@ -70,7 +69,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer rwc.Close()
 
 	ch := make(chan error, 2)
-	r := relay.New(conn, rwc)
+	r := ynet.NewRelayer(conn, rwc)
 	// would like to see the goroutine's explicit name while profiling
 	go r.ToDst(ch)
 	go r.FromDst(ch)

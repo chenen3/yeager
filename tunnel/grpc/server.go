@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/relay"
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
-	"github.com/chenen3/yeager/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -39,7 +38,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 			PermitWithoutStream: true,
 		}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: util.MaxConnectionIdle,
+			MaxConnectionIdle: ynet.MaxConnectionIdle,
 			Time:              60 * time.Second,
 			Timeout:           1 * time.Second,
 		}),
@@ -57,19 +56,19 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 
 	rwStream := wrapServerStream(stream)
-	addr, err := tunnel.TimeReadHeader(rwStream, util.HandshakeTimeout)
+	addr, err := tunnel.TimeReadHeader(rwStream, ynet.HandshakeTimeout)
 	if err != nil {
 		return fmt.Errorf("read header: %s", err)
 	}
 
-	dstConn, err := net.DialTimeout("tcp", addr, util.DialTimeout)
+	dstConn, err := net.DialTimeout("tcp", addr, ynet.DialTimeout)
 	if err != nil {
 		return err
 	}
 	defer dstConn.Close()
 
 	ch := make(chan error, 2)
-	r := relay.New(rwStream, dstConn)
+	r := ynet.NewRelayer(rwStream, dstConn)
 	go r.ToDst(ch)
 	go r.FromDst(ch)
 	<-ch

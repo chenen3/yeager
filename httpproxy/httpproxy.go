@@ -12,9 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/relay"
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
-	"github.com/chenen3/yeager/util"
 )
 
 // Server implement interface Service
@@ -52,7 +51,7 @@ func (s *Server) Serve(address string, d tunnel.Dialer) error {
 func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(util.HandshakeTimeout))
+	conn.SetDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dstAddr, httpReq, err := handshake(conn)
 	conn.SetDeadline(time.Time{})
 	if err != nil {
@@ -60,7 +59,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), util.DialTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
 	defer cancel()
 	rwc, err := d.DialContext(ctx, dstAddr)
 	if err != nil {
@@ -76,7 +75,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 		}
 	}
 	ch := make(chan error, 2)
-	r := relay.New(conn, rwc)
+	r := ynet.NewRelayer(conn, rwc)
 	go r.ToDst(ch)
 	go r.FromDst(ch)
 	<-ch

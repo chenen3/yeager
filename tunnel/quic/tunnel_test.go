@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/util"
+	"github.com/chenen3/yeager/cert"
+	ynet "github.com/chenen3/yeager/net"
 )
 
 func generateTLSConfig() *tls.Config {
-	cert, key, err := util.SelfSignedCertificate()
+	cert, key, err := cert.SelfSign()
 	if err != nil {
 		panic(err)
 	}
@@ -35,7 +36,7 @@ func TestQuicTunnel(t *testing.T) {
 	}))
 	defer hs.Close()
 
-	port, _ := util.AllocatePort()
+	port, _ := ynet.AllocatePort()
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	tlsConf := generateTLSConfig()
 	ready := make(chan struct{})
