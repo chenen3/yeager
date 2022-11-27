@@ -116,7 +116,7 @@ type Tunneler struct {
 func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool) (*Tunneler, error) {
 	var t Tunneler
 	if len(rules) > 0 {
-		r, err := route.NewRouter(rules)
+		r, err := route.New(rules)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +175,7 @@ func (t *Tunneler) DialContext(ctx context.Context, address string) (rwc io.Read
 		return nil, errors.New("rule rejected")
 	case route.Direct:
 		if t.verbose {
-			log.Printf("%s -> %s", address, policy)
+			log.Printf("connect %s", address)
 		}
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", address)
@@ -185,7 +185,7 @@ func (t *Tunneler) DialContext(ctx context.Context, address string) (rwc io.Read
 			return nil, fmt.Errorf("unknown proxy policy: %s", policy)
 		}
 		if t.verbose {
-			log.Printf("%s -> %s", address, policy)
+			log.Printf("connect %s via %s", address, policy)
 		}
 		return d.DialContext(ctx, address)
 	}

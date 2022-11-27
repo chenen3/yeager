@@ -78,7 +78,9 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	r := ynet.NewRelayer(conn, rwc)
 	go r.ToDst(ch)
 	go r.FromDst(ch)
-	<-ch
+	if err := <-ch; err != nil {
+		log.Printf("relay %s: %s", dstAddr, err)
+	}
 }
 
 var connCount = expvar.NewInt("httpProxyConnCount")

@@ -73,7 +73,9 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	// would like to see the goroutine's explicit name while profiling
 	go r.ToDst(ch)
 	go r.FromDst(ch)
-	<-ch
+	if err := <-ch; err != nil {
+		log.Printf("relay %s: %s", dstAddr, err)
+	}
 }
 
 var connCount = expvar.NewInt("socksConnCount")

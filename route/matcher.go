@@ -14,7 +14,7 @@ type matcher interface {
 }
 
 func newRuleMatcher(ruleType string, value string) (m matcher, err error) {
-	switch ruleType {
+	switch strings.ToLower(ruleType) {
 	case ruleDomain:
 		m = domainMatcher(value)
 	case ruleDomainSuffix:

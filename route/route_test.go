@@ -87,7 +87,7 @@ func TestRouter_Dispatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := NewRouter(tt.fields.rules)
+			r, err := New(tt.fields.rules)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("want no error, got error: %v", err)
@@ -111,7 +111,7 @@ func TestRouter_Dispatch(t *testing.T) {
 // 即使引入LRU缓存降低路由耗时，对于动辄几十毫秒的网络延迟时间来说，
 // 缓存效果并不明显，更何况由此引入高并发时互斥锁竞争的问题，因此不缓存。
 func Benchmark_Dispatch(b *testing.B) {
-	r, err := NewRouter([]string{
+	r, err := New([]string{
 		"geosite,cn,tag1",
 		"final,tag2",
 	})

@@ -39,17 +39,17 @@ type rule struct {
 }
 
 func newRule(ruleType string, value string, policy string) (*rule, error) {
-	ruleType = strings.ToLower(ruleType)
-	policy = strings.ToLower(policy)
-	ru := &rule{
-		rtype:  ruleType,
-		value:  value,
-		policy: policy,
+	m, err := newRuleMatcher(ruleType, value)
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	ru.matcher, err = newRuleMatcher(ruleType, value)
-	return ru, err
+	r := &rule{
+		rtype:  strings.ToLower(ruleType),
+		value:  value,
+		policy: strings.ToLower(policy),
+		matcher: m,
+	}
+	return r, nil
 }
 
 func (r *rule) Match(addr *ynet.Addr) bool {
@@ -71,7 +71,7 @@ type Router struct {
 	rules []*rule
 }
 
-func NewRouter(rules []string) (*Router, error) {
+func New(rules []string) (*Router, error) {
 	if len(rules) == 0 {
 		return nil, errors.New("empty rules")
 	}

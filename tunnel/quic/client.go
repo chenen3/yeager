@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/lucas-clemente/quic-go"
 )
@@ -20,7 +21,7 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 	dialFunc := func() (quic.Connection, error) {
 		qconf := &quic.Config{
 			HandshakeIdleTimeout: 5 * time.Second,
-			MaxIdleTimeout:       30 * time.Second,
+			MaxIdleTimeout:       ynet.MaxConnectionIdle,
 			KeepAlivePeriod:      15 * time.Second,
 		}
 		tlsConf.NextProtos = []string{"quic"}
