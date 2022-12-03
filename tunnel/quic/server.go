@@ -27,7 +27,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	}
 
 	tlsConf.NextProtos = append(tlsConf.NextProtos, "quic")
-	qConf := &quic.Config{MaxIdleTimeout: ynet.MaxConnectionIdle}
+	qConf := &quic.Config{MaxIdleTimeout: ynet.IdleConnTimeout}
 	lis, err := quic.ListenAddr(address, tlsConf, qConf)
 	if err != nil {
 		return err
@@ -68,25 +68,26 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 func (s *TunnelServer) handleStream(stream quic.Stream) {
 	defer stream.Close()
 	stream.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
-	dstAddr, err := tunnel.ReadHeader(stream)
+	dst, err := tunnel.ReadHeader(stream)
 	stream.SetReadDeadline(time.Time{})
 	if err != nil {
 		log.Printf("read header: %s", err)
 		return
 	}
 
-	dstConn, err := net.DialTimeout("tcp", dstAddr, ynet.DialTimeout)
+	remote, err := net.DialTimeout("tcp", dst, ynet.DialTimeout)
 	if err != nil {
 		log.Print(err)
 		return
 	}
-	defer dstConn.Close()
+	defer remote.Close()
 
-	ch := make(chan error, 2)
-	r := ynet.NewRelayer(stream, dstConn)
-	go r.ToDst(ch)
-	go r.FromDst(ch)
-	<-ch
+	f := ynet.NewForwarder(stream, remote)
+	go f.FromClient()
+	go f.ToClient()
+	if err := <-f.C; err != nil {
+		log.Printf("forward %s: %s", dst, err)
+	}
 }
 
 func (s *TunnelServer) Close() error {

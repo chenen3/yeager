@@ -3,10 +3,11 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
-	"log"
 	"time"
 
+	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
@@ -16,7 +17,7 @@ import (
 )
 
 type TunnelClient struct {
-	pool *pool
+	connPool *connPool
 }
 
 func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelClient {
@@ -24,9 +25,9 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                60 * time.Second,
-				Timeout:             1 * time.Second,
-				PermitWithoutStream: true,
+				Time:    ynet.KeepAlive,
+				Timeout: 1 * time.Second,
+				// PermitWithoutStream: true,
 			}),
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
@@ -41,85 +42,74 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 		// non-blocking dial
 		return grpc.Dial(address, opts...)
 	}
-	p := newPool(poolSize, dialFunc)
-	return &TunnelClient{pool: p}
+	return &TunnelClient{
+		connPool: newConnPool(poolSize, dialFunc),
+	}
 }
 
-func (c *TunnelClient) DialContext(ctx context.Context, addr string) (io.ReadWriteCloser, error) {
-	ch := make(chan pb.Tunnel_StreamClient, 1)
-	// requires a context for controling the entire lifecycle of stream, not for dialing
-	ctxS, cancelS := context.WithCancel(context.Background())
-	go func() {
-		conn, err := c.pool.Get()
-		if err != nil {
-			log.Printf("connect grpc: %s", err)
-			cancelS()
-			return
-		}
-		client := pb.NewTunnelClient(conn)
-		stream, err := client.Stream(ctxS)
-		if err != nil {
-			log.Printf("create grpc stream: %s", err)
-			cancelS()
-			return
-		}
-		ch <- stream
-	}()
-	var stream pb.Tunnel_StreamClient
-	select {
-	case <-ctx.Done():
-		cancelS()
-		return nil, ctx.Err()
-	case <-ctxS.Done():
-		return nil, ctxS.Err()
-	case stream = <-ch:
+func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
+	conn, err := c.connPool.Get()
+	if err != nil {
+		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
+	client := pb.NewTunnelClient(conn)
 
-	closeStream := cancelS
-	header, err := tunnel.MakeHeader(addr)
+	// requires a context for controling the entire lifecycle of stream, not for dialing
+	streamCtx, streamCancel := context.WithCancel(context.Background())
+	doneOpeningStream := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			streamCancel()
+		case <-doneOpeningStream:
+		}
+	}()
+	defer close(doneOpeningStream)
+
+	stream, err := client.Stream(streamCtx)
 	if err != nil {
-		closeStream()
+		streamCancel()
+		return nil, fmt.Errorf("create grpc stream: %s", err)
+	}
+	sw := wrapClientStream(stream, streamCancel)
+	if err := tunnel.WriteHeader(sw, dst); err != nil {
+		sw.Close()
 		return nil, err
 	}
-	err = stream.Send(&pb.Data{Data: header})
-	if err != nil {
-		closeStream()
-		return nil, err
-	}
-	return wrapClientStream(stream, closeStream), nil
+	return sw, nil
 }
 
 func (c *TunnelClient) Close() error {
-	if c.pool == nil {
+	if c.connPool == nil {
 		return nil
 	}
-	return c.pool.Close()
+	return c.connPool.Close()
 }
 
-var _ io.ReadWriteCloser = (*rwcClientStream)(nil)
+var _ io.ReadWriteCloser = (*clientStreamWrapper)(nil)
 
-type rwcClientStream struct {
+type clientStreamWrapper struct {
 	stream  pb.Tunnel_StreamClient
 	onClose func()
 	buf     []byte
 	off     int
 }
 
-func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *rwcClientStream {
-	return &rwcClientStream{stream: stream, onClose: onClose}
+func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
+	return &clientStreamWrapper{stream: stream, onClose: onClose}
 }
 
-func (c *rwcClientStream) Read(b []byte) (n int, err error) {
-	if c.off >= len(c.buf) {
-		data, err := c.stream.Recv()
+func (sw *clientStreamWrapper) Read(b []byte) (n int, err error) {
+	if sw.off >= len(sw.buf) {
+		data, err := sw.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
-		c.buf = data.Data
-		c.off = 0
+		sw.buf = data.Data
+		sw.off = 0
 	}
-	n = copy(b, c.buf[c.off:])
-	c.off += n
+	n = copy(b, sw.buf[sw.off:])
+	sw.off += n
 	return n, nil
 }
 
@@ -129,14 +119,14 @@ func (c *rwcClientStream) Read(b []byte) (n int, err error) {
 //	SendMsg does not wait until the message is received by the server. An
 //	untimely stream closure may result in lost messages. To ensure delivery,
 //	users should ensure the RPC completed successfully using RecvMsg.
-func (c *rwcClientStream) Write(b []byte) (n int, err error) {
-	err = c.stream.Send(&pb.Data{Data: b})
+func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
+	err = sw.stream.Send(&pb.Data{Data: b})
 	return len(b), err
 }
 
-func (c *rwcClientStream) Close() error {
-	if c.onClose != nil {
-		c.onClose()
+func (sw *clientStreamWrapper) Close() error {
+	if sw.onClose != nil {
+		sw.onClose()
 	}
 	return nil
 }

@@ -6,6 +6,6 @@ import (
 )
 
 type Dialer interface {
-	// DialContext connect to dstAddr through a tunnel
-	DialContext(ctx context.Context, dstAddr string) (io.ReadWriteCloser, error)
+	// DialContext connect to the ip:port target through a tunnel
+	DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error)
 }

@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"time"
 
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
@@ -20,9 +19,9 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 	var c TunnelClient
 	dialFunc := func() (quic.Connection, error) {
 		qconf := &quic.Config{
-			HandshakeIdleTimeout: 5 * time.Second,
-			MaxIdleTimeout:       ynet.MaxConnectionIdle,
-			KeepAlivePeriod:      15 * time.Second,
+			HandshakeIdleTimeout: ynet.HandshakeTimeout,
+			MaxIdleTimeout:       ynet.IdleConnTimeout,
+			KeepAlivePeriod:      ynet.KeepAlive,
 		}
 		tlsConf.NextProtos = []string{"quic"}
 		return quic.DialAddr(address, tlsConf, qconf)
@@ -31,7 +30,7 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 	return &c
 }
 
-func (c *TunnelClient) DialContext(ctx context.Context, addr string) (io.ReadWriteCloser, error) {
+func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	qconn, err := c.pool.Get()
 	if err != nil {
 		return nil, errors.New("dial quic: " + err.Error())
@@ -43,24 +42,18 @@ func (c *TunnelClient) DialContext(ctx context.Context, addr string) (io.ReadWri
 	}
 
 	stream := wrapStream(rawStream)
-	header, err := tunnel.MakeHeader(addr)
-	if err != nil {
+	if err := tunnel.WriteHeader(stream, dst); err != nil {
 		stream.Close()
 		return nil, err
 	}
-	if _, err := stream.Write(header); err != nil {
-		stream.Close()
-		return nil, err
-	}
-
 	return stream, nil
 }
 
 func (c *TunnelClient) Close() error {
-	if c.pool != nil {
-		return c.pool.Close()
+	if c.pool == nil {
+		return nil
 	}
-	return nil
+	return c.pool.Close()
 }
 
 type stream struct {
@@ -74,6 +67,6 @@ func wrapStream(raw quic.Stream) *stream {
 
 // Close closes read-direction and write-direction of the stream
 func (s *stream) Close() error {
-	s.Stream.CancelRead(0)
+	s.CancelRead(0)
 	return s.Stream.Close()
 }

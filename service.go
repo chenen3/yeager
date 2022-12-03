@@ -159,11 +159,11 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool)
 	return &t, nil
 }
 
-// DialContext connects to address directly or through a tunnel, determined by the routing
-func (t *Tunneler) DialContext(ctx context.Context, address string) (rwc io.ReadWriteCloser, err error) {
+// DialContext connects to ip:port target directly or through a tunnel, determined by the routing
+func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadWriteCloser, err error) {
 	policy := route.Direct
 	if t.router != nil {
-		p, e := t.router.Dispatch(address)
+		p, e := t.router.Dispatch(target)
 		if e != nil {
 			return nil, e
 		}
@@ -175,19 +175,19 @@ func (t *Tunneler) DialContext(ctx context.Context, address string) (rwc io.Read
 		return nil, errors.New("rule rejected")
 	case route.Direct:
 		if t.verbose {
-			log.Printf("connect %s", address)
+			log.Printf("connect %s", target)
 		}
 		var d net.Dialer
-		return d.DialContext(ctx, "tcp", address)
+		return d.DialContext(ctx, "tcp", target)
 	default:
 		d, ok := t.dialers[policy]
 		if !ok {
 			return nil, fmt.Errorf("unknown proxy policy: %s", policy)
 		}
 		if t.verbose {
-			log.Printf("connect %s via %s", address, policy)
+			log.Printf("connect %s via %s", target, policy)
 		}
-		return d.DialContext(ctx, address)
+		return d.DialContext(ctx, target)
 	}
 }
 

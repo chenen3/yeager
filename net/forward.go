@@ -6,27 +6,36 @@ import (
 	"sync"
 )
 
-// A Relayer relay data between src and dst bidirectionally
-type Relayer struct {
-	src io.ReadWriter
-	dst io.ReadWriter
+// Forwarder forwards data from client to remote, and from remote to client,
+// whichever completes, sends an error on C.
+type Forwarder struct {
+	client io.ReadWriter
+	remote io.ReadWriter
+	C      chan error
 }
 
-// NewRelayer returns a Relayer that relays data between src and dst bidirectionally
-func NewRelayer(src, dst io.ReadWriter) *Relayer {
-	return &Relayer{src: src, dst: dst}
+// NewForwarder creates a new Forwarder that will send errors
+// on its channel after FromClient or ToClient completes.
+func NewForwarder(client, remote io.ReadWriter) *Forwarder {
+	return &Forwarder{
+		client: client,
+		remote: remote,
+		C:      make(chan error, 2),
+	}
 }
 
-// ToDst relays from src to dst, sends the first error encountered to ch, if any
-func (c *Relayer) ToDst(ch chan<- error) {
-	_, err := copyBufferred(c.dst, c.src)
-	ch <- err
+// FromClient forwards data from client to remote,
+// sends the first error encountered to C, if any.
+func (f *Forwarder) FromClient() {
+	_, err := copyBufferred(f.remote, f.client)
+	f.C <- err
 }
 
-// FromDst relays from dst to src, sends the first error encountered to ch, if any
-func (c *Relayer) FromDst(ch chan<- error) {
-	_, err := copyBufferred(c.src, c.dst)
-	ch <- err
+// ToClient forwards data from remote to client,
+// sends the first error encountered to C, if any.
+func (f *Forwarder) ToClient() {
+	_, err := copyBufferred(f.client, f.remote)
+	f.C <- err
 }
 
 var slicePool = sync.Pool{

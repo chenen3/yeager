@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	DialTimeout       = 4 * time.Second
-	HandshakeTimeout  = 5 * time.Second
-	MaxConnectionIdle = 5 * time.Minute
+	DialTimeout      = 10 * time.Second
+	HandshakeTimeout = 5 * time.Second
+	KeepAlive        = 30 * time.Second
+	IdleConnTimeout  = 90 * time.Second
 )
 
 // AllocatePort allocates an available port

@@ -1,3 +1,6 @@
+// This package implements HTTP proxy server.
+// Refer to https://en.wikipedia.org/wiki/HTTP_tunnel
+// Any data sent to the proxy server will be forwarded, unmodified, to the remote host
 package httpproxy
 
 import (
@@ -52,7 +55,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(ynet.HandshakeTimeout))
-	dstAddr, httpReq, err := handshake(conn)
+	dst, httpReq, err := handshake(conn)
 	conn.SetDeadline(time.Time{})
 	if err != nil {
 		log.Printf("handshake: %s", err.Error())
@@ -61,9 +64,9 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
 	defer cancel()
-	rwc, err := d.DialContext(ctx, dstAddr)
+	rwc, err := d.DialContext(ctx, dst)
 	if err != nil {
-		log.Printf("dial %s: %s", dstAddr, err)
+		log.Printf("dial %s: %s", dst, err)
 		return
 	}
 	defer rwc.Close()
@@ -74,12 +77,11 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 			return
 		}
 	}
-	ch := make(chan error, 2)
-	r := ynet.NewRelayer(conn, rwc)
-	go r.ToDst(ch)
-	go r.FromDst(ch)
-	if err := <-ch; err != nil {
-		log.Printf("relay %s: %s", dstAddr, err)
+	f := ynet.NewForwarder(conn, rwc)
+	go f.FromClient()
+	go f.ToClient()
+	if err := <-f.C; err != nil {
+		log.Printf("forward %s: %s", dst, err)
 	}
 }
 
@@ -114,9 +116,7 @@ func (s *Server) Close() error {
 	return err
 }
 
-// HTTP代理服务器接收到请求时：
-// - 当方法是 CONNECT 时，即是HTTPS代理请求，服务端只需回应连接建立成功，后续原封不动地转发客户端数据即可
-// - 其他方法则是 HTTP 代理请求，服务端需要先把请求内容转发到远端服务器，后续原封不动地转发客户端数据即可
+// handshake reads request from conn, returns ip:port address and http request, if any
 func handshake(conn net.Conn) (addr string, httpReq *http.Request, err error) {
 	var req *http.Request
 	if req, err = http.ReadRequest(bufio.NewReader(conn)); err != nil {

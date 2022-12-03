@@ -8,7 +8,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
-const defaultSize = 2
+const defaultSize = 1
 
 type Pool struct {
 	size     int
@@ -53,7 +53,10 @@ func (p *Pool) Get() (quic.Connection, error) {
 	default:
 	}
 
-	i := int(atomic.AddUint32(&p.i, 1)) % p.size
+	i := 0
+	if p.size > 1 {
+		i = int(atomic.AddUint32(&p.i, 1)) % p.size
+	}
 	p.mu.RLock()
 	conn := p.conns[i]
 	p.mu.RUnlock()

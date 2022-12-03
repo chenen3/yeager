@@ -44,9 +44,9 @@ func newRule(ruleType string, value string, policy string) (*rule, error) {
 		return nil, err
 	}
 	r := &rule{
-		rtype:  strings.ToLower(ruleType),
-		value:  value,
-		policy: strings.ToLower(policy),
+		rtype:   strings.ToLower(ruleType),
+		value:   value,
+		policy:  strings.ToLower(policy),
 		matcher: m,
 	}
 	return r, nil

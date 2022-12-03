@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"sync/atomic"
 
@@ -17,9 +16,9 @@ import (
 //	假设目标服务器只有 1 个IP，gRPC connection 使用 1 条连接，平均每条连接处理 50 个并发请求，
 //	需要的 connection 数量是 ceil(并发请求数 / 50)
 //	例如预估有 100 个并发请求，需要 ceil(100 / 50) == 2 个 connection，连接池大小为 2
-const defaultPoolSize = 2
+const defaultSize = 1
 
-type pool struct {
+type connPool struct {
 	size     int
 	i        uint32
 	mu       sync.RWMutex // guard conns
@@ -28,12 +27,12 @@ type pool struct {
 	done     chan struct{}
 }
 
-func newPool(size int, dialFunc func() (*grpc.ClientConn, error)) *pool {
+func newConnPool(size int, dialFunc func() (*grpc.ClientConn, error)) *connPool {
 	if size <= 0 {
-		size = defaultPoolSize
+		size = defaultSize
 	}
 
-	return &pool{
+	return &connPool{
 		size:     size,
 		conns:    make([]*grpc.ClientConn, size),
 		dialFunc: dialFunc,
@@ -41,20 +40,23 @@ func newPool(size int, dialFunc func() (*grpc.ClientConn, error)) *pool {
 	}
 }
 
-func (p *pool) Get() (*grpc.ClientConn, error) {
+func (p *connPool) Get() (*grpc.ClientConn, error) {
 	select {
 	case <-p.done:
 		return nil, errors.New("pool closed")
 	default:
 	}
 
-	i := int(atomic.AddUint32(&p.i, 1)) % p.size
+	i := 0
+	if p.size > 1 {
+		i = int(atomic.AddUint32(&p.i, 1)) % p.size
+	}
 	p.mu.RLock()
 	conn := p.conns[i]
 	p.mu.RUnlock()
 	if conn != nil {
 		if conn.GetState() == connectivity.Shutdown {
-			return conn, errors.New("dead connection")
+			return nil, errors.New("dead connection")
 		}
 		return conn, nil
 	}
@@ -73,18 +75,15 @@ func (p *pool) Get() (*grpc.ClientConn, error) {
 	return cc, nil
 }
 
-func (p *pool) Close() error {
+func (p *connPool) Close() error {
 	close(p.done)
 	var err error
 	for _, c := range p.conns {
 		if c == nil {
 			continue
 		}
-		e := c.Close()
-		if e != nil {
-			// still need to close other connections, do not return here
+		if e := c.Close(); e != nil && err == nil {
 			err = e
-			log.Printf("close grpc connection: %s", e)
 		}
 	}
 	return err

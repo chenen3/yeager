@@ -52,7 +52,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
-	dstAddr, err := handshake(conn)
+	dst, err := handshake(conn)
 	if err != nil {
 		log.Printf("failed to handshake: %s", err)
 		return
@@ -61,20 +61,19 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
 	defer cancel()
-	rwc, err := d.DialContext(ctx, dstAddr)
+	rwc, err := d.DialContext(ctx, dst)
 	if err != nil {
-		log.Printf("dial %s error: %s", dstAddr, err)
+		log.Printf("dial %s error: %s", dst, err)
 		return
 	}
 	defer rwc.Close()
 
-	ch := make(chan error, 2)
-	r := ynet.NewRelayer(conn, rwc)
+	f := ynet.NewForwarder(conn, rwc)
 	// would like to see the goroutine's explicit name while profiling
-	go r.ToDst(ch)
-	go r.FromDst(ch)
-	if err := <-ch; err != nil {
-		log.Printf("relay %s: %s", dstAddr, err)
+	go f.FromClient()
+	go f.ToClient()
+	if err := <-f.C; err != nil {
+		log.Printf("forward %s: %s", dst, err)
 	}
 }
 

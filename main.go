@@ -123,7 +123,6 @@ func main() {
 		CloseAll(closers)
 		return
 	}
-	defer CloseAll(closers)
 
 	if conf.Debug {
 		go func() {
@@ -136,6 +135,8 @@ func main() {
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	<-ch
-	log.Print("bye bye")
+	s := <-ch
+	log.Println("signal", s)
+	CloseAll(closers)
+	log.Println("goodbye")
 }

@@ -20,12 +20,17 @@ const (
 	addrIPv6   = 0x04
 )
 
-// TODO: rename API
-// func ReadHeader(r io.Reader) (addr string, err error){}
-// func WriteHeader(w io.Writer, addr string) {}
+func WriteHeader(w io.Writer, addr string) error {
+	h, err := makeHeader(addr)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(h)
+	return err
+}
 
-// MakeHeader 构造 header，包含目的地址
-func MakeHeader(addr string) ([]byte, error) {
+// makeHeader 构造 header，包含目的地址
+func makeHeader(addr string) ([]byte, error) {
 	dstAddr, err := ynet.ParseAddr("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -109,7 +114,7 @@ func ReadHeader(r io.Reader) (addr string, err error) {
 	return addr, nil
 }
 
-func TimeReadHeader(r io.Reader, d time.Duration) (addr string, err error) {
+func TimeReadHeader(r io.Reader, timeout time.Duration) (addr string, err error) {
 	type result struct {
 		addr string
 		err  error
@@ -120,7 +125,7 @@ func TimeReadHeader(r io.Reader, d time.Duration) (addr string, err error) {
 		ch <- result{addr, err}
 	}()
 
-	t := time.NewTimer(d)
+	t := time.NewTimer(timeout)
 	select {
 	case <-t.C:
 		return "", errors.New("timeout")
