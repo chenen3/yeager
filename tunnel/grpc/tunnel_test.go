@@ -32,9 +32,9 @@ func generateTLSConfig() *tls.Config {
 }
 
 func TestGrpcTunnel(t *testing.T) {
-	ok := "ok"
+	want := "ok"
 	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, ok)
+		io.WriteString(w, want)
 	}))
 	defer hs.Close()
 
@@ -83,8 +83,8 @@ func TestGrpcTunnel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != ok {
-		t.Fatalf("want %s, got %s", ok, got)
+	if string(got) != want {
+		t.Fatalf("want %s, got %s", want, got)
 	}
 }
 
