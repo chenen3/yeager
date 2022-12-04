@@ -17,7 +17,7 @@ import (
 )
 
 type TunnelClient struct {
-	connPool *connPool
+	pool *connPool
 }
 
 func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelClient {
@@ -43,12 +43,12 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 		return grpc.Dial(address, opts...)
 	}
 	return &TunnelClient{
-		connPool: newConnPool(poolSize, dialFunc),
+		pool: newConnPool(poolSize, dialFunc),
 	}
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.connPool.Get()
+	conn, err := c.pool.Get()
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
@@ -80,10 +80,10 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 }
 
 func (c *TunnelClient) Close() error {
-	if c.connPool == nil {
+	if c.pool == nil {
 		return nil
 	}
-	return c.connPool.Close()
+	return c.pool.Close()
 }
 
 var _ io.ReadWriteCloser = (*clientStreamWrapper)(nil)

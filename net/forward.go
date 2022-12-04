@@ -47,7 +47,7 @@ var slicePool = sync.Pool{
 }
 
 // copyBufferred is mostly taken from the actual implementation of io.Copy and io.CopyBuffer,
-// except that the buffer used to perform the copy will come from slicePool to avoid allocation.
+// except that the buffer used to perform the copy will come from slicePool.
 //
 // If either src implements io.WriterTo or dst implements io.ReaderFrom,
 // no buffer will be used to perform the copy.

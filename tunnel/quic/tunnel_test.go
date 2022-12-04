@@ -4,15 +4,14 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
-	ynet "github.com/chenen3/yeager/net"
 )
 
 func generateTLSConfig() *tls.Config {
@@ -36,22 +35,37 @@ func TestQuicTunnel(t *testing.T) {
 	}))
 	defer hs.Close()
 
-	port, _ := ynet.AllocatePort()
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	tlsConf := generateTLSConfig()
-	ready := make(chan struct{})
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lis.Close()
+
+	cert, key, err := cert.SelfSign()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tlsCert, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tlsConf := &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+	}
 
 	var ts TunnelServer
 	defer ts.Close()
+	ready := make(chan struct{})
 	go func() {
 		close(ready)
-		err := ts.Serve(addr, tlsConf)
+		err := ts.Serve(lis.Addr().String(), tlsConf)
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	tc := NewTunnelClient(addr, &tls.Config{InsecureSkipVerify: true}, 1)
+	<-ready
+	tc := NewTunnelClient(lis.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
 	defer tc.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

@@ -49,9 +49,9 @@ go install github.com/chenen3/yeager@latest
 ```sh
 mkdir -p /usr/local/etc/yeager
 cd /usr/local/etc/yeager
-yeager -genconf
+yeager -genconfig
 # if you prefer docker:
-# docker run --rm --workdir /usr/local/etc/yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager ghcr.io/chenen3/yeager yeager -genconf
+# docker run --rm --workdir /usr/local/etc/yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager ghcr.io/chenen3/yeager yeager -genconfig
 ln -s server.yaml config.yaml
 ```
 

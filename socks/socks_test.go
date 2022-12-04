@@ -2,7 +2,6 @@ package socks
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -10,8 +9,6 @@ import (
 	"net/url"
 	"testing"
 	"time"
-
-	ynet "github.com/chenen3/yeager/net"
 )
 
 type direct struct{}
@@ -28,17 +25,19 @@ func TestSocksProxy(t *testing.T) {
 	}))
 	defer httpSrv.Close()
 
-	port, _ := ynet.AllocatePort()
-	address := fmt.Sprintf("127.0.0.1:%d", port)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ready := make(chan struct{})
 	var s Server
 	defer s.Close()
 	go func() {
 		close(ready)
-		s.Serve(address, direct{})
+		s.Serve(lis, direct{})
 	}()
 
-	pu, err := url.Parse("socks5://" + address)
+	pu, err := url.Parse("socks5://" + lis.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

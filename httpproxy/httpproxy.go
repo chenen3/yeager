@@ -27,11 +27,7 @@ type Server struct {
 }
 
 // Serve will return a non-nil error unless Close is called.
-func (s *Server) Serve(address string, d tunnel.Dialer) error {
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		return err
-	}
+func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -64,20 +60,20 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
 	defer cancel()
-	rwc, err := d.DialContext(ctx, dst)
+	remote, err := d.DialContext(ctx, dst)
 	if err != nil {
 		log.Printf("dial %s: %s", dst, err)
 		return
 	}
-	defer rwc.Close()
+	defer remote.Close()
 
 	if httpReq != nil {
-		if err := httpReq.Write(rwc); err != nil {
+		if err := httpReq.Write(remote); err != nil {
 			log.Print(err)
 			return
 		}
 	}
-	f := ynet.NewForwarder(conn, rwc)
+	f := ynet.NewForwarder(conn, remote)
 	go f.FromClient()
 	go f.ToClient()
 	if err := <-f.C; err != nil {

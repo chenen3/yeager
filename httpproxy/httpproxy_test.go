@@ -2,7 +2,6 @@ package httpproxy
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -10,8 +9,6 @@ import (
 	"net/url"
 	"testing"
 	"time"
-
-	ynet "github.com/chenen3/yeager/net"
 )
 
 type direct struct{}
@@ -28,17 +25,19 @@ func TestHttpProxy(t *testing.T) {
 	}))
 	defer httpSrv.Close()
 
-	port, _ := ynet.AllocatePort()
-	proxyAddr := fmt.Sprintf("127.0.0.1:%d", port)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ready := make(chan struct{})
 	var s Server
 	defer s.Close()
 	go func() {
 		close(ready)
-		s.Serve(proxyAddr, direct{})
+		s.Serve(lis, direct{})
 	}()
 
-	proxyUrl, _ := url.Parse("http://" + proxyAddr)
+	proxyUrl, _ := url.Parse("http://" + lis.Addr().String())
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(proxyUrl),
@@ -71,17 +70,19 @@ func TestHttpsProxy(t *testing.T) {
 	}))
 	defer httpsSrv.Close()
 
-	port, _ := ynet.AllocatePort()
-	proxyAddr := fmt.Sprintf("127.0.0.1:%d", port)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var s Server
 	defer s.Close()
 	ready := make(chan struct{})
 	go func() {
 		close(ready)
-		s.Serve(proxyAddr, direct{})
+		s.Serve(lis, direct{})
 	}()
 
-	proxyUrl, _ := url.Parse("http://" + proxyAddr)
+	proxyUrl, _ := url.Parse("http://" + lis.Addr().String())
 	client := httpsSrv.Client()
 	tr := client.Transport.(*http.Transport)
 	tr = tr.Clone()

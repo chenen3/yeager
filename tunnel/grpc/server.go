@@ -24,13 +24,8 @@ type TunnelServer struct {
 }
 
 // Serve will return a non-nil error unless Close is called.
-func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		return err
-	}
+func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	// no need to hold the listener, it will be closed by grpc.Server
-
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{

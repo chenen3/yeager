@@ -36,6 +36,10 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 	}
 
 	if conf.HTTPListen != "" {
+		lis, err := net.Listen("tcp", conf.HTTPListen)
+		if err != nil {
+			return nil, err
+		}
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
@@ -43,13 +47,17 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		closers = append(closers, &hs)
 		go func() {
 			log.Printf("http proxy listening %s", conf.HTTPListen)
-			if err := hs.Serve(conf.HTTPListen, tunneler); err != nil {
+			if err := hs.Serve(lis, tunneler); err != nil {
 				log.Printf("failed to serve http proxy: %s", err)
 			}
 		}()
 	}
 
 	if conf.SOCKSListen != "" {
+		lis, err := net.Listen("tcp", conf.SOCKSListen)
+		if err != nil {
+			return nil, err
+		}
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
@@ -57,7 +65,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		closers = append(closers, &ss)
 		go func() {
 			log.Printf("socks proxy listening %s", conf.SOCKSListen)
-			if err := ss.Serve(conf.SOCKSListen, tunneler); err != nil {
+			if err := ss.Serve(lis, tunneler); err != nil {
 				log.Printf("failed to serve socks proxy: %s", err)
 			}
 		}()
@@ -67,6 +75,10 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		tl := tl
 		switch tl.Type {
 		case config.TunGRPC:
+			lis, err := net.Listen("tcp", tl.Listen)
+			if err != nil {
+				return nil, err
+			}
 			tlsConf, err := makeServerTLSConfig(tl)
 			if err != nil {
 				return nil, err
@@ -75,7 +87,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			closers = append(closers, &s)
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
-				if err := s.Serve(tl.Listen, tlsConf); err != nil {
+				if err := s.Serve(lis, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()

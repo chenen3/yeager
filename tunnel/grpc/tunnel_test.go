@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/cert"
-	ynet "github.com/chenen3/yeager/net"
 )
 
 func generateTLSConfig() *tls.Config {
@@ -38,8 +36,10 @@ func TestGrpcTunnel(t *testing.T) {
 	}))
 	defer hs.Close()
 
-	port, _ := ynet.AllocatePort()
-	address := fmt.Sprintf("127.0.0.1:%d", port)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ready := make(chan struct{})
 
 	ts := new(TunnelServer)
@@ -47,13 +47,13 @@ func TestGrpcTunnel(t *testing.T) {
 	go func() {
 		tlsConf := generateTLSConfig()
 		close(ready)
-		err := ts.Serve(address, tlsConf)
+		err := ts.Serve(listener, tlsConf)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			t.Error(err)
 		}
 	}()
 
-	tc := NewTunnelClient(address, &tls.Config{InsecureSkipVerify: true}, 1)
+	tc := NewTunnelClient(listener.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
 	defer tc.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -95,8 +95,10 @@ func TestDial_Parallel(t *testing.T) {
 	}))
 	defer hs.Close()
 
-	port, _ := ynet.AllocatePort()
-	address := fmt.Sprintf("127.0.0.1:%d", port)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ready := make(chan struct{})
 
 	ts := new(TunnelServer)
@@ -104,13 +106,13 @@ func TestDial_Parallel(t *testing.T) {
 	go func() {
 		tlsConf := generateTLSConfig()
 		close(ready)
-		err := ts.Serve(address, tlsConf)
+		err := ts.Serve(listener, tlsConf)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			t.Error(err)
 		}
 	}()
 
-	tc := NewTunnelClient(address, &tls.Config{InsecureSkipVerify: true}, 1)
+	tc := NewTunnelClient(listener.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
 	defer tc.Close()
 	<-ready
 	// the proxy server may not started yet

@@ -2,10 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/chenen3/yeager/cert"
-	ynet "github.com/chenen3/yeager/net"
 	"gopkg.in/yaml.v3"
 )
 
@@ -55,13 +55,22 @@ type TunnelClient struct {
 	ConnectionPoolSize int `yaml:"connectionPoolSize,omitempty"`
 }
 
+func allocPort() (int, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port, nil
+}
+
 // Pair make a pair of client and server config
 func Pair(host string) (srv, cli Config, err error) {
 	cert, err := cert.Generate(host)
 	if err != nil {
 		return srv, cli, err
 	}
-	tunnelPort, err := ynet.AllocatePort()
+	tunnelPort, err := allocPort()
 	if err != nil {
 		return srv, cli, err
 	}
@@ -78,11 +87,11 @@ func Pair(host string) (srv, cli Config, err error) {
 		},
 	}
 
-	socksProxyPort, err := ynet.AllocatePort()
+	socksProxyPort, err := allocPort()
 	if err != nil {
 		return srv, cli, err
 	}
-	httpProxyPort, err := ynet.AllocatePort()
+	httpProxyPort, err := allocPort()
 	if err != nil {
 		return srv, cli, err
 	}
