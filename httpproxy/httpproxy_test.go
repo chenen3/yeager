@@ -19,9 +19,9 @@ func (d direct) DialContext(ctx context.Context, addr string) (io.ReadWriteClose
 }
 
 func TestHttpProxy(t *testing.T) {
-	ok := "ok"
+	want := "ok"
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, ok)
+		io.WriteString(w, want)
 	}))
 	defer httpSrv.Close()
 
@@ -34,7 +34,9 @@ func TestHttpProxy(t *testing.T) {
 	defer s.Close()
 	go func() {
 		close(ready)
-		s.Serve(lis, direct{})
+		if err := s.Serve(lis, direct{}); err != nil {
+			t.Log(err)
+		}
 	}()
 
 	proxyUrl, _ := url.Parse("http://" + lis.Addr().String())
@@ -58,15 +60,15 @@ func TestHttpProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != ok {
-		t.Fatalf("want %s, got %s", ok, got)
+	if string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
 	}
 }
 
 func TestHttpsProxy(t *testing.T) {
-	ok := "ok"
+	want := "ok"
 	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, ok)
+		io.WriteString(w, want)
 	}))
 	defer httpsSrv.Close()
 
@@ -79,7 +81,9 @@ func TestHttpsProxy(t *testing.T) {
 	ready := make(chan struct{})
 	go func() {
 		close(ready)
-		s.Serve(lis, direct{})
+		if err := s.Serve(lis, direct{}); err != nil {
+			t.Log(err)
+		}
 	}()
 
 	proxyUrl, _ := url.Parse("http://" + lis.Addr().String())
@@ -100,7 +104,7 @@ func TestHttpsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != ok {
-		t.Fatalf("want %s, got %s", ok, got)
+	if string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
 	}
 }

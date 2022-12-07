@@ -12,7 +12,7 @@ import (
 )
 
 type TunnelClient struct {
-	pool *Pool
+	pool *connPool
 }
 
 func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelClient {
@@ -26,17 +26,17 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 		tlsConf.NextProtos = []string{"quic"}
 		return quic.DialAddr(address, tlsConf, qconf)
 	}
-	c.pool = NewPool(poolSize, dialFunc)
+	c.pool = newConnPool(poolSize, dialFunc)
 	return &c
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	qconn, err := c.pool.Get()
+	conn, err := c.pool.Get()
 	if err != nil {
 		return nil, errors.New("dial quic: " + err.Error())
 	}
 
-	rawStream, err := qconn.OpenStream()
+	rawStream, err := conn.OpenStream()
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
@@ -56,17 +56,17 @@ func (c *TunnelClient) Close() error {
 	return c.pool.Close()
 }
 
-type stream struct {
+type streamWrapper struct {
 	quic.Stream
 }
 
 // wrapStream wrap the raw quic.Stream with method Close modified
-func wrapStream(raw quic.Stream) *stream {
-	return &stream{raw}
+func wrapStream(raw quic.Stream) *streamWrapper {
+	return &streamWrapper{raw}
 }
 
 // Close closes read-direction and write-direction of the stream
-func (s *stream) Close() error {
+func (s *streamWrapper) Close() error {
 	s.CancelRead(0)
 	return s.Stream.Close()
 }

@@ -73,7 +73,7 @@ func (c *conn) ReceiveMessage() ([]byte, error) {
 }
 
 func TestPoolGet(t *testing.T) {
-	p := NewPool(2, func() (quic.Connection, error) {
+	p := newConnPool(2, func() (quic.Connection, error) {
 		return fakeQuicConn(), nil
 	})
 	defer p.Close()
@@ -91,7 +91,7 @@ func TestPoolGet(t *testing.T) {
 }
 
 func TestReconnectParallel(t *testing.T) {
-	p := NewPool(2, func() (quic.Connection, error) {
+	p := newConnPool(2, func() (quic.Connection, error) {
 		return fakeQuicConn(), nil
 	})
 	defer p.Close()

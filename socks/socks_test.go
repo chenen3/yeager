@@ -34,7 +34,9 @@ func TestSocksProxy(t *testing.T) {
 	defer s.Close()
 	go func() {
 		close(ready)
-		s.Serve(lis, direct{})
+		if err := s.Serve(lis, direct{}); err != nil {
+			t.Log(err)
+		}
 	}()
 
 	pu, err := url.Parse("socks5://" + lis.Addr().String())
@@ -64,6 +66,6 @@ func TestSocksProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(got) != want {
-		t.Fatalf("want %s, got %s", want, got)
+		t.Fatalf("got %s, want %s", got, want)
 	}
 }

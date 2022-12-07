@@ -3,7 +3,6 @@ package grpc
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"errors"
 	"io"
 	"net"
@@ -14,20 +13,6 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 )
-
-func generateTLSConfig() *tls.Config {
-	certPEM, keyPEM, err := cert.SelfSign()
-	if err != nil {
-		panic(err)
-	}
-	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		panic(err)
-	}
-	return &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-	}
-}
 
 func TestGrpcTunnel(t *testing.T) {
 	want := "ok"
@@ -42,18 +27,30 @@ func TestGrpcTunnel(t *testing.T) {
 	}
 	ready := make(chan struct{})
 
+	ct, err := cert.Generate("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ts := new(TunnelServer)
 	defer ts.Close()
 	go func() {
-		tlsConf := generateTLSConfig()
 		close(ready)
-		err := ts.Serve(listener, tlsConf)
-		if err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Error(err)
+		e := ts.Serve(listener, srvTLSConf)
+		if e != nil && !errors.Is(e, net.ErrClosed) {
+			t.Error(e)
 		}
 	}()
 
-	tc := NewTunnelClient(listener.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
+	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf, 1)
 	defer tc.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -101,18 +98,29 @@ func TestDial_Parallel(t *testing.T) {
 	}
 	ready := make(chan struct{})
 
+	ct, err := cert.Generate("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ts := new(TunnelServer)
 	defer ts.Close()
 	go func() {
-		tlsConf := generateTLSConfig()
 		close(ready)
-		err := ts.Serve(listener, tlsConf)
-		if err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Error(err)
+		if e := ts.Serve(listener, srvTLSConf);e != nil && !errors.Is(e, net.ErrClosed) {
+			t.Error(e)
 		}
 	}()
 
-	tc := NewTunnelClient(listener.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
+	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf, 1)
 	defer tc.Close()
 	<-ready
 	// the proxy server may not started yet

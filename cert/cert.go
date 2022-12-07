@@ -4,7 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -16,23 +16,6 @@ import (
 	"time"
 )
 
-// SelfSign generate self-signed certificate, test only
-func SelfSign() (certPEM, keyPEM []byte, err error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
-	template := x509.Certificate{SerialNumber: big.NewInt(1)}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	return certPEM, keyPEM, nil
-}
-
 // Cert certificate and key in PEM format
 type Cert struct {
 	RootCert   []byte
@@ -43,16 +26,7 @@ type Cert struct {
 	ClientKey  []byte
 }
 
-const (
-	CACertFile     = "ca-cert.pem"
-	CAKeyFile      = "ca-key.pem"
-	ServerCertFile = "server-cert.pem"
-	ServerKeyFile  = "server-key.pem"
-	ClientCertFile = "client-cert.pem"
-	ClientKeyFile  = "client-key.pem"
-)
-
-// Generate generate TLS certificates for mutual authentication,
+// Generate generate TLS certificates for mutual authentication
 func Generate(host string) (*Cert, error) {
 	rootCert, rootKey, err := createRootCA()
 	if err != nil {
@@ -176,4 +150,43 @@ func createCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, ke
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: b})
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	return certPEM, keyPEM, nil
+}
+
+// MakeServerTLSConfig make server-side TLS config for mutual authentication
+func MakeServerTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
+	tlsConf := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, errors.New("parse cert pem: " + err.Error())
+	}
+	tlsConf.Certificates = []tls.Certificate{cert}
+
+	pool := x509.NewCertPool()
+	ok := pool.AppendCertsFromPEM(caPEM)
+	if !ok {
+		return nil, errors.New("failed to parse root cert pem")
+	}
+	tlsConf.ClientCAs = pool
+	tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+	return tlsConf, nil
+}
+
+// MakeClientTLSConfig make client-side TLS config for mutual authentication
+func MakeClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
+	tlsConf := &tls.Config{
+		ClientSessionCache: tls.NewLRUClientSessionCache(64),
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+	tlsConf.Certificates = []tls.Certificate{cert}
+	pool := x509.NewCertPool()
+	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
+		return nil, errors.New("failed to parse root certificate")
+	}
+	tlsConf.RootCAs = pool
+	return tlsConf, nil
 }

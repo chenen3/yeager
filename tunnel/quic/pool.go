@@ -10,7 +10,7 @@ import (
 
 const defaultSize = 1
 
-type Pool struct {
+type connPool struct {
 	size     int
 	i        uint32
 	mu       sync.RWMutex
@@ -19,13 +19,12 @@ type Pool struct {
 	done     chan struct{}
 }
 
-// NewPool creates a connection pool
-func NewPool(size int, dialFunc func() (quic.Connection, error)) *Pool {
+func newConnPool(size int, dialFunc func() (quic.Connection, error)) *connPool {
 	if size <= 0 {
 		size = defaultSize
 	}
 
-	return &Pool{
+	return &connPool{
 		size:     size,
 		conns:    make([]quic.Connection, size),
 		dialFunc: dialFunc,
@@ -46,7 +45,7 @@ func isValid(conn quic.Connection) bool {
 	}
 }
 
-func (p *Pool) Get() (quic.Connection, error) {
+func (p *connPool) Get() (quic.Connection, error) {
 	select {
 	case <-p.done:
 		return nil, errors.New("pool closed")
@@ -84,7 +83,7 @@ func (p *Pool) Get() (quic.Connection, error) {
 	return qc, nil
 }
 
-func (p *Pool) Close() error {
+func (p *connPool) Close() error {
 	close(p.done)
 	var err error
 	p.mu.RLock()

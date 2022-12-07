@@ -3,7 +3,6 @@ package quic
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
@@ -13,20 +12,6 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 )
-
-func generateTLSConfig() *tls.Config {
-	cert, key, err := cert.SelfSign()
-	if err != nil {
-		panic(err)
-	}
-	tlsCert, err := tls.X509KeyPair(cert, key)
-	if err != nil {
-		panic(err)
-	}
-	return &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-	}
-}
 
 func TestQuicTunnel(t *testing.T) {
 	want := "ok"
@@ -41,16 +26,13 @@ func TestQuicTunnel(t *testing.T) {
 	}
 	lis.Close()
 
-	cert, key, err := cert.SelfSign()
+	ct, err := cert.Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	tlsCert, err := tls.X509KeyPair(cert, key)
+	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
 	if err != nil {
 		t.Fatal(err)
-	}
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
 	}
 
 	var ts TunnelServer
@@ -58,17 +40,20 @@ func TestQuicTunnel(t *testing.T) {
 	ready := make(chan struct{})
 	go func() {
 		close(ready)
-		err := ts.Serve(lis.Addr().String(), tlsConf)
-		if err != nil {
-			t.Error(err)
+		if e := ts.Serve(lis.Addr().String(), srvTLSConf); e != nil {
+			t.Error(e)
 		}
 	}()
 
-	<-ready
-	tc := NewTunnelClient(lis.Addr().String(), &tls.Config{InsecureSkipVerify: true}, 1)
+	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf, 1)
 	defer tc.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	<-ready
 	rwc, err := tc.DialContext(ctx, hs.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)

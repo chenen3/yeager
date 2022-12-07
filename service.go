@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/httpproxy"
 	"github.com/chenen3/yeager/route"
@@ -73,37 +72,46 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 
 	for _, tl := range conf.TunnelListens {
 		tl := tl
+		certPEM, err := readDataOrFile(tl.CertPEM, tl.CertFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS certificate: %s", err)
+		}
+		keyPEM, err := readDataOrFile(tl.KeyPEM, tl.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS key: %s", err)
+		}
+		caPEM, err := readDataOrFile(tl.CAPEM, tl.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS CA: %s", err)
+		}
+		tlsConf, err := cert.MakeServerTLSConfig(caPEM, certPEM, keyPEM)
+		if err != nil {
+			return nil, err
+		}
+
 		switch tl.Type {
 		case config.TunGRPC:
 			lis, err := net.Listen("tcp", tl.Listen)
 			if err != nil {
 				return nil, err
 			}
-			tlsConf, err := makeServerTLSConfig(tl)
-			if err != nil {
-				return nil, err
-			}
 			var s grpc.TunnelServer
-			closers = append(closers, &s)
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
 				if err := s.Serve(lis, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()
-		case config.TunQUIC:
-			tlsConf, err := makeServerTLSConfig(tl)
-			if err != nil {
-				return nil, err
-			}
-			var s quic.TunnelServer
 			closers = append(closers, &s)
+		case config.TunQUIC:
+			var s quic.TunnelServer
 			go func() {
 				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
 				if err := s.Serve(tl.Listen, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()
+			closers = append(closers, &s)
 		}
 	}
 	return closers, nil
@@ -125,6 +133,7 @@ type Tunneler struct {
 	closers []io.Closer
 }
 
+// NewTunneler creates a new Tunneler for client side proxy
 func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool) (*Tunneler, error) {
 	var t Tunneler
 	if len(rules) > 0 {
@@ -141,22 +150,32 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool)
 		if _, ok := dialers[policy]; ok {
 			return nil, fmt.Errorf("duplicated tunnel policy: %s", policy)
 		}
+
+		certPEM, err := readDataOrFile(tc.CertPEM, tc.CertFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS certificate: %s", err)
+		}
+		keyPEM, err := readDataOrFile(tc.KeyPEM, tc.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS key: %s", err)
+		}
+		caPEM, err := readDataOrFile(tc.CAPEM, tc.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS CA: %s", err)
+		}
+		tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
+		if err != nil {
+			return nil, err
+		}
+
 		switch tc.Type {
 		case config.TunGRPC:
-			tlsConf, err := makeClientTLSConfig(tc)
-			if err != nil {
-				return nil, err
-			}
 			client := grpc.NewTunnelClient(tc.Address, tlsConf, tc.ConnectionPoolSize)
 			dialers[policy] = client
 			// clean up connection pool
 			t.closers = append(t.closers, client)
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
-			tlsConf, err := makeClientTLSConfig(tc)
-			if err != nil {
-				return nil, err
-			}
 			client := quic.NewTunnelClient(tc.Address, tlsConf, tc.ConnectionPoolSize)
 			dialers[policy] = client
 			// clean up connection pool
@@ -223,67 +242,4 @@ func readDataOrFile(data string, filename string) ([]byte, error) {
 		return os.ReadFile(filename)
 	}
 	return nil, errors.New("no data nor filename provided")
-}
-
-// make server config for mutual TLS
-func makeServerTLSConfig(tl config.TunnelListen) (*tls.Config, error) {
-	certPEM, err := readDataOrFile(tl.CertPEM, tl.CertFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS certificate: %s", err)
-	}
-	keyPEM, err := readDataOrFile(tl.KeyPEM, tl.KeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS key: %s", err)
-	}
-	caPEM, err := readDataOrFile(tl.CAPEM, tl.CAFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS CA: %s", err)
-	}
-	tlsConf := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-	}
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, errors.New("parse cert pem: " + err.Error())
-	}
-	tlsConf.Certificates = []tls.Certificate{cert}
-
-	pool := x509.NewCertPool()
-	ok := pool.AppendCertsFromPEM(caPEM)
-	if !ok {
-		return nil, errors.New("failed to parse root cert pem")
-	}
-	tlsConf.ClientCAs = pool
-	tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-	return tlsConf, nil
-}
-
-// make client config for mutual TLS
-func makeClientTLSConfig(tl config.TunnelClient) (*tls.Config, error) {
-	certPEM, err := readDataOrFile(tl.CertPEM, tl.CertFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS certificate: %s", err)
-	}
-	keyPEM, err := readDataOrFile(tl.KeyPEM, tl.KeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS key: %s", err)
-	}
-	caPEM, err := readDataOrFile(tl.CAPEM, tl.CAFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS CA: %s", err)
-	}
-	tlsConf := &tls.Config{
-		ClientSessionCache: tls.NewLRUClientSessionCache(64),
-	}
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, err
-	}
-	tlsConf.Certificates = []tls.Certificate{cert}
-	pool := x509.NewCertPool()
-	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
-		return nil, errors.New("failed to parse root certificate")
-	}
-	tlsConf.RootCAs = pool
-	return tlsConf, nil
 }

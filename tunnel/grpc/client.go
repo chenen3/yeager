@@ -27,7 +27,6 @@ func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelC
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:    ynet.KeepAlive,
 				Timeout: 1 * time.Second,
-				// PermitWithoutStream: true,
 			}),
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
