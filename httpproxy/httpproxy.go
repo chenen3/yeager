@@ -112,7 +112,7 @@ func (s *Server) Close() error {
 	return err
 }
 
-// handshake reads request from conn, returns ip:port address and http request, if any
+// handshake reads request from conn, returns host:port address and http request, if any
 func handshake(conn net.Conn) (addr string, httpReq *http.Request, err error) {
 	var req *http.Request
 	if req, err = http.ReadRequest(bufio.NewReader(conn)); err != nil {

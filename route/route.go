@@ -2,9 +2,8 @@ package route
 
 import (
 	"errors"
+	"net"
 	"strings"
-
-	ynet "github.com/chenen3/yeager/net"
 )
 
 // rule type
@@ -32,10 +31,10 @@ const (
 var defaultFinalRule, _ = newRule(ruleFinal, "", Direct)
 
 type rule struct {
-	rtype   string
-	value   string
-	policy  string
-	matcher matcher
+	matcher
+	rtype  string
+	value  string
+	policy string
 }
 
 func newRule(ruleType string, value string, policy string) (*rule, error) {
@@ -50,21 +49,6 @@ func newRule(ruleType string, value string, policy string) (*rule, error) {
 		matcher: m,
 	}
 	return r, nil
-}
-
-func (r *rule) Match(addr *ynet.Addr) bool {
-	switch r.rtype {
-	case ruleDomain, ruleDomainSuffix, ruleDomainKeyword, ruleGeoSite:
-		if addr.Type != ynet.AddrDomainName {
-			return false
-		}
-	case ruleIPCIDR:
-		if addr.Type != ynet.AddrIPv4 {
-			// ipv6 not supported yet
-			return false
-		}
-	}
-	return r.matcher.Match(addr)
 }
 
 type Router struct {
@@ -90,9 +74,8 @@ func New(rules []string) (*Router, error) {
 	}
 	r.rules = parsedRules
 
-	// parsing rules of geosite.dat (or geoip.dat) boosted memory usage,
+	// parsing rules of geosite.dat boosted memory usage,
 	// set nil to release heap objects in future GC
-	// globalGeoIPList = nil
 	geoSites = nil
 	return &r, nil
 }
@@ -121,16 +104,38 @@ func parseRule(rule string) (*rule, error) {
 	}
 }
 
-func (r *Router) Dispatch(addr string) (policy string, err error) {
-	var dst *ynet.Addr
-	dst, err = ynet.ParseAddr("tcp", addr)
+func (r *Router) Dispatch(host string) (policy string, err error) {
+	h, err := parseHost(host)
 	if err != nil {
 		return "", err
 	}
 	for _, ru := range r.rules {
-		if ru.Match(dst) {
+		if ru.Match(h) {
 			return ru.policy, nil
 		}
 	}
 	return defaultFinalRule.policy, nil
+}
+
+type host struct {
+	IsDomain bool
+	Domain   string
+	IsIPv4   bool
+	IP       net.IP
+}
+
+func parseHost(s string) (host, error) {
+	if len(s) == 0 || len(s) > 255 {
+		return host{}, errors.New("bad domain name")
+	}
+
+	var h host
+	if ip := net.ParseIP(s); ip == nil {
+		h.IsDomain = true
+		h.Domain = s
+	} else if ipv4 := ip.To4(); ipv4 != nil {
+		h.IsIPv4 = true
+		h.IP = ipv4
+	}
+	return h, nil
 }

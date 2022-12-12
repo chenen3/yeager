@@ -8,32 +8,63 @@ import (
 	"net"
 	"strconv"
 	"time"
-
-	ynet "github.com/chenen3/yeager/net"
 )
 
 const maxAddrLen = 1 + 1 + 255 + 2
 
+// addr type
 const (
 	addrIPv4   = 0x01
 	addrDomain = 0x03
 	addrIPv6   = 0x04
 )
 
-func WriteHeader(w io.Writer, addr string) error {
-	h, err := makeHeader(addr)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(h)
-	return err
+type addr struct {
+	Type uint
+	Host string // for example: localhost, 127.0.0.1
+	Port uint16
+	IP   net.IP
 }
 
-// makeHeader 构造 header，包含目的地址
-func makeHeader(addr string) ([]byte, error) {
-	dstAddr, err := ynet.ParseAddr("tcp", addr)
+func parseAddr(hostport string) (*addr, error) {
+	host, portStr, err := net.SplitHostPort(hostport)
 	if err != nil {
 		return nil, err
+	}
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return nil, errors.New("parse port: " + err.Error())
+	}
+
+	var addrType uint
+	ip := net.ParseIP(host)
+	if ip == nil {
+		addrType = addrDomain
+	} else if ipv4 := ip.To4(); ipv4 != nil {
+		addrType = addrIPv4
+		ip = ipv4
+	} else {
+		addrType = addrIPv6
+		ip = ip.To16()
+	}
+
+	a := &addr{
+		Type: addrType,
+		Host: host,
+		Port: uint16(port),
+		IP:   ip,
+	}
+	return a, nil
+}
+
+func WriteHeader(w io.Writer, hostport string) error {
+	addr, err := parseAddr(hostport)
+	if err != nil {
+		return err
 	}
 
 	/*
@@ -45,29 +76,31 @@ func makeHeader(addr string) ([]byte, error) {
 	// keep version number for backward compatibility
 	b = append(b, 0x00)
 
-	switch dstAddr.Type {
-	case ynet.AddrIPv4:
+	switch addr.Type {
+	case addrIPv4:
 		b = append(b, addrIPv4)
-		b = append(b, dstAddr.IP...)
-	case ynet.AddrDomainName:
+		b = append(b, addr.IP...)
+	case addrDomain:
 		b = append(b, addrDomain)
-		b = append(b, byte(len(dstAddr.Host)))
-		b = append(b, []byte(dstAddr.Host)...)
-	case ynet.AddrIPv6:
+		b = append(b, byte(len(addr.Host)))
+		b = append(b, []byte(addr.Host)...)
+	case addrIPv6:
 		b = append(b, addrIPv6)
-		b = append(b, dstAddr.IP...)
+		b = append(b, addr.IP...)
 	default:
-		return nil, errors.New("unsupported address type: " + dstAddr.String())
+		return errors.New("bad address: " + hostport)
 	}
 
 	p := make([]byte, 2)
-	binary.BigEndian.PutUint16(p, uint16(dstAddr.Port))
+	binary.BigEndian.PutUint16(p, addr.Port)
 	b = append(b, p...)
-	return b, nil
+
+	_, err = w.Write(b)
+	return err
 }
 
 // ReadHeader 读取 header, 解析其目的地址
-func ReadHeader(r io.Reader) (addr string, err error) {
+func ReadHeader(r io.Reader) (hostport string, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
 		VER ATYP DST.ADDR DST.PORT
@@ -110,8 +143,8 @@ func ReadHeader(r io.Reader) (addr string, err error) {
 		return "", err
 	}
 	port := binary.BigEndian.Uint16(b[:2])
-	addr = net.JoinHostPort(host, strconv.Itoa(int(port)))
-	return addr, nil
+	hostport = net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+	return hostport, nil
 }
 
 func TimeReadHeader(r io.Reader, timeout time.Duration) (addr string, err error) {

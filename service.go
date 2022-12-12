@@ -190,11 +190,15 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool)
 	return &t, nil
 }
 
-// DialContext connects to ip:port target directly or through a tunnel, determined by the routing
+// DialContext connects to host:port target directly or through a tunnel, determined by the routing
 func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadWriteCloser, err error) {
 	policy := route.Direct
 	if t.router != nil {
-		p, e := t.router.Dispatch(target)
+		host, _, err := net.SplitHostPort(target)
+		if err != nil {
+			return nil, err
+		}
+		p, e := t.router.Dispatch(host)
 		if e != nil {
 			return nil, e
 		}

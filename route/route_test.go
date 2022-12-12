@@ -21,7 +21,7 @@ func TestRouter_Dispatch(t *testing.T) {
 		rules []string
 	}
 	type args struct {
-		addr string
+		host string
 	}
 	tests := []struct {
 		name    string
@@ -32,58 +32,52 @@ func TestRouter_Dispatch(t *testing.T) {
 	}{
 		{
 			name:    "no-rule",
-			args:    args{"www.apple.com:80"},
+			args:    args{"www.apple.com"},
 			wantErr: true,
 		},
 		{
 			name:    "empty-domain",
 			fields:  fields{rules: []string{"domain,,direct"}},
-			args:    args{"www.apple.com:80"},
+			args:    args{"www.apple.com"},
 			wantErr: true,
 		},
 		{
 			name:   "domain",
 			fields: fields{rules: []string{"domain,apple.com,direct", "final,faketag"}},
-			args:   args{"www.apple.com:80"},
+			args:   args{"www.apple.com"},
 			want:   "faketag",
 		},
 		{
 			name:    "domain-suffix",
 			fields:  fields{rules: []string{"domain-suffix,le.com,direct", "final,faketag"}},
-			args:    args{"www.google.com:443"},
+			args:    args{"www.google.com"},
 			want:    "faketag",
 			wantErr: false,
 		},
 		{
 			name:   "domain-keyword",
 			fields: fields{rules: []string{"domain-keyword,apple,faketag"}},
-			args:   args{"www.apple.com:80"},
+			args:   args{"www.apple.com"},
 			want:   "faketag",
 		},
 		{
 			name:   "geosite",
 			fields: fields{rules: []string{"geosite,private,faketag"}},
-			args:   args{"localhost:80"},
+			args:   args{"localhost"},
 			want:   "faketag",
 		},
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},
-			args:   args{"127.0.0.1:80"},
+			args:   args{"127.0.0.1"},
 			want:   "faketag",
 		},
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,192.168.0.0/16,faketag"}},
-			args:   args{"192.168.1.1:80"},
+			args:   args{"192.168.1.1"},
 			want:   "faketag",
 		},
-		// {
-		// 	name:   "geoip",
-		// 	fields: fields{rules: []string{"geoip,private,faketag"}},
-		// 	args:   args{addr: proxy.NewAddress("192.168.1.1", 80)},
-		// 	want:   "faketag",
-		// },
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,7 +88,7 @@ func TestRouter_Dispatch(t *testing.T) {
 				}
 				return
 			}
-			got, err := r.Dispatch(tt.args.addr)
+			got, err := r.Dispatch(tt.args.host)
 			if err != nil {
 				t.Error(err)
 				return
@@ -107,9 +101,8 @@ func TestRouter_Dispatch(t *testing.T) {
 	}
 }
 
-// 基准测试表明，示例路由匹配耗时低于20微秒。
-// 即使引入LRU缓存降低路由耗时，对于动辄几十毫秒的网络延迟时间来说，
-// 缓存效果并不明显，更何况由此引入高并发时互斥锁竞争的问题，因此不缓存。
+// 曾考虑引入LRU缓存降低路由耗时，但基准测试表明，示例路由匹配耗时低于20微秒。
+// 对于动辄几十毫秒的网络延迟时间来说，缓存效果并不明显，为避免过早优化，不作缓存。
 func Benchmark_Dispatch(b *testing.B) {
 	r, err := New([]string{
 		"geosite,cn,tag1",
@@ -122,7 +115,7 @@ func Benchmark_Dispatch(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = r.Dispatch("github.com:443")
+			_, _ = r.Dispatch("github.com")
 		}
 	})
 }

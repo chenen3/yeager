@@ -34,8 +34,8 @@ func TestSocksProxy(t *testing.T) {
 	defer s.Close()
 	go func() {
 		close(ready)
-		if err := s.Serve(lis, direct{}); err != nil {
-			t.Log(err)
+		if e := s.Serve(lis, direct{}); e != nil {
+			t.Log(e)
 		}
 	}()
 
