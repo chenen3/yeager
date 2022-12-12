@@ -111,7 +111,7 @@ func TestDial_Parallel(t *testing.T) {
 	defer ts.Close()
 	go func() {
 		close(ready)
-		if e := ts.Serve(listener, srvTLSConf);e != nil && !errors.Is(e, net.ErrClosed) {
+		if e := ts.Serve(listener, srvTLSConf); e != nil && !errors.Is(e, net.ErrClosed) {
 			t.Error(e)
 		}
 	}()

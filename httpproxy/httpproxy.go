@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -113,7 +114,7 @@ func (s *Server) Close() error {
 }
 
 // handshake reads request from conn, returns host:port address and http request, if any
-func handshake(conn net.Conn) (addr string, httpReq *http.Request, err error) {
+func handshake(conn net.Conn) (hostport string, httpReq *http.Request, err error) {
 	var req *http.Request
 	if req, err = http.ReadRequest(bufio.NewReader(conn)); err != nil {
 		return "", nil, err
@@ -137,6 +138,14 @@ func handshake(conn net.Conn) (addr string, httpReq *http.Request, err error) {
 		httpReq = req
 	}
 
-	addr = net.JoinHostPort(req.URL.Hostname(), port)
-	return addr, httpReq, nil
+	hostport = net.JoinHostPort(req.URL.Hostname(), port)
+	return escape(hostport), httpReq, nil
+}
+
+// If unsanitized user input is written to a log entry,
+// a malicious user may be able to forge new log entries.
+// More detail see https://github.com/chenen3/yeager/security/code-scanning/15
+func escape(s string) string {
+	s = strings.ReplaceAll(s, "\n", "")
+	return strings.ReplaceAll(s, "\r", "")
 }

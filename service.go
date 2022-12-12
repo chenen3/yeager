@@ -230,8 +230,7 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 func (t *Tunneler) Close() error {
 	var err error
 	for _, c := range t.closers {
-		e := c.Close()
-		if e != nil && err == nil {
+		if e := c.Close(); e != nil && err == nil {
 			err = e
 		}
 	}
