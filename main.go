@@ -37,7 +37,7 @@ Example:
   yeager -version
     	print version number
 
-  yeager -genconfig [-ip 1.2.3.4] [-srvconf server.yaml] [-cliconf client.yaml]
+  yeager -genconf [-ip 1.2.3.4] [-srvconf server.yaml] [-cliconf client.yaml]
     	generate a pair of configuration for server and client
 `
 
@@ -68,10 +68,10 @@ func main() {
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.version, "version", false, "print version")
-	flag.BoolVar(&flags.genConfig, "genconfig", false, "generate configuration")
-	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconfig")
-	flag.StringVar(&flags.srvConfFile, "srvconf", "server.yaml", "file name of server config, used with option -genconfig")
-	flag.StringVar(&flags.cliConfFile, "cliconf", "client.yaml", "file name of client config, used with option -genconfig")
+	flag.BoolVar(&flags.genConfig, "genconf", false, "generate configuration")
+	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
+	flag.StringVar(&flags.srvConfFile, "srvconf", "server.yaml", "file name of server config, used with option -genconf")
+	flag.StringVar(&flags.cliConfFile, "cliconf", "client.yaml", "file name of client config, used with option -genconf")
 	flag.Parse()
 
 	if flags.version {
