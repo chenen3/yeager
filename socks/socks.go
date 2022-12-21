@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	ylog "github.com/chenen3/yeager/log"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 )
@@ -69,7 +70,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	go f.FromClient()
 	go f.ToClient()
 	if err := <-f.C; err != nil {
-		log.Printf("forward %s: %s", dst, err)
+		ylog.Debugf("forward %s: %s", dst, err)
 	}
 }
 

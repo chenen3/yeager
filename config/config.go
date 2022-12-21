@@ -15,9 +15,7 @@ type Config struct {
 	TunnelListens []TunnelListen `yaml:"tunnelListens,omitempty"`
 	TunnelClients []TunnelClient `yaml:"tunnelClients,omitempty"`
 	Rules         []string       `yaml:"rules,omitempty"`
-	// verbose logging
-	Verbose bool `yaml:"verbose,omitempty"`
-	// enable HTTP server for debugging and profiling, developers only
+	// developer only: enable debug logging, start HTTP server for profiling
 	Debug bool `yaml:"debug,omitempty"`
 }
 
@@ -158,8 +156,6 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 		"geosite,apple@cn,direct",
 		"final,proxy",
 	}
-	// On client side, verbose logging helps to see where traffic is being sent to
-	cliConf.Verbose = true
 	bs, err = yaml.Marshal(cliConf)
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)

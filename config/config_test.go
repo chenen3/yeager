@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var rawConf = `verbose: true
+var rawConf = `
 socksListen: "127.0.0.1:1081"
 httpListen: "127.0.0.1:8081"
 tunnelListens:
@@ -79,7 +79,6 @@ func TestConfig(t *testing.T) {
 			},
 		},
 		Rules:   []string{"final,proxy"},
-		Verbose: true,
 		Debug:   true,
 	}
 

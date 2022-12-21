@@ -13,6 +13,7 @@ import (
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/httpproxy"
+	ylog "github.com/chenen3/yeager/log"
 	"github.com/chenen3/yeager/route"
 	"github.com/chenen3/yeager/socks"
 	"github.com/chenen3/yeager/tunnel"
@@ -26,7 +27,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 	var closers []io.Closer
 	var tunneler *Tunneler
 	if len(conf.TunnelClients) > 0 {
-		t, err := NewTunneler(conf.Rules, conf.TunnelClients, conf.Verbose)
+		t, err := NewTunneler(conf.Rules, conf.TunnelClients)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init dispatcher: %s", err)
 		}
@@ -129,12 +130,11 @@ func CloseAll(closers []io.Closer) {
 type Tunneler struct {
 	dialers map[string]tunnel.Dialer
 	router  *route.Router
-	verbose bool
 	closers []io.Closer
 }
 
 // NewTunneler creates a new Tunneler for client side proxy
-func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool) (*Tunneler, error) {
+func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, error) {
 	var t Tunneler
 	if len(rules) > 0 {
 		r, err := route.New(rules)
@@ -186,7 +186,6 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient, verbose bool)
 		}
 	}
 	t.dialers = dialers
-	t.verbose = verbose
 	return &t, nil
 }
 
@@ -209,9 +208,7 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 	case route.Reject:
 		return nil, errors.New("rule rejected")
 	case route.Direct:
-		if t.verbose {
-			log.Printf("connect %s", target)
-		}
+		ylog.Debugf("connect %s", target)
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", target)
 	default:
@@ -219,9 +216,7 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 		if !ok {
 			return nil, fmt.Errorf("unknown proxy policy: %s", policy)
 		}
-		if t.verbose {
-			log.Printf("connect %s via %s", target, policy)
-		}
+		ylog.Debugf("connect %s via %s", target, policy)
 		return d.DialContext(ctx, target)
 	}
 }

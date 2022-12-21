@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/chenen3/yeager/config"
+	ylog "github.com/chenen3/yeager/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -125,6 +126,7 @@ func main() {
 	}
 
 	if conf.Debug {
+		ylog.EnableDebug()
 		go func() {
 			err := http.ListenAndServe("localhost:6060", nil)
 			if err != nil {

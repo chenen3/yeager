@@ -4,10 +4,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
 
+	"github.com/chenen3/yeager/log"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
@@ -60,7 +60,7 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	go f.FromClient()
 	go f.ToClient()
 	if err := <-f.C; err != nil {
-		log.Printf("forward %s: %s", dst, err)
+		log.Debugf("forward %s: %s", dst, err)
 	}
 	return nil
 }
