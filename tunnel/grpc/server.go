@@ -88,21 +88,24 @@ func wrapServerStream(stream pb.Tunnel_StreamServer) *serverStreamWrapper {
 	return &serverStreamWrapper{stream: stream}
 }
 
-func (c *serverStreamWrapper) Read(b []byte) (n int, err error) {
-	if c.off >= len(c.buf) {
-		data, err := c.stream.Recv()
+func (s *serverStreamWrapper) Read(b []byte) (n int, err error) {
+	if s.off >= len(s.buf) {
+		data, err := s.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
-		c.buf = data.Data
-		c.off = 0
+		s.buf = data.Data
+		s.off = 0
 	}
-	n = copy(b, c.buf[c.off:])
-	c.off += n
+	n = copy(b, s.buf[s.off:])
+	s.off += n
 	return n, nil
 }
 
-func (c *serverStreamWrapper) Write(b []byte) (n int, err error) {
-	err = c.stream.Send(&pb.Data{Data: b})
-	return len(b), err
+func (s *serverStreamWrapper) Write(b []byte) (n int, err error) {
+	err = s.stream.Send(&pb.Data{Data: b})
+	if err != nil {
+		return 0, err
+	}
+	return len(b), nil
 }

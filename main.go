@@ -12,11 +12,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/chenen3/yeager/config"
 	ylog "github.com/chenen3/yeager/log"
 	"gopkg.in/yaml.v3"
 )
+
+var version string
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -25,10 +28,10 @@ func init() {
 		flag.PrintDefaults()
 		fmt.Fprint(flag.CommandLine.Output(), example)
 	}
+	if version == "" {
+		version = "dev" + time.Now().Format("2006.01.02")
+	}
 }
-
-// set by Github Action on release
-var version = "dev"
 
 var example = `
 Example:

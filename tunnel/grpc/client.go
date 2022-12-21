@@ -120,7 +120,10 @@ func (sw *clientStreamWrapper) Read(b []byte) (n int, err error) {
 //	users should ensure the RPC completed successfully using RecvMsg.
 func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
 	err = sw.stream.Send(&pb.Data{Data: b})
-	return len(b), err
+	if err != nil {
+		return 0, err
+	}
+	return len(b), nil
 }
 
 func (sw *clientStreamWrapper) Close() error {
