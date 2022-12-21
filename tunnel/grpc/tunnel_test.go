@@ -1,170 +1,171 @@
 package grpc
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net"
-	"net/http"
-	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
 )
 
-func TestGrpcTunnel(t *testing.T) {
-	want := "ok"
-	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, want)
-	}))
-	defer hs.Close()
-
+func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatal(err)
+		return nil, nil, err
 	}
-	ready := make(chan struct{})
-
 	ct, err := cert.Generate("127.0.0.1")
 	if err != nil {
-		t.Fatal(err)
+		return nil, nil, err
 	}
 	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
 	if err != nil {
-		t.Fatal(err)
+		return nil, nil, err
 	}
-
 	ts := new(TunnelServer)
-	defer ts.Close()
 	go func() {
-		close(ready)
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
-			t.Error(e)
+			log.Print(err)
 		}
 	}()
 
 	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
 	if err != nil {
-		t.Fatal(err)
+		return nil, nil, err
 	}
 	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf, 1)
-	defer tc.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	<-ready
-	// the proxy server may not started yet
-	time.Sleep(time.Millisecond)
-	rwc, err := tc.DialContext(ctx, hs.Listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	req, err := http.NewRequest("GET", hs.URL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = req.Write(rwc); err != nil {
-		t.Fatal(err)
-	}
-	resp, err := http.ReadResponse(bufio.NewReader(rwc), req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("bad status: %s", resp.Status)
-	}
-	got, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != want {
-		t.Fatalf("want %s, got %s", want, got)
+	return ts, tc, nil
+}
+
+type echoServer struct {
+	Listener net.Listener
+	running  sync.WaitGroup
+}
+
+func (e *echoServer) Serve() {
+	e.running.Add(1)
+	defer e.running.Done()
+	for {
+		conn, err := e.Listener.Accept()
+		if err != nil {
+			if e != nil && !errors.Is(err, net.ErrClosed) {
+				log.Printf("failed to accept conn: %v", err)
+			}
+			return
+		}
+		e.running.Add(1)
+		go func() {
+			defer e.running.Done()
+			io.Copy(conn, conn)
+			conn.Close()
+		}()
 	}
 }
 
-func TestDial_Parallel(t *testing.T) {
-	ok := "ok"
-	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, ok)
-	}))
-	defer hs.Close()
+func (e *echoServer) Close() error {
+	err := e.Listener.Close()
+	e.running.Wait()
+	return err
+}
 
+func startEchoServer() (*echoServer, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	ready := make(chan struct{})
+	e := echoServer{Listener: listener}
+	go e.Serve()
+	return &e, nil
+}
 
-	ct, err := cert.Generate("127.0.0.1")
+func TestTunnel(t *testing.T) {
+	echo, err := startEchoServer()
 	if err != nil {
 		t.Fatal(err)
 	}
-	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
+	defer echo.Close()
+
+	ts, tc, err := startTunnel()
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	ts := new(TunnelServer)
 	defer ts.Close()
-	go func() {
-		close(ready)
-		if e := ts.Serve(listener, srvTLSConf); e != nil && !errors.Is(e, net.ErrClosed) {
-			t.Error(e)
-		}
-	}()
+	defer tc.Close()
+	// the tunnel server may not started yet
+	time.Sleep(time.Millisecond)
 
-	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf, 1)
+	want := []byte{1}
+	got := make([]byte, len(want))
+	if _, err := rwc.Write(want); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rwc.Read(got); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func BenchmarkThroughput(b *testing.B) {
+	echo, err := startEchoServer()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer echo.Close()
+
+	ts, tc, err := startTunnel()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer ts.Close()
 	defer tc.Close()
-	<-ready
-	// the proxy server may not started yet
+	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
-	t.Run("group", func(t *testing.T) {
-		parallelTest := func(t *testing.T) {
-			t.Parallel()
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			rwc, err := tc.DialContext(ctx, hs.Listener.Addr().String())
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			req, err := http.NewRequest("GET", hs.URL, nil)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			if err = req.Write(rwc); err != nil {
-				t.Error(err)
-				return
-			}
-			resp, err := http.ReadResponse(bufio.NewReader(rwc), req)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				t.Errorf("bad status: %s", resp.Status)
-			}
-			got, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			if string(got) != ok {
-				t.Errorf("want %s, got %s", ok, got)
-				return
-			}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	const n = 1000
+	up := make([]byte, n)
+	for i := 0; i < n; i++ {
+		up[i] = byte(i)
+	}
+	down := make([]byte, n)
+	start := time.Now()
+	b.ResetTimer()
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < b.N; i++ {
+			rwc.Write(up)
 		}
-		t.Run("test1", parallelTest)
-		t.Run("test2", parallelTest)
-		t.Run("test3", parallelTest)
-	})
+		close(done)
+	}()
+	for i := 0; i < b.N; i++ {
+		rwc.Read(down)
+	}
+	b.StopTimer()
+	elapsed := time.Since(start)
+
+	megabits := 8 * n * b.N / 1e6
+	b.ReportMetric(float64(megabits)/elapsed.Seconds(), "mbps")
+
+	rwc.Close()
+	<-done
 }

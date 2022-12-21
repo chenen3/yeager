@@ -41,7 +41,7 @@ Example:
     	generate a pair of configuration for server and client
 `
 
-func publicIP() (string, error) {
+func checkIP() (string, error) {
 	resp, err := http.Get("https://checkip.amazonaws.com")
 	if err != nil {
 		return "", err
@@ -82,7 +82,7 @@ func main() {
 	if flags.genConfig {
 		ip := flags.ip
 		if ip == "" {
-			i, err := publicIP()
+			i, err := checkIP()
 			if err != nil {
 				fmt.Printf("get public IP: %s\n", err)
 				return
