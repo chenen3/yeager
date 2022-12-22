@@ -11,6 +11,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -127,6 +128,8 @@ func main() {
 		CloseAll(closers)
 		return
 	}
+	// parsing routing rules can be memory intensive
+	debug.FreeOSMemory()
 
 	if conf.Debug {
 		ylog.EnableDebug()
