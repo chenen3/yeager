@@ -1,12 +1,13 @@
-package route
+package rule
 
 import (
 	"errors"
 	"os"
 	"path"
+	"runtime/debug"
 	"strings"
 
-	"github.com/chenen3/yeager/route/pb"
+	"github.com/chenen3/yeager/rule/pb"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -65,7 +66,22 @@ func extractCountrySite(country string) ([]*pb.Domain, error) {
 	return nil, errors.New("unsupported country code: " + country)
 }
 
-type geoSiteMatcher []matcher
+// Cleanup clear domain-list and frees memory,
+// because parsing geosite.dat can be memory intensive
+func Cleanup() {
+	if geoSites == nil {
+		return
+	}
+	// free heap objects
+	geoSites = nil
+	debug.FreeOSMemory()
+}
+
+type matchFunc func(host) bool
+
+// benchmark shows that a geoSiteMatcher composed of function
+// is nearly 40% faster than one composed of interface
+type geoSiteMatcher []matchFunc
 
 func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 	// 配置规则geosite的值可能带有属性，例如 google@ads ，表示只要google所有域名中带有ads属性的域名
@@ -86,28 +102,29 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 		if len(attrs) > 0 && !domainContainsAnyAttr(domain, attrs) {
 			continue
 		}
-		var m matcher
+		var f matchFunc
 		switch domain.Type {
 		case pb.Domain_Plain:
-			m = domainKeywordMatcher(domain.Value)
+			f = domainKeywordMatcher(domain.Value).Match
 		case pb.Domain_RootDomain:
-			m = domainSuffixMatcher(domain.Value)
+			f = domainSuffixMatcher(domain.Value).Match
 		case pb.Domain_Full:
-			m = domainMatcher(domain.Value)
+			f = domainMatcher(domain.Value).Match
 		case pb.Domain_Regex:
-			m, err = newRegexMatcher(domain.Value)
+			rm, err := newRegexMatcher(domain.Value)
 			if err != nil {
 				return nil, err
 			}
+			f = rm.Match
 		}
-		g = append(g, m)
+		g = append(g, f)
 	}
 	return g, nil
 }
 
 func (g geoSiteMatcher) Match(h host) bool {
-	for _, m := range g {
-		if m.Match(h) {
+	for _, f := range g {
+		if f(h) {
 			return true
 		}
 	}

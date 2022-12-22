@@ -78,8 +78,8 @@ func TestConfig(t *testing.T) {
 				ConnectionPoolSize: 3,
 			},
 		},
-		Rules:   []string{"final,proxy"},
-		Debug:   true,
+		Rules: []string{"final,proxy"},
+		Debug: true,
 	}
 
 	var got Config

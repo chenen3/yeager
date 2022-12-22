@@ -1,4 +1,4 @@
-package route
+package rule
 
 import (
 	"os"
@@ -67,6 +67,12 @@ func TestRouter_Dispatch(t *testing.T) {
 			want:   "faketag",
 		},
 		{
+			name:   "geosite",
+			fields: fields{rules: []string{"geosite,apple@cn,faketag"}},
+			args:   args{"apple.cn"},
+			want:   "faketag",
+		},
+		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},
 			args:   args{"127.0.0.1"},
@@ -81,14 +87,14 @@ func TestRouter_Dispatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := New(tt.fields.rules)
+			r, err := Parse(tt.fields.rules)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("want no error, got error: %v", err)
 				}
 				return
 			}
-			got, err := r.Dispatch(tt.args.host)
+			got, err := r.Match(tt.args.host)
 			if err != nil {
 				t.Error(err)
 				return
@@ -101,21 +107,18 @@ func TestRouter_Dispatch(t *testing.T) {
 	}
 }
 
-// 曾考虑引入LRU缓存降低路由耗时，但基准测试表明，示例路由匹配耗时低于20微秒。
+// 曾考虑引入LRU缓存降低路由耗时，但基准测试表明，示例路由匹配时间约30微秒。
 // 对于动辄几十毫秒的网络延迟时间来说，缓存效果并不明显，为避免过早优化，不作缓存。
 func Benchmark_Dispatch(b *testing.B) {
-	r, err := New([]string{
+	r, err := Parse([]string{
 		"geosite,cn,tag1",
-		"final,tag2",
 	})
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, _ = r.Dispatch("github.com")
-		}
-	})
+	for i := 0; i < b.N; i++ {
+		r.Match("fake.com")
+	}
 }

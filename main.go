@@ -11,12 +11,12 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"syscall"
 	"time"
 
 	"github.com/chenen3/yeager/config"
 	ylog "github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/rule"
 	"gopkg.in/yaml.v3"
 )
 
@@ -128,8 +128,7 @@ func main() {
 		CloseAll(closers)
 		return
 	}
-	// parsing routing rules can be memory intensive
-	debug.FreeOSMemory()
+	rule.Cleanup()
 
 	if conf.Debug {
 		ylog.EnableDebug()
