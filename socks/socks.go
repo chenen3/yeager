@@ -65,11 +65,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	}
 	defer remote.Close()
 
-	f := ynet.NewForwarder(conn, remote)
-	// would like to see the goroutine's explicit name while profiling
-	go f.FromClient()
-	go f.ToClient()
-	if err := <-f.C; err != nil {
+	if err := ynet.Relay(conn, remote); err != nil {
 		ylog.Debugf("forward %s: %s", dst, err)
 	}
 }

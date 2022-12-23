@@ -56,10 +56,7 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	}
 	defer remote.Close()
 
-	f := ynet.NewForwarder(stream, remote)
-	go f.FromClient()
-	go f.ToClient()
-	if err := <-f.C; err != nil {
+	if err := ynet.Relay(stream, remote); err != nil {
 		log.Debugf("forward %s: %s", dst, err)
 	}
 	return nil

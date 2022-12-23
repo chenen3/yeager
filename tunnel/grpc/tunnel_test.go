@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
+	ynet "github.com/chenen3/yeager/net"
 )
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {
@@ -43,49 +42,8 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	return ts, tc, nil
 }
 
-type echoServer struct {
-	Listener net.Listener
-	running  sync.WaitGroup
-}
-
-func (e *echoServer) Serve() {
-	e.running.Add(1)
-	defer e.running.Done()
-	for {
-		conn, err := e.Listener.Accept()
-		if err != nil {
-			if e != nil && !errors.Is(err, net.ErrClosed) {
-				log.Printf("failed to accept conn: %v", err)
-			}
-			return
-		}
-		e.running.Add(1)
-		go func() {
-			defer e.running.Done()
-			io.Copy(conn, conn)
-			conn.Close()
-		}()
-	}
-}
-
-func (e *echoServer) Close() error {
-	err := e.Listener.Close()
-	e.running.Wait()
-	return err
-}
-
-func startEchoServer() (*echoServer, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, err
-	}
-	e := echoServer{Listener: listener}
-	go e.Serve()
-	return &e, nil
-}
-
 func TestTunnel(t *testing.T) {
-	echo, err := startEchoServer()
+	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +78,7 @@ func TestTunnel(t *testing.T) {
 }
 
 func BenchmarkThroughput(b *testing.B) {
-	echo, err := startEchoServer()
+	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		b.Fatal(err)
 	}

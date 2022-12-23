@@ -56,7 +56,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	dst, httpReq, err := handshake(conn)
 	conn.SetDeadline(time.Time{})
 	if err != nil {
-		log.Printf("handshake: %s", err.Error())
+		log.Printf("handshake: %s", err)
 		return
 	}
 
@@ -75,10 +75,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 			return
 		}
 	}
-	f := ynet.NewForwarder(conn, remote)
-	go f.FromClient()
-	go f.ToClient()
-	if err := <-f.C; err != nil {
+	if err := ynet.Relay(conn, remote); err != nil {
 		ylog.Debugf("forward %s: %s", dst, err)
 	}
 }
