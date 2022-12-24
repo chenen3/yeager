@@ -83,8 +83,8 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 	}
 	defer remote.Close()
 
-	if err := ynet.Relay(stream, remote); err != nil {
-		ylog.Debugf("forward %s: %s", dst, err)
+	if _, _, err := ynet.Relay(stream, remote); err != nil {
+		ylog.Debugf("relay %s: %s", dst, err)
 	}
 }
 

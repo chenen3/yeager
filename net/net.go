@@ -24,9 +24,9 @@ var bufPool = sync.Pool{
 	},
 }
 
-// copyBufferPool adapted from copyBuffer in go/src/io/io.go, copies from src to dst.
+// CopyBufferPool adapted from copyBuffer in go/src/io/io.go, copies from src to dst.
 // The buffer will be fetched from cache or a new one allocated to perform the copy.
-func copyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
+func CopyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
 	b := bufPool.Get().(*[]byte)
 	for {
 		nr, er := src.Read(*b)
@@ -59,23 +59,47 @@ func copyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
 	return written, err
 }
 
+type result struct {
+	n   int64
+	err error
+}
+
 // the existence of this function helps to see the explicit name
 // of the goroutine when profiling
-func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {
-	_, err := copyBufferPool(dst, src)
-	ch <- err
+func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
+	n, err := CopyBufferPool(dst, src)
+	ch <- result{n, err}
+	// unblock Read on dst
+	dst.Close()
 }
 
 // Relay copies data in both directions between local and remote,
-// blocks until one of them completes.
-// After Relay returns, the caller should close local and remote,
-// so that the goroutine of oneWayRelay will exit as soon as possible.
-func Relay(local, remote io.ReadWriter) error {
-	// given unbuffered channel will block the left goroutine of oneWayRelay forever
-	ch := make(chan error, 2)
-	go oneWayRelay(remote, local, ch)
-	go oneWayRelay(local, remote, ch)
-	return <-ch
+// blocks until one of them completes, returns the number of bytes sent and received
+func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err error) {
+	sendCh := make(chan result)
+	recvCh := make(chan result)
+	go oneWayRelay(remote, local, sendCh)
+	go oneWayRelay(local, remote, recvCh)
+	var rSent, rRecv result
+	// to avoid flooding error message, ignore error of the second result
+	select {
+	case rSent = <-sendCh:
+		err = rSent.err
+		rRecv = <-recvCh
+	case rRecv = <-recvCh:
+		err = rRecv.err
+		rSent = <-sendCh
+	}
+	return rSent.n, rRecv.n, err
+}
+
+func ReadableBytes(n int64) (num float64, unit string) {
+	if n >= 1024*1024 {
+		return float64(n) / (1024 * 1024), "MB"
+	} else if n >= 1024 {
+		return float64(n) / 1024, "KB"
+	}
+	return float64(n), "Byte"
 }
 
 // EchoServer accepts connection and writes back anything it reads from the connection.

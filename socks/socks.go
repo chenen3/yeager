@@ -65,9 +65,14 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	}
 	defer remote.Close()
 
-	if err := ynet.Relay(conn, remote); err != nil {
-		ylog.Debugf("forward %s: %s", dst, err)
+	sent, recv, err := ynet.Relay(conn, remote)
+	if err != nil {
+		ylog.Debugf("relay %s: %s", dst, err)
+		return
 	}
+	numSent, unitSent := ynet.ReadableBytes(sent)
+	numRecv, unitRecv := ynet.ReadableBytes(recv)
+	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, numSent, unitSent, numRecv, unitRecv)
 }
 
 var connCount = expvar.NewInt("socksConnCount")
@@ -128,8 +133,9 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 	}
 
 	// socks5服务在此仅作为入站代理，使用场景应该是本地内网，无需认证
-	// write VER METHOD
-	if _, err = rw.Write([]byte{0x05, 0x00}); err != nil {
+	// VER METHOD
+	noAuth := []byte{0x05, 0x00}
+	if _, err = rw.Write(noAuth); err != nil {
 		return "", err
 	}
 	// read VER CMD RSV ATYP DST.ADDR DST.PORT
@@ -141,13 +147,14 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 		return "", fmt.Errorf("yet not supported cmd: %x", cmd)
 	}
 
-	addr, err = readAddr(rw)
+	addr, err = readAddr(rw, buf)
 	if err != nil {
 		return "", err
 	}
 
-	// write VER REP RSV ATYP BND.ADDR BND.PORT
-	if _, err = rw.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); err != nil {
+	// VER REP RSV ATYP BND.ADDR BND.PORT
+	resp := []byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	if _, err = rw.Write(resp); err != nil {
 		return "", err
 	}
 
@@ -158,8 +165,10 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 // bytes order:
 //
 //	ATYP BND.ADDR BND.PORT
-func readAddr(r io.Reader) (addr string, err error) {
-	b := make([]byte, maxAddrLen)
+func readAddr(r io.Reader, b []byte) (addr string, err error) {
+	if len(b) < maxAddrLen {
+		return "", errors.New("short buffer")
+	}
 	if _, err = io.ReadFull(r, b[:1]); err != nil {
 		return "", err
 	}

@@ -56,10 +56,18 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	}
 	defer remote.Close()
 
-	if err := ynet.Relay(stream, remote); err != nil {
-		log.Debugf("forward %s: %s", dst, err)
+	ch := make(chan error, 2)
+	go oneWayRelay(remote, stream, ch)
+	go oneWayRelay(stream, remote, ch)
+	if err := <-ch; err != nil {
+		log.Debugf("relay %s: %s", dst, err)
 	}
 	return nil
+}
+
+func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {
+	_, err := ynet.CopyBufferPool(dst, src)
+	ch <- err
 }
 
 func (s *TunnelServer) Close() error {

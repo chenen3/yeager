@@ -29,7 +29,7 @@ func TestCopyBufferPool(t *testing.T) {
 	s := []byte{1, 2, 3}
 	r := &reader{s: s}
 	var buf bytes.Buffer
-	if _, err := copyBufferPool(&buf, r); err != nil {
+	if _, err := CopyBufferPool(&buf, r); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(buf.Bytes(), s) {
@@ -83,12 +83,12 @@ func BenchmarkCopyBufferPool(b *testing.B) {
 	b.ResetTimer()
 	done := make(chan struct{})
 	go func() {
-		copyBufferPool(io.Discard, conn)
+		CopyBufferPool(io.Discard, conn)
 		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
 		r := &reader{s: bs}
-		copyBufferPool(conn, r)
+		CopyBufferPool(conn, r)
 	}
 	b.StopTimer()
 	conn.(*net.TCPConn).CloseWrite()

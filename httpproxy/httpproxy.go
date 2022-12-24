@@ -70,14 +70,20 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer remote.Close()
 
 	if httpReq != nil {
-		if err := httpReq.Write(remote); err != nil {
+		if err = httpReq.Write(remote); err != nil {
 			log.Print(err)
 			return
 		}
 	}
-	if err := ynet.Relay(conn, remote); err != nil {
-		ylog.Debugf("forward %s: %s", dst, err)
+
+	sent, recv, err := ynet.Relay(conn, remote)
+	if err != nil {
+		ylog.Debugf("relay %s: %s", dst, err)
+		return
 	}
+	numSent, unitSent := ynet.ReadableBytes(sent)
+	numRecv, unitRecv := ynet.ReadableBytes(recv)
+	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, numSent, unitSent, numRecv, unitRecv)
 }
 
 var connCount = expvar.NewInt("httpProxyConnCount")
