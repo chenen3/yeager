@@ -66,7 +66,7 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 }
 
 func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {
-	_, err := ynet.CopyBufferPool(dst, src)
+	_, err := ynet.Copy(dst, src)
 	ch <- err
 }
 

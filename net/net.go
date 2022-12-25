@@ -24,9 +24,8 @@ var bufPool = sync.Pool{
 	},
 }
 
-// CopyBufferPool adapted from copyBuffer in go/src/io/io.go, copies from src to dst.
-// The buffer will be fetched from cache or a new one allocated to perform the copy.
-func CopyBufferPool(dst io.Writer, src io.Reader) (written int64, err error) {
+// Copy adapted from io.Copy, copies from src to dst using a cached or allocated buffer.
+func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	b := bufPool.Get().(*[]byte)
 	for {
 		nr, er := src.Read(*b)
@@ -67,7 +66,7 @@ type result struct {
 // the existence of this function helps to see the explicit name
 // of the goroutine when profiling
 func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
-	n, err := CopyBufferPool(dst, src)
+	n, err := Copy(dst, src)
 	ch <- result{n, err}
 	// unblock Read on dst
 	dst.Close()
@@ -80,19 +79,21 @@ func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err er
 	recvCh := make(chan result)
 	go oneWayRelay(remote, local, sendCh)
 	go oneWayRelay(local, remote, recvCh)
-	var rSent, rRecv result
+	var send, recv result
 	// to avoid flooding error message, ignore error of the second result
 	select {
-	case rSent = <-sendCh:
-		err = rSent.err
-		rRecv = <-recvCh
-	case rRecv = <-recvCh:
-		err = rRecv.err
-		rSent = <-sendCh
+	case send = <-sendCh:
+		err = send.err
+		recv = <-recvCh
+	case recv = <-recvCh:
+		err = recv.err
+		send = <-sendCh
 	}
-	return rSent.n, rRecv.n, err
+	return send.n, recv.n, err
 }
 
+// ReadableBytes converts the number of bytes into human-friendly unit.
+// For example, given 1024 bytes, returns 1 KB.
 func ReadableBytes(n int64) (num float64, unit string) {
 	if n >= 1024*1024 {
 		return float64(n) / (1024 * 1024), "MB"
