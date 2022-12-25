@@ -7,6 +7,6 @@ RUN mkdir build &&\
 FROM alpine:latest
 WORKDIR /
 COPY --from=builder /yeager/build/yeager /usr/local/bin/yeager
-COPY --from=builder /yeager/route/testdata/geosite.dat /usr/local/share/yeager/geosite.dat
+COPY --from=builder /yeager/rule/testdata/geosite.dat /usr/local/share/yeager/geosite.dat
 
 CMD ["/usr/local/bin/yeager", "-config", "/usr/local/etc/yeager/config.yaml"]
