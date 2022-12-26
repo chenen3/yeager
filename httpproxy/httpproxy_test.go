@@ -108,3 +108,20 @@ func TestHttpsProxy(t *testing.T) {
 		t.Fatalf("got %s, want %s", got, want)
 	}
 }
+
+func TestServer_Close(t *testing.T) {
+	var s Server
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s = Server{}
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go s.Close()
+	if err := s.Serve(lis, direct{}); err != nil {
+		t.Fatal(err)
+	}
+}

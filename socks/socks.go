@@ -19,27 +19,31 @@ import (
 )
 
 type Server struct {
-	mu          sync.Mutex
-	lis         net.Listener
-	activeConns map[net.Conn]struct{}
+	mu         sync.Mutex
+	lis        net.Listener
+	activeConn map[net.Conn]struct{}
+	done       chan struct{}
 }
 
-// Serve will return a non-nil error unless Close is called.
+// Serve serves connection accepted by lis,
+// blocks until an unexpected error is encounttered or Close is called
 func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
+	s.done = make(chan struct{})
 	s.mu.Unlock()
 
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				err = nil
+			select {
+			case <-s.done:
+				return nil
+			default:
+				return err
 			}
-			return err
 		}
 
-		// tracking connection in handleConn synchronously will casue unnecessary blocking
 		s.trackConn(conn, true)
 		go s.handleConn(conn, d)
 	}
@@ -78,30 +82,37 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 var connCount = expvar.NewInt("socksConnCount")
 
 func (s *Server) trackConn(c net.Conn, add bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.activeConns == nil {
-		s.activeConns = make(map[net.Conn]struct{})
-	}
 	if add {
-		s.activeConns[c] = struct{}{}
 		connCount.Add(1)
 	} else {
-		delete(s.activeConns, c)
 		connCount.Add(-1)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.activeConn == nil {
+		s.activeConn = make(map[net.Conn]struct{})
+	}
+	if add {
+		s.activeConn[c] = struct{}{}
+	} else {
+		delete(s.activeConn, c)
 	}
 }
 
 func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.done != nil {
+		close(s.done)
+	}
 	var err error
 	if s.lis != nil {
 		err = s.lis.Close()
 	}
-	for c := range s.activeConns {
+	for c := range s.activeConn {
 		c.Close()
-		delete(s.activeConns, c)
+		delete(s.activeConn, c)
 	}
 	return err
 }
