@@ -2,18 +2,21 @@ package grpc
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync"
 
-	"github.com/chenen3/yeager/log"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 // TunnelServer is a GRPC tunnel server, its zero value is ready to use
@@ -59,10 +62,19 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	ch := make(chan error, 2)
 	go oneWayRelay(remote, stream, ch)
 	go oneWayRelay(stream, remote, ch)
-	if err := <-ch; err != nil {
-		log.Debugf("relay %s: %s", dst, err)
+	if err := <-ch; err != nil && !isClosedOrCanceled(err) {
+		log.Printf("relay %s: %s", dst, err)
 	}
 	return nil
+}
+
+// check for closed or canceled error cause by dst.Close() in oneWayRelay
+func isClosedOrCanceled(err error) bool {
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	s, ok := status.FromError(err)
+	return ok && s != nil && s.Code() == codes.Canceled
 }
 
 func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {
