@@ -7,6 +7,10 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/lucas-clemente/quic-go"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -59,12 +63,11 @@ func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 }
 
 type result struct {
-	n   int64
-	err error
+	N   int64
+	Err error
 }
 
-// the existence of this function helps to see the explicit name
-// of the goroutine when profiling
+// oneWayRelay exists just so that profiling show the name of the goroutine
 func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
 	n, err := Copy(dst, src)
 	ch <- result{n, err}
@@ -73,23 +76,34 @@ func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
 }
 
 // Relay copies data in both directions between local and remote,
-// blocks until one of them completes, returns the number of bytes sent and received
+// blocks until one of them completes, returns the number of bytes
+// sent to remote and received from remote.
 func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err error) {
 	sendCh := make(chan result)
 	recvCh := make(chan result)
 	go oneWayRelay(remote, local, sendCh)
 	go oneWayRelay(local, remote, recvCh)
-	var send, recv result
-	// to avoid flooding error message, ignore error of the second result
-	select {
-	case send = <-sendCh:
-		err = send.err
-		recv = <-recvCh
-	case recv = <-recvCh:
-		err = recv.err
-		send = <-sendCh
+	send := <-sendCh
+	recv := <-recvCh
+	if send.Err != nil && !isClosedOrCanceled(send.Err) {
+		err = send.Err
 	}
-	return send.n, recv.n, err
+	if err != nil && recv.Err != nil && !isClosedOrCanceled(recv.Err) {
+		err = recv.Err
+	}
+	return send.N, recv.N, err
+}
+
+// check for closed or canceled error cause by dst.Close() in oneWayRelay
+func isClosedOrCanceled(err error) bool {
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	if errors.Is(err, new(quic.StreamError)) {
+		return true
+	}
+	s, ok := status.FromError(err)
+	return ok && s != nil && s.Code() == codes.Canceled
 }
 
 // ReadableBytes converts the number of bytes into human-friendly unit.
@@ -100,7 +114,7 @@ func ReadableBytes(n int64) (num float64, unit string) {
 	} else if n >= 1024 {
 		return float64(n) / 1024, "KB"
 	}
-	return float64(n), "Byte"
+	return float64(n), "B"
 }
 
 // EchoServer accepts connection and writes back anything it reads from the connection.
