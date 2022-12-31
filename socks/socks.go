@@ -79,9 +79,10 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, numSent, unitSent, numRecv, unitRecv)
 }
 
-var connCount = expvar.NewInt("socksConnCount")
+var connCount = expvar.NewInt("connSOCKSProxy")
 
 func (s *Server) trackConn(c net.Conn, add bool) {
+	// TODO: can connCount set its value to len(Server.activeConn) in an elegant way?
 	if add {
 		connCount.Add(1)
 	} else {

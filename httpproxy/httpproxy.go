@@ -88,7 +88,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, numSent, unitSent, numRecv, unitRecv)
 }
 
-var connCount = expvar.NewInt("httpProxyConnCount")
+var connCount = expvar.NewInt("connHTTPProxy")
 
 func (s *Server) trackConn(c net.Conn, add bool) {
 	if add {
