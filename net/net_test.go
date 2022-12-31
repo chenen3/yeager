@@ -4,30 +4,17 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"sync"
 	"testing"
 )
 
-// reader implements the io.Reader interface,
-// but does not implement the io.WriterTo interface.
-// It is intended to replace bytes.Reader for testing,
-// so that io.Copy will copy with buffer, instead of calling WriteTo
-type reader struct {
-	s   []byte
-	off int
-}
-
-func (r *reader) Read(p []byte) (int, error) {
-	if r.off >= len(r.s) {
-		return 0, io.EOF
-	}
-	n := copy(p, r.s[r.off:])
-	r.off += n
-	return n, nil
+type readerOnly struct {
+	io.Reader
 }
 
 func TestCopyBufferPool(t *testing.T) {
 	s := []byte{1, 2, 3}
-	r := &reader{s: s}
+	r := bytes.NewReader(s)
 	var buf bytes.Buffer
 	if _, err := Copy(&buf, r); err != nil {
 		t.Fatal(err)
@@ -57,7 +44,9 @@ func BenchmarkIOCopy(b *testing.B) {
 		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
-		r := &reader{s: bs}
+		// readerOnly hides the bytes.Reader's WriteTo from io.Copy,
+		// so that io.Copy will use buffer for copying.
+		r := &readerOnly{bytes.NewReader(bs)}
 		io.Copy(conn, r)
 	}
 	b.StopTimer()
@@ -87,11 +76,43 @@ func BenchmarkCopyBufferPool(b *testing.B) {
 		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
-		r := &reader{s: bs}
+		r := &readerOnly{bytes.NewReader(bs)}
 		Copy(conn, r)
 	}
 	b.StopTimer()
 	conn.(*net.TCPConn).CloseWrite()
 	<-done
 	conn.Close()
+}
+
+var testSrc = make([]byte, 8*1024*1024)
+
+// benchmark shows better CPU performance and less allocation with 16KB buffer
+
+func BenchmarkBufSize16KB(b *testing.B) {
+	bufPool = sync.Pool{
+		New: func() any {
+			s := make([]byte, 16*1024)
+			return &s
+		},
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := bytes.NewReader(testSrc)
+		Copy(io.Discard, r)
+	}
+}
+
+func BenchmarkBufSize32KB(b *testing.B) {
+	bufPool = sync.Pool{
+		New: func() any {
+			s := make([]byte, 32*1024)
+			return &s
+		},
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := bytes.NewReader(testSrc)
+		Copy(io.Discard, r)
+	}
 }

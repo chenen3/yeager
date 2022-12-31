@@ -80,15 +80,15 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	sent, recv, err := ynet.Relay(conn, remote)
 	if err != nil {
-		ylog.Debugf("relay %s: %s", dst, err)
+		log.Printf("relay %s: %s", dst, err)
 		return
 	}
-	sentNum, sentUnit := ynet.ReadableBytes(sent)
-	recvNum, recvUnit := ynet.ReadableBytes(recv)
-	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, sentNum, sentUnit, recvNum, recvUnit)
+	numSent, unitSent := ynet.ReadableBytes(sent)
+	numRecv, unitRecv := ynet.ReadableBytes(recv)
+	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, numSent, unitSent, numRecv, unitRecv)
 }
 
-var connCount = expvar.NewInt("httpProxyConnCount")
+var connCount = expvar.NewInt("connHTTPProxy")
 
 func (s *Server) trackConn(c net.Conn, add bool) {
 	if add {

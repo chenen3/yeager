@@ -2,6 +2,7 @@ package net
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -20,9 +21,12 @@ const (
 	IdleConnTimeout  = 90 * time.Second
 )
 
+// refer to 16KB maxPlaintext in crypto/tls/common.go
+const bufferSize = 16 * 1024
+
 var bufPool = sync.Pool{
 	New: func() any {
-		s := make([]byte, 32*1024)
+		s := make([]byte, bufferSize)
 		// A pointer can be put into the return interface value without an allocation.
 		return &s
 	},
@@ -86,10 +90,10 @@ func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err er
 	send := <-sendCh
 	recv := <-recvCh
 	if send.Err != nil && !isClosedOrCanceled(send.Err) {
-		err = send.Err
+		err = fmt.Errorf("send: %s", send.Err)
 	}
 	if err != nil && recv.Err != nil && !isClosedOrCanceled(recv.Err) {
-		err = recv.Err
+		err = fmt.Errorf("recv: %s", recv.Err)
 	}
 	return send.N, recv.N, err
 }
@@ -106,7 +110,7 @@ func isClosedOrCanceled(err error) bool {
 	return ok && s != nil && s.Code() == codes.Canceled
 }
 
-// ReadableBytes converts the number of bytes into human-friendly unit.
+// ReadableBytes converts the number of bytes into a more readable format.
 // For example, given 1024 bytes, returns 1 KB.
 func ReadableBytes(n int64) (num float64, unit string) {
 	if n >= 1024*1024 {

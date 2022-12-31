@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	ylog "github.com/chenen3/yeager/log"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/lucas-clemente/quic-go"
@@ -84,7 +83,7 @@ func (s *TunnelServer) handleStream(stream quic.Stream) {
 	defer remote.Close()
 
 	if _, _, err := ynet.Relay(stream, remote); err != nil {
-		ylog.Debugf("relay %s: %s", dst, err)
+		log.Printf("relay %s: %s", dst, err)
 	}
 }
 
