@@ -53,17 +53,17 @@ cd /usr/local/etc/yeager
 yeager -genconf
 # if you prefer docker:
 # docker run --rm --workdir /usr/local/etc/yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager ghcr.io/chenen3/yeager yeager -genconf
-ln -s server.yaml config.yaml
+ln -s server.json config.json
 ```
 
 here generates a pair of config:
-- `/usr/local/etc/yeager/server.yaml`
-- `/usr/local/etc/yeager/client.yaml` (**should be copyed to client device later**)
+- `/usr/local/etc/yeager/server.json`
+- `/usr/local/etc/yeager/client.json` (**should be copyed to client device later**)
 
 ### 2. Run service
 
 ```sh
-yeager -config /usr/local/etc/yeager/config.yaml
+yeager -config /usr/local/etc/yeager/config.json
 # if you prefer docker:
 # docker run -d --restart=always --name yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager -p 9001:9001 ghcr.io/chenen3/yeager
 ```
@@ -75,13 +75,13 @@ yeager -config /usr/local/etc/yeager/config.yaml
 
 ### 1. Configure
 
-On remote host we have generated client config `/usr/local/etc/yeager/client.yaml`, now copy it to local host as `/usr/local/etc/yeager/config.yaml`
+On remote host we have generated client config `/usr/local/etc/yeager/client.json`, now copy it to local host as `/usr/local/etc/yeager/config.json`
 
 ### 2. Run service
 
 For the binary:
 ```sh
-yeager -config /usr/local/etc/yeager/config.yaml
+yeager -config /usr/local/etc/yeager/config.json
 ```
 
 For Homebrew (macOS only):
@@ -136,7 +136,7 @@ rm /usr/local/bin/yeager
 rm /usr/local/share/yeager/geosite.dat
 rmdir /usr/local/share/yeager
 # remove the configuration files if you wish:
-#   rm /usr/local/etc/yeager/config.yaml
+#   rm /usr/local/etc/yeager/config.json
 #   rmdir /usr/local/etc/yeager
 ```
 

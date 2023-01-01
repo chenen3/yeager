@@ -185,7 +185,7 @@ func MakeClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	tlsConf.Certificates = []tls.Certificate{cert}
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
-		return nil, errors.New("failed to parse root certificate")
+		return nil, errors.New("parse root certificate")
 	}
 	tlsConf.RootCAs = pool
 	return tlsConf, nil

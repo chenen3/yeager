@@ -29,7 +29,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 	if len(conf.TunnelClients) > 0 {
 		t, err := NewTunneler(conf.Rules, conf.TunnelClients)
 		if err != nil {
-			return nil, fmt.Errorf("failed to init dispatcher: %s", err)
+			return nil, fmt.Errorf("new tunneler: %s", err)
 		}
 		tunneler = t
 		closers = append(closers, tunneler)
@@ -73,15 +73,15 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 
 	for _, tl := range conf.TunnelListens {
 		tl := tl
-		certPEM, err := readDataOrFile(tl.CertPEM, tl.CertFile)
+		certPEM, err := readDataOrFile(tl.CertPEM.Merge(), tl.CertFile)
 		if err != nil {
 			return nil, fmt.Errorf("read TLS certificate: %s", err)
 		}
-		keyPEM, err := readDataOrFile(tl.KeyPEM, tl.KeyFile)
+		keyPEM, err := readDataOrFile(tl.KeyPEM.Merge(), tl.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("read TLS key: %s", err)
 		}
-		caPEM, err := readDataOrFile(tl.CAPEM, tl.CAFile)
+		caPEM, err := readDataOrFile(tl.CAPEM.Merge(), tl.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("read TLS CA: %s", err)
 		}
@@ -151,32 +151,33 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			return nil, fmt.Errorf("duplicated tunnel policy: %s", policy)
 		}
 
-		certPEM, err := readDataOrFile(tc.CertPEM, tc.CertFile)
+		certPEM, err := readDataOrFile(tc.CertPEM.Merge(), tc.CertFile)
 		if err != nil {
 			return nil, fmt.Errorf("read TLS certificate: %s", err)
 		}
-		keyPEM, err := readDataOrFile(tc.KeyPEM, tc.KeyFile)
+		keyPEM, err := readDataOrFile(tc.KeyPEM.Merge(), tc.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("read TLS key: %s", err)
 		}
-		caPEM, err := readDataOrFile(tc.CAPEM, tc.CAFile)
+		caPEM, err := readDataOrFile(tc.CAPEM.Merge(), tc.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("read TLS CA: %s", err)
 		}
 		tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
 		if err != nil {
-			return nil, err
+			log.Printf("certPEM: %s", certPEM)
+			return nil, fmt.Errorf("make tls conf: %s", err)
 		}
 
 		switch tc.Type {
 		case config.TunGRPC:
-			client := grpc.NewTunnelClient(tc.Address, tlsConf, tc.ConnectionPoolSize)
+			client := grpc.NewTunnelClient(tc.Address, tlsConf, tc.PoolSize)
 			dialers[policy] = client
 			// clean up connection pool
 			t.closers = append(t.closers, client)
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
-			client := quic.NewTunnelClient(tc.Address, tlsConf, tc.ConnectionPoolSize)
+			client := quic.NewTunnelClient(tc.Address, tlsConf, tc.PoolSize)
 			dialers[policy] = client
 			// clean up connection pool
 			t.closers = append(t.closers, client)

@@ -17,7 +17,6 @@ import (
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/rule"
-	"gopkg.in/yaml.v3"
 )
 
 var version string
@@ -36,13 +35,13 @@ func init() {
 
 var example = `
 Example:
-  yeager -config /usr/local/etc/yeager/config.yaml
+  yeager -config /usr/local/etc/yeager/config.json
     	run service
 
   yeager -version
     	print version number
 
-  yeager -genconf [-ip 1.2.3.4] [-srvconf server.yaml] [-cliconf client.yaml]
+  yeager -genconf [-ip 1.2.3.4] [-srvconf server.json] [-cliconf client.json]
     	generate a pair of configuration for server and client
 `
 
@@ -75,8 +74,8 @@ func main() {
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.BoolVar(&flags.genConfig, "genconf", false, "generate configuration")
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
-	flag.StringVar(&flags.srvConfFile, "srvconf", "server.yaml", "file name of server config, used with option -genconf")
-	flag.StringVar(&flags.cliConfFile, "cliconf", "client.yaml", "file name of client config, used with option -genconf")
+	flag.StringVar(&flags.srvConfFile, "srvconf", "server.json", "file name of server config, used with option -genconf")
+	flag.StringVar(&flags.cliConfFile, "cliconf", "client.json", "file name of client config, used with option -genconf")
 	flag.Parse()
 
 	if flags.version {
@@ -110,8 +109,7 @@ func main() {
 		log.Print(err)
 		return
 	}
-	var conf config.Config
-	err = yaml.Unmarshal(bs, &conf)
+	conf, err := config.Load(bs)
 	if err != nil {
 		log.Printf("failed to load config: %s", err)
 		return

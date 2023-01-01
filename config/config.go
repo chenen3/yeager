@@ -1,22 +1,30 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/chenen3/yeager/cert"
-	"gopkg.in/yaml.v3"
 )
 
+// Load loads configuration from the given bytes
+func Load(bs []byte) (Config, error) {
+	var c Config
+	err := json.Unmarshal(bs, &c)
+	return c, err
+}
+
 type Config struct {
-	SOCKSListen   string         `yaml:"socksListen,omitempty"`
-	HTTPListen    string         `yaml:"httpListen,omitempty"`
-	TunnelListens []TunnelListen `yaml:"tunnelListens,omitempty"`
-	TunnelClients []TunnelClient `yaml:"tunnelClients,omitempty"`
-	Rules         []string       `yaml:"rules,omitempty"`
+	SOCKSListen   string         `json:"socksListen,omitempty"`
+	HTTPListen    string         `json:"httpListen,omitempty"`
+	TunnelListens []TunnelListen `json:"tunnelListens,omitempty"`
+	TunnelClients []TunnelClient `json:"tunnelClients,omitempty"`
+	Rules         []string       `json:"rules,omitempty"`
 	// developer only: enable debug logging, start HTTP server for profiling
-	Debug bool `yaml:"debug,omitempty"`
+	Debug bool `json:"debug,omitempty"`
 }
 
 type TunnelType string
@@ -26,31 +34,37 @@ const (
 	TunQUIC TunnelType = "quic"
 )
 
+type Lines []string
+
+// Merge merges list of strings into multiple lines
+func (l Lines) Merge() string {
+	return strings.Join(l, "\n")
+}
+
 type TunnelListen struct {
-	Type     TunnelType `yaml:"type"`
-	Listen   string     `yaml:"listen"`
-	CertFile string     `yaml:"certFile,omitempty"`
-	CertPEM  string     `yaml:"certPEM,omitempty"`
-	KeyFile  string     `yaml:"keyFile,omitempty"`
-	KeyPEM   string     `yaml:"keyPEM,omitempty"`
-	CAFile   string     `yaml:"caFile,omitempty"`
-	CAPEM    string     `yaml:"caPEM,omitempty"`
+	Type     TunnelType `json:"type"`
+	Listen   string     `json:"listen"`
+	CertFile string     `json:"certFile,omitempty"`
+	CertPEM  Lines      `json:"certPEM,omitempty"`
+	KeyFile  string     `json:"keyFile,omitempty"`
+	KeyPEM   Lines      `json:"keyPEM,omitempty"`
+	CAFile   string     `json:"caFile,omitempty"`
+	CAPEM    Lines      `json:"caPEM,omitempty"`
 }
 
 type TunnelClient struct {
-	Type    TunnelType `yaml:"type"`
-	Policy  string     `yaml:"policy"`
-	Address string     `yaml:"address"` // target server address
+	Type    TunnelType `json:"type"`
+	Policy  string     `json:"policy"`
+	Address string     `json:"address"` // target server address
 
-	CertFile string `yaml:"certFile,omitempty"`
-	CertPEM  string `yaml:"certPEM,omitempty"`
-	KeyFile  string `yaml:"keyFile,omitempty"`
-	KeyPEM   string `yaml:"keyPEM,omitempty"`
-	CAFile   string `yaml:"caFile,omitempty"`
-	CAPEM    string `yaml:"caPEM,omitempty"`
+	CertFile string `json:"certFile,omitempty"`
+	CertPEM  Lines  `json:"certPEM,omitempty"`
+	KeyFile  string `json:"keyFile,omitempty"`
+	KeyPEM   Lines  `json:"keyPEM,omitempty"`
+	CAFile   string `json:"caFile,omitempty"`
+	CAPEM    Lines  `json:"caPEM,omitempty"`
 
-	// optional
-	ConnectionPoolSize int `yaml:"connectionPoolSize,omitempty"`
+	PoolSize int `json:"poolSize,omitempty"`
 }
 
 func allocPort() (int, error) {
@@ -78,9 +92,9 @@ func Pair(host string) (srv, cli Config, err error) {
 			{
 				Listen:  fmt.Sprintf("0.0.0.0:%d", tunnelPort),
 				Type:    TunGRPC,
-				CAPEM:   string(cert.RootCert),
-				CertPEM: string(cert.ServerCert),
-				KeyPEM:  string(cert.ServerKey),
+				CAPEM:   strings.Split(string(cert.RootCert), "\n"),
+				CertPEM: strings.Split(string(cert.ServerCert), "\n"),
+				KeyPEM:  strings.Split(string(cert.ServerKey), "\n"),
 			},
 		},
 	}
@@ -101,9 +115,9 @@ func Pair(host string) (srv, cli Config, err error) {
 				Policy:  "proxy",
 				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
 				Type:    TunGRPC,
-				CAPEM:   string(cert.RootCert),
-				CertPEM: string(cert.ClientCert),
-				KeyPEM:  string(cert.ClientKey),
+				CAPEM:   strings.Split(string(cert.RootCert), "\n"),
+				CertPEM: strings.Split(string(cert.ClientCert), "\n"),
+				KeyPEM:  strings.Split(string(cert.ClientKey), "\n"),
 			},
 		},
 		Rules: []string{"final,proxy"},
@@ -130,7 +144,7 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 		return fmt.Errorf("no tunnelListens in server config")
 	}
 	srvConf.TunnelListens[0].Listen = "0.0.0.0:9001"
-	bs, err := yaml.Marshal(srvConf)
+	bs, err := json.Marshal(srvConf)
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)
 	}
@@ -156,7 +170,7 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 		"geosite,apple@cn,direct",
 		"final,proxy",
 	}
-	bs, err = yaml.Marshal(cliConf)
+	bs, err = json.Marshal(cliConf)
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)
 	}
