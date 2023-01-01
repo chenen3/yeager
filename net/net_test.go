@@ -87,8 +87,6 @@ func BenchmarkCopyBufferPool(b *testing.B) {
 
 var testSrc = make([]byte, 8*1024*1024)
 
-// benchmark shows better CPU performance and less allocation with 16KB buffer
-
 func BenchmarkBufSize16KB(b *testing.B) {
 	bufPool = sync.Pool{
 		New: func() any {
@@ -114,5 +112,27 @@ func BenchmarkBufSize32KB(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r := bytes.NewReader(testSrc)
 		Copy(io.Discard, r)
+	}
+}
+
+func TestReadableBytes(t *testing.T) {
+	type args struct {
+		n int64
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{args: args{1}, want: "1B"},
+		{args: args{2*1024 + 521}, want: "2.5KB"},
+		{args: args{3*1024*1024 + 512*1024}, want: "3.5MB"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ReadableBytes(tt.args.n); got != tt.want {
+				t.Errorf("ReadableBytes() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

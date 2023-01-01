@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -111,14 +112,27 @@ func isClosedOrCanceled(err error) bool {
 }
 
 // ReadableBytes converts the number of bytes into a more readable format.
-// For example, given 1024 bytes, returns 1 KB.
-func ReadableBytes(n int64) (num float64, unit string) {
-	if n >= 1024*1024 {
-		return float64(n) / (1024 * 1024), "MB"
-	} else if n >= 1024 {
-		return float64(n) / 1024, "KB"
+// For example, given n=1024, returns "1.0KB"
+func ReadableBytes(n int64) string {
+	if n < 1024 {
+		return strconv.FormatInt(n, 10) + "B"
+	} else if n < 1024*1024 {
+		return strconv.FormatFloat(float64(n)/1024, 'f', 1, 64) + "KB"
 	}
-	return float64(n), "B"
+	return strconv.FormatFloat(float64(n)/(1024*1024), 'f', 1, 64) + "MB"
+}
+
+// ReadableBytes converts the number of seconds into a short and readable format.
+func ReadableDuration(seconds int) string {
+	if seconds < 60 {
+		return strconv.Itoa(seconds) + "s"
+	}
+	m := seconds / 60
+	s := seconds % 60
+	if s == 0 {
+		return strconv.Itoa(m) + "m"
+	}
+	return fmt.Sprintf("%dm%ds", m, s)
 }
 
 // EchoServer accepts connection and writes back anything it reads from the connection.

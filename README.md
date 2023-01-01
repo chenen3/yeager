@@ -22,6 +22,7 @@ Manually download the [release](https://github.com/chenen3/yeager/releases)
 curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
 tar -xzvf yeager-linux-amd64.tar.gz
 mv yeager /usr/local/bin/yeager
+# on client side
 mkdir -p /usr/local/share/yeager
 mv geosite.dat /usr/local/share/yeager/geosite.dat
 ```

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	ylog "github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/rule"
 	"gopkg.in/yaml.v3"
 )
@@ -131,7 +131,7 @@ func main() {
 	rule.Cleanup()
 
 	if conf.Debug {
-		ylog.EnableDebug()
+		debug.Enable()
 		go func() {
 			err := http.ListenAndServe("localhost:6060", nil)
 			if err != nil {

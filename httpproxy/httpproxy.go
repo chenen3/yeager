@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	ylog "github.com/chenen3/yeager/log"
+	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 )
@@ -52,15 +52,17 @@ func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 }
 
 func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
+	start := time.Now()
 	defer s.trackConn(conn, false)
 	defer conn.Close()
+
 	conn.SetDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dst, httpReq, err := handshake(conn)
-	conn.SetDeadline(time.Time{})
 	if err != nil {
 		log.Printf("handshake: %s", err)
 		return
 	}
+	conn.SetDeadline(time.Time{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
 	defer cancel()
@@ -83,9 +85,12 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
-	numSent, unitSent := ynet.ReadableBytes(sent)
-	numRecv, unitRecv := ynet.ReadableBytes(recv)
-	ylog.Debugf("done %s, sent %.1f %s, recv %.1f %s", dst, numSent, unitSent, numRecv, unitRecv)
+	debug.Logf("done %s, sent %s, recv %s, last %s",
+		dst,
+		ynet.ReadableBytes(sent),
+		ynet.ReadableBytes(recv),
+		ynet.ReadableDuration(int(time.Since(start).Seconds())),
+	)
 }
 
 var connCount = expvar.NewInt("connHTTPProxy")
