@@ -2,11 +2,10 @@ package config
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 )
 
-var rawConf = `
+var testRawConf = `
 {
     "socksListen": "127.0.0.1:1081",
     "httpListen": "127.0.0.1:8081",
@@ -50,7 +49,9 @@ var rawConf = `
 }
 `
 
-var caPEM = `-----BEGIN CERTIFICATE-----
+// intentionally enter a new line to test whether the program can deal with this scenario
+var testCAPEM = `
+-----BEGIN CERTIFICATE-----
 MIIBqTCCAU6gAwIBAgIRAJxLfwUAHU2937LQPprCcXwwCgYIKoZIzj0EAwIwJDEQ
 MA4GA1UEChMHQWNtZSBDbzEQMA4GA1UEAxMHUm9vdCBDQTAeFw0yMjA2MDIwMzQ5
 MjlaFw0yMzA2MDIwMzQ5MjlaMCQxEDAOBgNVBAoTB0FjbWUgQ28xEDAOBgNVBAMT
@@ -60,7 +61,8 @@ uwRio2EwXzAOBgNVHQ8BAf8EBAMCAgQwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsG
 AQUFBwMCMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFLbsUXap4IC9bgkxjcc8
 eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+
 9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl
------END CERTIFICATE-----`
+-----END CERTIFICATE-----
+`
 
 func TestConfig(t *testing.T) {
 	want := Config{
@@ -83,7 +85,7 @@ func TestConfig(t *testing.T) {
 				CertFile: "/path/to/client-cert.pem",
 				KeyFile:  "/path/to/client-key.pem",
 				CAFile:   "/path/to/ca-cert.pem",
-				CAPEM:    strings.Split(caPEM, "\n"),
+				CAPEM:    makeLines(testCAPEM),
 				PoolSize: 3,
 			},
 		},
@@ -91,7 +93,7 @@ func TestConfig(t *testing.T) {
 		Debug: true,
 	}
 
-	got, err := Load([]byte(rawConf))
+	got, err := Load([]byte(testRawConf))
 	if err != nil {
 		t.Fatal(err)
 	}
