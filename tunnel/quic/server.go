@@ -25,7 +25,6 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	if tlsConf == nil {
 		return errors.New("TLS config required")
 	}
-
 	tlsConf.NextProtos = append(tlsConf.NextProtos, "quic")
 	qConf := &quic.Config{MaxIdleTimeout: ynet.IdleConnTimeout}
 	lis, err := quic.ListenAddr(address, tlsConf, qConf)
@@ -37,43 +36,45 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	s.mu.Unlock()
 
 	for {
-		qconn, err := lis.Accept(context.Background())
+		conn, err := lis.Accept(context.Background())
 		if err != nil {
 			if errors.Is(err, quic.ErrServerClosed) {
 				err = nil
 			}
 			return err
 		}
-		go func() {
-			defer qconn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-			for {
-				stream, err := qconn.AcceptStream(context.Background())
-				if err != nil {
-					if !errors.Is(err, net.ErrClosed) {
-						log.Printf("accept quic stream: %s", err)
-					}
-					return
-				}
-				select {
-				case <-stream.Context().Done():
-					continue
-				default:
-				}
-				go s.handleStream(stream)
-			}
-		}()
+		go handleConn(conn)
 	}
 }
 
-func (s *TunnelServer) handleStream(stream quic.Stream) {
+func handleConn(conn quic.Connection) {
+	defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+	for {
+		stream, err := conn.AcceptStream(context.Background())
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				log.Printf("accept quic stream: %s", err)
+			}
+			return
+		}
+		select {
+		case <-stream.Context().Done():
+			continue
+		default:
+		}
+		go handleStream(stream)
+	}
+}
+
+func handleStream(stream quic.Stream) {
 	defer stream.Close()
 	stream.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dst, err := tunnel.ReadHeader(stream)
-	stream.SetReadDeadline(time.Time{})
 	if err != nil {
 		log.Printf("read header: %s", err)
 		return
 	}
+	stream.SetReadDeadline(time.Time{})
 
 	remote, err := net.DialTimeout("tcp", dst, ynet.DialTimeout)
 	if err != nil {

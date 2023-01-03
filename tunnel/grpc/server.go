@@ -62,14 +62,14 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	ch := make(chan error, 2)
 	go oneWayRelay(remote, stream, ch)
 	go oneWayRelay(stream, remote, ch)
-	if err := <-ch; err != nil && !isClosedOrCanceled(err) {
+	if err := <-ch; err != nil && !closedOrCanceled(err) {
 		log.Printf("relay %s: %s", dst, err)
 	}
 	return nil
 }
 
 // check for closed or canceled error cause by dst.Close() in oneWayRelay
-func isClosedOrCanceled(err error) bool {
+func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
 		return true
 	}

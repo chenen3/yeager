@@ -90,17 +90,17 @@ func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err er
 	go oneWayRelay(local, remote, recvCh)
 	send := <-sendCh
 	recv := <-recvCh
-	if send.Err != nil && !isClosedOrCanceled(send.Err) {
+	if send.Err != nil && !closedOrCanceled(send.Err) {
 		err = fmt.Errorf("send: %s", send.Err)
 	}
-	if err != nil && recv.Err != nil && !isClosedOrCanceled(recv.Err) {
+	if err != nil && recv.Err != nil && !closedOrCanceled(recv.Err) {
 		err = fmt.Errorf("recv: %s", recv.Err)
 	}
 	return send.N, recv.N, err
 }
 
 // check for closed or canceled error cause by dst.Close() in oneWayRelay
-func isClosedOrCanceled(err error) bool {
+func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
 		return true
 	}
@@ -114,12 +114,14 @@ func isClosedOrCanceled(err error) bool {
 // ReadableBytes converts the number of bytes into a more readable format.
 // For example, given n=1024, returns "1.0KB"
 func ReadableBytes(n int64) string {
-	if n < 1024 {
+	switch {
+	case n < 1024:
 		return strconv.FormatInt(n, 10) + "B"
-	} else if n < 1024*1024 {
+	case 1024 <= n && n < 1024*1024:
 		return strconv.FormatFloat(float64(n)/1024, 'f', 1, 64) + "KB"
+	default:
+		return strconv.FormatFloat(float64(n)/(1024*1024), 'f', 1, 64) + "MB"
 	}
-	return strconv.FormatFloat(float64(n)/(1024*1024), 'f', 1, 64) + "MB"
 }
 
 // ReadableBytes converts the number of seconds into a short and readable format.

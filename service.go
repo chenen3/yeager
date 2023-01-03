@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
@@ -73,17 +72,17 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 
 	for _, tl := range conf.TunnelListens {
 		tl := tl
-		certPEM, err := readDataOrFile(tl.CertPEM.Merge(), tl.CertFile)
+		certPEM, err := tl.GetCertPEM()
 		if err != nil {
-			return nil, fmt.Errorf("read TLS certificate: %s", err)
+			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := readDataOrFile(tl.KeyPEM.Merge(), tl.KeyFile)
+		keyPEM, err := tl.GetKeyPEM()
 		if err != nil {
-			return nil, fmt.Errorf("read TLS key: %s", err)
+			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := readDataOrFile(tl.CAPEM.Merge(), tl.CAFile)
+		caPEM, err := tl.GetCAPEM()
 		if err != nil {
-			return nil, fmt.Errorf("read TLS CA: %s", err)
+			return nil, fmt.Errorf("read CA: %s", err)
 		}
 		tlsConf, err := cert.MakeServerTLSConfig(caPEM, certPEM, keyPEM)
 		if err != nil {
@@ -151,17 +150,17 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			return nil, fmt.Errorf("duplicated tunnel policy: %s", policy)
 		}
 
-		certPEM, err := readDataOrFile(tc.CertPEM.Merge(), tc.CertFile)
+		certPEM, err := tc.GetCertPEM()
 		if err != nil {
-			return nil, fmt.Errorf("read TLS certificate: %s", err)
+			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := readDataOrFile(tc.KeyPEM.Merge(), tc.KeyFile)
+		keyPEM, err := tc.GetKeyPEM()
 		if err != nil {
-			return nil, fmt.Errorf("read TLS key: %s", err)
+			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := readDataOrFile(tc.CAPEM.Merge(), tc.CAFile)
+		caPEM, err := tc.GetCAPEM()
 		if err != nil {
-			return nil, fmt.Errorf("read TLS CA: %s", err)
+			return nil, fmt.Errorf("read CA: %s", err)
 		}
 		tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
 		if err != nil {
@@ -231,14 +230,4 @@ func (t *Tunneler) Close() error {
 		}
 	}
 	return err
-}
-
-func readDataOrFile(data string, filename string) ([]byte, error) {
-	if data != "" {
-		return []byte(data), nil
-	}
-	if filename != "" {
-		return os.ReadFile(filename)
-	}
-	return nil, errors.New("no data nor filename provided")
 }

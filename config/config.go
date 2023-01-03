@@ -2,12 +2,19 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
+)
+
+// tunnel type
+const (
+	TunGRPC = "grpc"
+	TunQUIC = "quic"
 )
 
 // Load loads configuration from the given bytes
@@ -27,46 +34,97 @@ type Config struct {
 	Debug bool `json:"debug,omitempty"`
 }
 
-// tunnel type
-const (
-	TunGRPC = "grpc"
-	TunQUIC = "quic"
-)
-
-type Lines []string
-
-// Merge merges list of strings into multiple lines
-func (l Lines) Merge() string {
-	return strings.Join(l, "\n")
+func mergeLines(s []string) string {
+	return strings.Join(s, "\n")
 }
 
-func makeLines(s string) Lines {
+func splitLines(s string) []string {
 	return strings.Split(strings.TrimSpace(s), "\n")
 }
 
 type TunnelListen struct {
-	Type     string `json:"type"`
-	Listen   string `json:"listen"`
-	CertFile string `json:"certFile,omitempty"`
-	CertPEM  Lines  `json:"certPEM,omitempty"`
-	KeyFile  string `json:"keyFile,omitempty"`
-	KeyPEM   Lines  `json:"keyPEM,omitempty"`
-	CAFile   string `json:"caFile,omitempty"`
-	CAPEM    Lines  `json:"caPEM,omitempty"`
+	Type     string   `json:"type"`
+	Listen   string   `json:"listen"`
+	CertFile string   `json:"certFile,omitempty"`
+	CertPEM  []string `json:"certPEM,omitempty"`
+	KeyFile  string   `json:"keyFile,omitempty"`
+	KeyPEM   []string `json:"keyPEM,omitempty"`
+	CAFile   string   `json:"caFile,omitempty"`
+	CAPEM    []string `json:"caPEM,omitempty"`
+}
+
+func (tl *TunnelListen) GetCertPEM() ([]byte, error) {
+	if tl.CertPEM != nil {
+		return []byte(mergeLines(tl.CertPEM)), nil
+	}
+	if tl.CertFile != "" {
+		return os.ReadFile(tl.CertFile)
+	}
+	return nil, errors.New("no PEM data nor file")
+}
+
+func (tl *TunnelListen) GetKeyPEM() ([]byte, error) {
+	if tl.KeyPEM != nil {
+		return []byte(mergeLines(tl.KeyPEM)), nil
+	}
+	if tl.KeyFile != "" {
+		return os.ReadFile(tl.KeyFile)
+	}
+	return nil, errors.New("no PEM data nor file")
+}
+
+func (tl *TunnelListen) GetCAPEM() ([]byte, error) {
+	if tl.CAPEM != nil {
+		return []byte(mergeLines(tl.CAPEM)), nil
+	}
+	if tl.CAFile != "" {
+		return os.ReadFile(tl.CAFile)
+	}
+	return nil, errors.New("no PEM data nor file")
 }
 
 type TunnelClient struct {
-	Policy   string `json:"policy"`
-	Type     string `json:"type"`
-	Address  string `json:"address"` // target server address
-	CertFile string `json:"certFile,omitempty"`
-	CertPEM  Lines  `json:"certPEM,omitempty"`
-	KeyFile  string `json:"keyFile,omitempty"`
-	KeyPEM   Lines  `json:"keyPEM,omitempty"`
-	CAFile   string `json:"caFile,omitempty"`
-	CAPEM    Lines  `json:"caPEM,omitempty"`
+	Policy string `json:"policy"`
+	Type   string `json:"type"`
+	// target server address
+	Address  string   `json:"address"`
+	CertFile string   `json:"certFile,omitempty"`
+	CertPEM  []string `json:"certPEM,omitempty"`
+	KeyFile  string   `json:"keyFile,omitempty"`
+	KeyPEM   []string `json:"keyPEM,omitempty"`
+	CAFile   string   `json:"caFile,omitempty"`
+	CAPEM    []string `json:"caPEM,omitempty"`
+	PoolSize int      `json:"poolSize,omitempty"`
+}
 
-	PoolSize int `json:"poolSize,omitempty"`
+func (tc *TunnelClient) GetCertPEM() ([]byte, error) {
+	if tc.CertPEM != nil {
+		return []byte(mergeLines(tc.CertPEM)), nil
+	}
+	if tc.CertFile != "" {
+		return os.ReadFile(tc.CertFile)
+	}
+	return nil, errors.New("no PEM data nor file")
+}
+
+func (tc *TunnelClient) GetKeyPEM() ([]byte, error) {
+	if tc.KeyPEM != nil {
+		return []byte(mergeLines(tc.KeyPEM)), nil
+	}
+	if tc.KeyFile != "" {
+		return os.ReadFile(tc.KeyFile)
+	}
+	return nil, errors.New("no PEM data nor file")
+}
+
+func (tc *TunnelClient) GetCAPEM() ([]byte, error) {
+	if tc.CAPEM != nil {
+		return []byte(mergeLines(tc.CAPEM)), nil
+	}
+	if tc.CAFile != "" {
+		return os.ReadFile(tc.CAFile)
+	}
+	return nil, errors.New("no PEM data nor file")
 }
 
 func allocPort() (int, error) {
@@ -94,9 +152,9 @@ func Pair(host string) (srv, cli Config, err error) {
 			{
 				Listen:  fmt.Sprintf("0.0.0.0:%d", tunnelPort),
 				Type:    TunGRPC,
-				CAPEM:   makeLines(string(cert.RootCert)),
-				CertPEM: makeLines(string(cert.ServerCert)),
-				KeyPEM:  makeLines(string(cert.ServerKey)),
+				CAPEM:   splitLines(string(cert.RootCert)),
+				CertPEM: splitLines(string(cert.ServerCert)),
+				KeyPEM:  splitLines(string(cert.ServerKey)),
 			},
 		},
 	}
@@ -117,9 +175,9 @@ func Pair(host string) (srv, cli Config, err error) {
 				Policy:  "proxy",
 				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
 				Type:    TunGRPC,
-				CAPEM:   makeLines(string(cert.RootCert)),
-				CertPEM: makeLines(string(cert.ClientCert)),
-				KeyPEM:  makeLines(string(cert.ClientKey)),
+				CAPEM:   splitLines(string(cert.RootCert)),
+				CertPEM: splitLines(string(cert.ClientCert)),
+				KeyPEM:  splitLines(string(cert.ClientKey)),
 			},
 		},
 		Rules: []string{"final,proxy"},
@@ -146,7 +204,7 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 		return fmt.Errorf("no tunnelListens in server config")
 	}
 	srvConf.TunnelListens[0].Listen = "0.0.0.0:9001"
-	bs, err := json.MarshalIndent(srvConf, "", "  ")
+	bs, err := json.MarshalIndent(srvConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)
 	}
@@ -172,7 +230,7 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 		"geosite,apple@cn,direct",
 		"final,proxy",
 	}
-	bs, err = json.MarshalIndent(cliConf, "", "  ")
+	bs, err = json.MarshalIndent(cliConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)
 	}
