@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -84,16 +83,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	)
 }
 
-var connCount = expvar.NewInt("connSOCKSProxy")
-
 func (s *Server) trackConn(c net.Conn, add bool) {
-	// TODO: can connCount set its value to len(Server.activeConn) in an elegant way?
-	if add {
-		connCount.Add(1)
-	} else {
-		connCount.Add(-1)
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeConn == nil {
@@ -104,6 +94,12 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 	} else {
 		delete(s.activeConn, c)
 	}
+}
+
+func (s *Server) ConnCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.activeConn)
 }
 
 func (s *Server) Close() error {

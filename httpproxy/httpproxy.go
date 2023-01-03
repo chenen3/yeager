@@ -6,7 +6,6 @@ package httpproxy
 import (
 	"bufio"
 	"context"
-	"expvar"
 	"fmt"
 	"log"
 	"net"
@@ -93,15 +92,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	)
 }
 
-var connCount = expvar.NewInt("connHTTPProxy")
-
 func (s *Server) trackConn(c net.Conn, add bool) {
-	if add {
-		connCount.Add(1)
-	} else {
-		connCount.Add(-1)
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeConn == nil {
@@ -112,6 +103,12 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 	} else {
 		delete(s.activeConn, c)
 	}
+}
+
+func (s *Server) ConnCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.activeConn)
 }
 
 func (s *Server) Close() error {
