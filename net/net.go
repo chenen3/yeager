@@ -124,19 +124,6 @@ func ReadableBytes(n int64) string {
 	}
 }
 
-// ReadableBytes converts the number of seconds into a short and readable format.
-func ReadableDuration(seconds int) string {
-	if seconds < 60 {
-		return strconv.Itoa(seconds) + "s"
-	}
-	m := seconds / 60
-	s := seconds % 60
-	if s == 0 {
-		return strconv.Itoa(m) + "m"
-	}
-	return fmt.Sprintf("%dm%ds", m, s)
-}
-
 // EchoServer accepts connection and writes back anything it reads from the connection.
 type EchoServer struct {
 	Listener net.Listener

@@ -49,7 +49,6 @@ func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 }
 
 func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
-	start := time.Now()
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -75,12 +74,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
-	debug.Logf("done %s, sent %s, recv %s, last %s",
-		dst,
-		ynet.ReadableBytes(sent),
-		ynet.ReadableBytes(recv),
-		ynet.ReadableDuration(int(time.Since(start).Seconds())),
-	)
+	debug.Logf("done %s, sent %s, recv %s", dst, ynet.ReadableBytes(sent), ynet.ReadableBytes(recv))
 }
 
 func (s *Server) trackConn(c net.Conn, add bool) {

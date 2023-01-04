@@ -58,7 +58,7 @@ ln -s server.json config.json
 
 here generates a pair of config:
 - `/usr/local/etc/yeager/server.json`
-- `/usr/local/etc/yeager/client.json` (**should be copyed to client device later**)
+- `/usr/local/etc/yeager/client.json` (**should be copyed to local machine later**)
 
 ### 2. Run service
 
@@ -75,7 +75,7 @@ yeager -config /usr/local/etc/yeager/config.json
 
 ### 1. Configure
 
-On remote host we have generated client config `/usr/local/etc/yeager/client.json`, now copy it to local host as `/usr/local/etc/yeager/config.json`
+On remote machine we have generated client config `/usr/local/etc/yeager/client.json`, now copy it to local machine as `/usr/local/etc/yeager/config.json`
 
 ### 2. Run service
 
