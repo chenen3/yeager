@@ -83,7 +83,9 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
-	debug.Logf("done %s, sent %s, recv %s", dst, ynet.ReadableBytes(sent), ynet.ReadableBytes(recv))
+	if debug.Enabled() {
+		log.Printf("done %s, sent %s, recv %s", dst, ynet.ReadableBytes(sent), ynet.ReadableBytes(recv))
+	}
 }
 
 func (s *Server) trackConn(c net.Conn, add bool) {

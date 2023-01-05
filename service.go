@@ -232,7 +232,9 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 	case rule.Reject:
 		return nil, errors.New("rule rejected")
 	case rule.Direct:
-		debug.Logf("connect %s", target)
+		if debug.Enabled() {
+			log.Printf("connect %s", target)
+		}
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", target)
 	default:
@@ -240,7 +242,9 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 		if !ok {
 			return nil, fmt.Errorf("unknown proxy policy: %s", policy)
 		}
-		debug.Logf("connect %s via %s", target, policy)
+		if debug.Enabled() {
+			log.Printf("connect %s via %s", target, policy)
+		}
 		return d.DialContext(ctx, target)
 	}
 }
