@@ -71,17 +71,28 @@ func TestSocksProxy(t *testing.T) {
 }
 
 func TestServer_Close(t *testing.T) {
+	// test no-op Close
 	var s Server
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 
+	// test if Serve can exit properly when Close called
 	s = Server{}
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	go s.Close()
+	ready := make(chan struct{})
+	go func() {
+		<-ready
+		// in case Serve has not started yet
+		time.Sleep(time.Millisecond)
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	close(ready)
 	if err := s.Serve(lis, direct{}); err != nil {
 		t.Fatal(err)
 	}
