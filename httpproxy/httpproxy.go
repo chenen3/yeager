@@ -99,12 +99,14 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 	}
 }
 
-func (s *Server) ConnCount() int {
+// Len returns the number of active connections
+func (s *Server) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.activeConn)
 }
 
+// Close close listener and all active connections
 func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

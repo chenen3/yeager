@@ -67,6 +67,6 @@ func wrapStream(raw quic.Stream) *streamWrapper {
 
 // Close closes read-direction and write-direction of the stream
 func (s *streamWrapper) Close() error {
-	s.CancelRead(0)
+	s.CancelRead(ynet.ErrCodeCancelRead)
 	return s.Stream.Close()
 }

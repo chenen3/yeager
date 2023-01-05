@@ -99,16 +99,19 @@ func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err er
 	return send.N, recv.N, err
 }
 
+const ErrCodeCancelRead = 0
+
 // check for closed or canceled error cause by dst.Close() in oneWayRelay
 func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
 		return true
 	}
 	if errors.Is(err, new(quic.StreamError)) {
-		return true
+		i, _ := err.(*quic.StreamError)
+		return i.ErrorCode == ErrCodeCancelRead
 	}
 	s, ok := status.FromError(err)
-	return ok && s != nil && s.Code() == codes.Canceled
+	return 	ok && s != nil && s.Code() == codes.Canceled
 }
 
 // ReadableBytes converts the number of bytes into a more readable format.

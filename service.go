@@ -72,7 +72,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}
 		}()
 		closers = append(closers, &hs)
-		connCount.RegistCounter(hs.ConnCount)
+		connCount.RegistCounter(hs.Len)
 	}
 
 	if conf.SOCKSListen != "" {
@@ -91,7 +91,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}
 		}()
 		closers = append(closers, &ss)
-		connCount.RegistCounter(ss.ConnCount)
+		connCount.RegistCounter(ss.Len)
 	}
 
 	for _, tl := range conf.TunnelListens {
