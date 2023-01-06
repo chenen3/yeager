@@ -59,6 +59,8 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	}
 	defer remote.Close()
 
+	// can't use ynet.Relay because it requires a closable object,
+	// and the server stream don't
 	ch := make(chan error, 2)
 	go oneWayRelay(remote, stream, ch)
 	go oneWayRelay(stream, remote, ch)
@@ -77,9 +79,28 @@ func closedOrCanceled(err error) bool {
 	return ok && s != nil && s.Code() == codes.Canceled
 }
 
+type writerOnly struct {
+	io.Writer
+}
+
+var bufPool = sync.Pool{
+	New: func() any {
+		s := make([]byte, 16*1024)
+		// A pointer can be put into the return interface value without an allocation.
+		return &s
+	},
+}
+
 func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {
-	_, err := ynet.Copy(dst, src)
+	if _, ok := dst.(*net.TCPConn); ok {
+		// use wrapper to hide existing TCPConn.ReadFrom from io.CopyBuffer,
+		// so that buffer would be reused.
+		dst = writerOnly{dst}
+	}
+	b := bufPool.Get().(*[]byte)
+	_, err := io.CopyBuffer(dst, src, *b)
 	ch <- err
+	bufPool.Put(b)
 }
 
 func (s *TunnelServer) Close() error {
