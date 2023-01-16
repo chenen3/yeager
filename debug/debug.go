@@ -7,7 +7,7 @@ func Enable() {
 	enable = true
 }
 
-// Enabled returns whether debugging is enabled
+// Enabled returns true if debugging is enabled
 func Enabled() bool {
 	return enable
 }

@@ -12,14 +12,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/rule"
 )
 
-var version string
+var version string // set by build -ldflags
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -27,9 +26,6 @@ func init() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		fmt.Fprint(flag.CommandLine.Output(), example)
-	}
-	if version == "" {
-		version = "dev" + time.Now().Format("2006.01.02")
 	}
 }
 
@@ -111,18 +107,18 @@ func main() {
 	}
 	conf, err := config.Load(bs)
 	if err != nil {
-		log.Printf("failed to load config: %s", err)
+		log.Printf("load config: %s", err)
 		return
 	}
 	if len(conf.TunnelClients) == 0 && len(conf.TunnelListens) == 0 {
-		log.Printf("config error: at least one tunnel client or server is required")
+		log.Printf("at least one tunnel client or server is required in config")
 		return
 	}
 
 	log.Printf("yeager %s starting", version)
 	closers, err := StartServices(conf)
 	if err != nil {
-		log.Printf("failed to start services: %s", err)
+		log.Printf("start services: %s", err)
 		CloseAll(closers)
 		return
 	}

@@ -55,7 +55,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	conn.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dst, err := handshake(conn)
 	if err != nil {
-		log.Printf("failed to handshake: %s", err)
+		log.Printf("handshake: %s", err)
 		return
 	}
 	conn.SetReadDeadline(time.Time{})
@@ -64,7 +64,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer cancel()
 	remote, err := d.DialContext(ctx, dst)
 	if err != nil {
-		log.Printf("dial %s error: %s", dst, err)
+		log.Printf("dial %s: %s", dst, err)
 		return
 	}
 	defer remote.Close()

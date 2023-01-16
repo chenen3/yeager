@@ -22,12 +22,10 @@ const (
 	IdleConnTimeout  = 90 * time.Second
 )
 
-// refer to 16KB maxPlaintext in crypto/tls/common.go
-const bufferSize = 16 * 1024
-
 var bufPool = sync.Pool{
 	New: func() any {
-		s := make([]byte, bufferSize)
+		// refer to 16KB maxPlaintext in crypto/tls/common.go
+		s := make([]byte, 16*1024)
 		// A pointer can be put into the return interface value without an allocation.
 		return &s
 	},
