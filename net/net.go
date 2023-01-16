@@ -31,8 +31,38 @@ var bufPool = sync.Pool{
 	},
 }
 
-type writerOnly struct {
-	io.Writer
+// Copy adapted from io.Copy, copies from src to dst using a cached or allocated buffer.
+func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
+	b := bufPool.Get().(*[]byte)
+	for {
+		nr, er := src.Read(*b)
+		if nr > 0 {
+			nw, ew := dst.Write((*b)[0:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.New("invalid write result")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	bufPool.Put(b)
+	return written, err
 }
 
 type result struct {
@@ -42,31 +72,18 @@ type result struct {
 
 // oneWayRelay exists just so that profiling show the name of the goroutine
 func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
-	var w io.Writer
-	if _, ok := dst.(*net.TCPConn); ok {
-		// the profiling of goroutine shows that send file is not applicable in this scenario,
-		// use wrapper to hide existing TCPConn.ReadFrom from io.CopyBuffer,
-		// so that buffer would be reused.
-		w = writerOnly{dst}
-	} else {
-		w = dst
-	}
-	b := bufPool.Get().(*[]byte)
-	n, err := io.CopyBuffer(w, src, *b)
+	n, err := Copy(dst, src)
 	ch <- result{n, err}
 	// unblock Read on dst
 	dst.Close()
-	bufPool.Put(b)
 }
 
 // Relay copies data in both directions between local and remote,
 // blocks until one of them completes, returns the number of bytes
 // sent to remote and received from remote.
 func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err error) {
-	// must be buffered channel, otherwise the send will not stop immediately
-	// after the receive is complete
-	sendCh := make(chan result, 1)
-	recvCh := make(chan result, 1)
+	sendCh := make(chan result)
+	recvCh := make(chan result)
 	go oneWayRelay(remote, local, sendCh)
 	go oneWayRelay(local, remote, recvCh)
 	send := <-sendCh
@@ -92,7 +109,7 @@ func closedOrCanceled(err error) bool {
 		return i.ErrorCode == ErrCodeCancelRead
 	}
 	s, ok := status.FromError(err)
-	return ok && s != nil && s.Code() == codes.Canceled
+	return 	ok && s != nil && s.Code() == codes.Canceled
 }
 
 // ReadableBytes converts the number of bytes into a more readable format.

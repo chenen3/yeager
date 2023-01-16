@@ -1,6 +1,6 @@
-// To avoid large dependency, this package copy the proto 
+// To avoid importing v2fly directly, this package copy the proto 
 // definition file of domain-list from v2fly project.
-// For more information, see: 
+// For more information, see origin: 
 //   https://github.com/v2fly/v2ray-core/blob/master/app/router/routercommon/common.proto
 syntax = "proto3";
 
