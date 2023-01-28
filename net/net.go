@@ -18,8 +18,8 @@ import (
 const (
 	DialTimeout      = 10 * time.Second
 	HandshakeTimeout = 5 * time.Second
-	KeepAlive        = 30 * time.Second
-	IdleConnTimeout  = 90 * time.Second
+	KeepAlivePeriod  = 30 * time.Second
+	IdleTimeout      = 120 * time.Second
 )
 
 var bufPool = sync.Pool{
@@ -109,7 +109,7 @@ func closedOrCanceled(err error) bool {
 		return i.ErrorCode == ErrCodeCancelRead
 	}
 	s, ok := status.FromError(err)
-	return 	ok && s != nil && s.Code() == codes.Canceled
+	return ok && s != nil && s.Code() == codes.Canceled
 }
 
 // ReadableBytes converts the number of bytes into a more readable format.

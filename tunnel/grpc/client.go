@@ -3,51 +3,125 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
+	"log"
+	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
 
 type TunnelClient struct {
-	pool *connPool
+	srvAddr string
+	tlsConf *tls.Config
+	done    chan struct{}
+
+	mu       sync.RWMutex // guards following map
+	conns    map[string]*grpc.ClientConn
+	lastIdle map[string]time.Time
 }
 
-func NewTunnelClient(address string, tlsConf *tls.Config, poolSize int) *TunnelClient {
-	dialFunc := func() (*grpc.ClientConn, error) {
-		opts := []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)),
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:    ynet.KeepAlive,
-				Timeout: 1 * time.Second,
-			}),
-			grpc.WithConnectParams(grpc.ConnectParams{
-				Backoff: backoff.Config{
-					BaseDelay:  1.0 * time.Second,
-					Multiplier: 1.6,
-					Jitter:     0.2,
-					MaxDelay:   20 * time.Second,
-				},
-				MinConnectTimeout: 5 * time.Second,
-			}),
+func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
+	c := &TunnelClient{
+		srvAddr:  address,
+		tlsConf:  tlsConf,
+		conns:    make(map[string]*grpc.ClientConn),
+		lastIdle: make(map[string]time.Time),
+		done:     make(chan struct{}),
+	}
+	go c.watch()
+	return c
+}
+
+const watchPeriod = 2 * time.Minute
+
+func (c *TunnelClient) watch() {
+	ticker := time.NewTicker(watchPeriod)
+	for {
+		select {
+		case <-c.done:
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			c.mu.Lock()
+			for key, conn := range c.conns {
+				if conn.GetState() != connectivity.Idle {
+					c.lastIdle[key] = time.Time{}
+					continue
+				}
+				t, ok := c.lastIdle[key]
+				if !ok {
+					c.lastIdle[key] = time.Now()
+					continue
+				}
+				if !t.IsZero() && time.Since(t) >= ynet.IdleTimeout {
+					conn.Close()
+					delete(c.conns, key)
+					delete(c.lastIdle, key)
+					if debug.Enabled() {
+						log.Printf("watch: clear idle timeout connection: %s", key)
+					}
+				}
+			}
+			c.mu.Unlock()
 		}
-		// non-blocking dial
-		return grpc.Dial(address, opts...)
 	}
-	return &TunnelClient{
-		pool: newConnPool(poolSize, dialFunc),
+}
+
+func (c *TunnelClient) getConn(addr string) (*grpc.ClientConn, error) {
+	c.mu.RLock()
+	conn, ok := c.conns[addr]
+	c.mu.RUnlock()
+	if ok {
+		if conn.GetState() == connectivity.Shutdown {
+			return nil, errors.New("dead connection")
+		}
+		return conn, nil
 	}
+
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    ynet.KeepAlivePeriod,
+			Timeout: 1 * time.Second,
+		}),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  1.0 * time.Second,
+				Multiplier: 1.6,
+				Jitter:     0.2,
+				MaxDelay:   20 * time.Second,
+			},
+			MinConnectTimeout: 5 * time.Second,
+		}),
+	}
+	// non-blocking dial
+	newConn, err := grpc.Dial(c.srvAddr, opts...)
+	if err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if conn, ok := c.conns[addr]; ok {
+		newConn.Close()
+		return conn, nil
+	}
+	c.conns[addr] = newConn
+	return newConn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.pool.Get()
+	conn, err := c.getConn(dst)
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
@@ -79,10 +153,14 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 }
 
 func (c *TunnelClient) Close() error {
-	if c.pool == nil {
-		return nil
+	close(c.done)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, conn := range c.conns {
+		conn.Close()
+		delete(c.conns, key)
 	}
-	return c.pool.Close()
+	return nil
 }
 
 var _ io.ReadWriteCloser = (*clientStreamWrapper)(nil)

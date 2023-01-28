@@ -94,7 +94,6 @@ type TunnelClient struct {
 	KeyPEM   []string `json:"keyPEM,omitempty"`
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
-	PoolSize int      `json:"poolSize,omitempty"`
 }
 
 func (tc *TunnelClient) GetCertPEM() ([]byte, error) {

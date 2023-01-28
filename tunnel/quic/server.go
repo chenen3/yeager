@@ -26,8 +26,8 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 		return errors.New("TLS config required")
 	}
 	tlsConf.NextProtos = append(tlsConf.NextProtos, "quic")
-	qConf := &quic.Config{MaxIdleTimeout: ynet.IdleConnTimeout}
-	lis, err := quic.ListenAddr(address, tlsConf, qConf)
+	conf := &quic.Config{MaxIdleTimeout: ynet.IdleTimeout}
+	lis, err := quic.ListenAddr(address, tlsConf, conf)
 	if err != nil {
 		return err
 	}

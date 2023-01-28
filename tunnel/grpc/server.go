@@ -32,7 +32,10 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: ynet.IdleConnTimeout,
+			MaxConnectionIdle: ynet.IdleTimeout,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime: ynet.KeepAlivePeriod,
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
