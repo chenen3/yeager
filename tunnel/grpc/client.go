@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -21,14 +22,22 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+var connCount = new(debug.Counter)
+
+func init() {
+	expvar.Publish("conngrpc", connCount)
+}
+
 type TunnelClient struct {
 	srvAddr string
 	tlsConf *tls.Config
 	done    chan struct{}
 
-	mu       sync.RWMutex // guards following map
-	conns    map[string]*grpc.ClientConn
-	lastIdle map[string]time.Time
+	mu          sync.RWMutex // guards following map
+	conns       map[string]*grpc.ClientConn
+	lastIdle    map[string]time.Time
+	watchPeriod time.Duration // for test
+	idleTimeout time.Duration // for test
 }
 
 func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
@@ -40,13 +49,23 @@ func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
 		done:     make(chan struct{}),
 	}
 	go c.watch()
+	connCount.Register(c.Len)
 	return c
 }
 
-const watchPeriod = 2 * time.Minute
+const defaultWatchPeriod = time.Minute
 
 func (c *TunnelClient) watch() {
-	ticker := time.NewTicker(watchPeriod)
+	period := c.watchPeriod
+	if period == 0 {
+		period = defaultWatchPeriod
+	}
+	idleTimeout := c.idleTimeout
+	if idleTimeout == 0 {
+		idleTimeout = ynet.IdleTimeout
+	}
+
+	ticker := time.NewTicker(period)
 	for {
 		select {
 		case <-c.done:
@@ -56,7 +75,7 @@ func (c *TunnelClient) watch() {
 			c.mu.Lock()
 			for key, conn := range c.conns {
 				if conn.GetState() != connectivity.Idle {
-					c.lastIdle[key] = time.Time{}
+					delete(c.lastIdle, key)
 					continue
 				}
 				t, ok := c.lastIdle[key]
@@ -64,7 +83,7 @@ func (c *TunnelClient) watch() {
 					c.lastIdle[key] = time.Now()
 					continue
 				}
-				if !t.IsZero() && time.Since(t) >= ynet.IdleTimeout {
+				if time.Since(t) >= idleTimeout {
 					conn.Close()
 					delete(c.conns, key)
 					delete(c.lastIdle, key)
@@ -150,6 +169,12 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, err
 	}
 	return sw, nil
+}
+
+func (c *TunnelClient) Len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.conns)
 }
 
 func (c *TunnelClient) Close() error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"expvar"
 	"io"
 	"log"
 	"sync"
@@ -14,6 +15,12 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/lucas-clemente/quic-go"
 )
+
+var connCount = new(debug.Counter)
+
+func init() {
+	expvar.Publish("connquic", connCount)
+}
 
 type TunnelClient struct {
 	srvAddr string
@@ -32,6 +39,7 @@ func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
 		done:    make(chan struct{}),
 	}
 	go c.watch()
+	connCount.Register(c.Len)
 	return c
 }
 
@@ -50,7 +58,7 @@ func (c *TunnelClient) watch() {
 				if isClosed(conn) {
 					delete(c.conns, key)
 					if debug.Enabled() {
-						log.Printf("watch: clear dead connection: %s", key)
+						log.Printf("watch: clear closed connection: %s", key)
 					}
 				}
 			}
@@ -117,16 +125,23 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	return stream, nil
 }
 
+func (c *TunnelClient) Len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.conns)
+}
+
 func (c *TunnelClient) Close() error {
 	close(c.done)
 	var err error
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, conn := range c.conns {
+	for key, conn := range c.conns {
 		e := conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 		if e != nil {
 			err = e
 		}
+		delete(c.conns, key)
 	}
 	return err
 }
