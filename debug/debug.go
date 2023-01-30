@@ -15,7 +15,7 @@ func Enabled() bool {
 }
 
 // Counter implements the expvar.Var interface
-// and collects the result of the internal counter function
+// and collects result from the internal counter function
 type Counter []func() int
 
 // Register registers counter function
