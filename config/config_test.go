@@ -38,8 +38,7 @@ var testRawConf = `
 				"eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+",
 				"9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl",
 				"-----END CERTIFICATE-----"
-			],
-			"poolSize": 3
+			]
 		}
 	],
 	"rules": [
@@ -86,7 +85,6 @@ func TestConfig(t *testing.T) {
 				KeyFile:  "/path/to/client-key.pem",
 				CAFile:   "/path/to/ca-cert.pem",
 				CAPEM:    splitLines(testCAPEM),
-				PoolSize: 3,
 			},
 		},
 		Rules: []string{"final,proxy"},

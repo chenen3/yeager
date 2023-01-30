@@ -6,6 +6,7 @@ package httpproxy
 import (
 	"bufio"
 	"context"
+	"expvar"
 	"fmt"
 	"log"
 	"net"
@@ -19,6 +20,12 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
+var connCount = new(debug.Counter)
+
+func init() {
+	expvar.Publish("connhttp", connCount)
+}
+
 type Server struct {
 	mu         sync.Mutex
 	lis        net.Listener
@@ -26,12 +33,20 @@ type Server struct {
 	done       chan struct{}
 }
 
+func NewServer() *Server {
+	s := &Server{
+		activeConn: make(map[net.Conn]struct{}),
+		done:       make(chan struct{}),
+	}
+	connCount.Register(s.Len)
+	return s
+}
+
 // Serve serves connection accepted by lis,
 // blocks until an unexpected error is encounttered or Close is called
 func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
-	s.done = make(chan struct{})
 	s.mu.Unlock()
 
 	for {
@@ -91,9 +106,6 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 func (s *Server) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.activeConn == nil {
-		s.activeConn = make(map[net.Conn]struct{})
-	}
 	if add {
 		s.activeConn[c] = struct{}{}
 	} else {

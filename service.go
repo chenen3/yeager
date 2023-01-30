@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
@@ -21,26 +19,6 @@ import (
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/quic"
 )
-
-func init() {
-	expvar.Publish("conn", connCount)
-}
-
-var connCount = new(counters)
-
-type counters []func() int
-
-func (c *counters) RegistCounter(f func() int) {
-	*c = append(*c, f)
-}
-
-func (c *counters) String() string {
-	var total int
-	for _, f := range *c {
-		total += f()
-	}
-	return strconv.FormatInt(int64(total), 10)
-}
 
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
@@ -64,15 +42,14 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
-		var hs httpproxy.Server
+		hs := httpproxy.NewServer()
 		go func() {
 			log.Printf("http proxy listening %s", conf.HTTPListen)
 			if err := hs.Serve(lis, tunneler); err != nil {
 				log.Printf("failed to serve http proxy: %s", err)
 			}
 		}()
-		closers = append(closers, &hs)
-		connCount.RegistCounter(hs.Len)
+		closers = append(closers, hs)
 	}
 
 	if conf.SOCKSListen != "" {
@@ -83,15 +60,14 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
-		var ss socks.Server
+		ss := socks.NewServer()
 		go func() {
 			log.Printf("socks proxy listening %s", conf.SOCKSListen)
 			if err := ss.Serve(lis, tunneler); err != nil {
 				log.Printf("failed to serve socks proxy: %s", err)
 			}
 		}()
-		closers = append(closers, &ss)
-		connCount.RegistCounter(ss.Len)
+		closers = append(closers, ss)
 	}
 
 	for _, tl := range conf.TunnelListens {
@@ -194,15 +170,15 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 
 		switch tc.Type {
 		case config.TunGRPC:
-			client := grpc.NewTunnelClient(tc.Address, tlsConf, tc.PoolSize)
+			client := grpc.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
-			// clean up connection pool
+			// clean up connections
 			t.closers = append(t.closers, client)
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
-			client := quic.NewTunnelClient(tc.Address, tlsConf, tc.PoolSize)
+			client := quic.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
-			// clean up connection pool
+			// clean up connections
 			t.closers = append(t.closers, client)
 			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
 		default:

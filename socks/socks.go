@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -17,11 +18,26 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
+var connCount = new(debug.Counter)
+
+func init() {
+	expvar.Publish("connsocks", connCount)
+}
+
 type Server struct {
-	mu         sync.Mutex
 	lis        net.Listener
+	mu         sync.Mutex
 	activeConn map[net.Conn]struct{}
 	done       chan struct{}
+}
+
+func NewServer() *Server {
+	s := &Server{
+		activeConn: make(map[net.Conn]struct{}),
+		done:       make(chan struct{}),
+	}
+	connCount.Register(s.Len)
+	return s
 }
 
 // Serve serves connection accepted by lis,
@@ -29,7 +45,6 @@ type Server struct {
 func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
-	s.done = make(chan struct{})
 	s.mu.Unlock()
 
 	for {
@@ -82,9 +97,6 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 func (s *Server) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.activeConn == nil {
-		s.activeConn = make(map[net.Conn]struct{})
-	}
 	if add {
 		s.activeConn[c] = struct{}{}
 	} else {
