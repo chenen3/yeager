@@ -58,7 +58,7 @@ func (c *TunnelClient) watch() {
 				if isClosed(conn) {
 					delete(c.conns, key)
 					if debug.Enabled() {
-						log.Printf("watch: clear closed connection: %s", key)
+						log.Printf("clear idle timeout connection: %s", key)
 					}
 				}
 			}

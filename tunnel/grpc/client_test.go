@@ -79,7 +79,7 @@ func TestTunnel(t *testing.T) {
 	}
 }
 
-func TestWatchIdleConn(t *testing.T) {
+func TestWatchIdleTimeout(t *testing.T) {
 	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestWatchIdleConn(t *testing.T) {
 		t.Fatal(err)
 	}
 	ts := new(TunnelServer)
-	ts.idleTimeout = 20*time.Millisecond
+	ts.idleTimeout = 20 * time.Millisecond
 	go func() {
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
@@ -112,13 +112,13 @@ func TestWatchIdleConn(t *testing.T) {
 		t.Fatal(err)
 	}
 	tc := &TunnelClient{
-		srvAddr:  listener.Addr().String(),
-		tlsConf:  cliTLSConf,
-		conns:    make(map[string]*grpc.ClientConn),
-		lastIdle: make(map[string]time.Time),
-		done:     make(chan struct{}),
-		idleTimeout: 20*time.Millisecond,
-		watchPeriod: 10*time.Millisecond,
+		srvAddr:     listener.Addr().String(),
+		tlsConf:     cliTLSConf,
+		conns:       make(map[string]*grpc.ClientConn),
+		startIdle:   make(map[string]time.Time),
+		done:        make(chan struct{}),
+		idleTimeout: 20 * time.Millisecond,
+		watchPeriod: 10 * time.Millisecond,
 	}
 	go tc.watch()
 	if err != nil {
@@ -147,7 +147,7 @@ func TestWatchIdleConn(t *testing.T) {
 
 	// no activity, wait for watch() clearing the idle timeout connection
 	for i := 0; i < 6; i++ {
-		time.Sleep(10*time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		if tc.Len() == 0 {
 			return
 		}

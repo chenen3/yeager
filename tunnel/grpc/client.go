@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
 )
 
 var connCount = new(debug.Counter)
@@ -35,18 +34,18 @@ type TunnelClient struct {
 
 	mu          sync.RWMutex // guards following map
 	conns       map[string]*grpc.ClientConn
-	lastIdle    map[string]time.Time
+	startIdle   map[string]time.Time
 	watchPeriod time.Duration // for test
 	idleTimeout time.Duration // for test
 }
 
 func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
 	c := &TunnelClient{
-		srvAddr:  address,
-		tlsConf:  tlsConf,
-		conns:    make(map[string]*grpc.ClientConn),
-		lastIdle: make(map[string]time.Time),
-		done:     make(chan struct{}),
+		srvAddr:   address,
+		tlsConf:   tlsConf,
+		conns:     make(map[string]*grpc.ClientConn),
+		startIdle: make(map[string]time.Time),
+		done:      make(chan struct{}),
 	}
 	go c.watch()
 	connCount.Register(c.Len)
@@ -55,6 +54,9 @@ func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
 
 const defaultWatchPeriod = time.Minute
 
+// watch watches and closes the idle timeout connection.
+// grpc-go does not implement the feature on client side,
+// see https://github.com/grpc/grpc-go/issues/1719
 func (c *TunnelClient) watch() {
 	period := c.watchPeriod
 	if period == 0 {
@@ -75,20 +77,20 @@ func (c *TunnelClient) watch() {
 			c.mu.Lock()
 			for key, conn := range c.conns {
 				if conn.GetState() != connectivity.Idle {
-					delete(c.lastIdle, key)
+					delete(c.startIdle, key)
 					continue
 				}
-				t, ok := c.lastIdle[key]
+				t, ok := c.startIdle[key]
 				if !ok {
-					c.lastIdle[key] = time.Now()
+					c.startIdle[key] = time.Now()
 					continue
 				}
 				if time.Since(t) >= idleTimeout {
 					conn.Close()
 					delete(c.conns, key)
-					delete(c.lastIdle, key)
+					delete(c.startIdle, key)
 					if debug.Enabled() {
-						log.Printf("watch: clear idle timeout connection: %s", key)
+						log.Printf("close idle timeout connection: %s", key)
 					}
 				}
 			}
@@ -110,10 +112,6 @@ func (c *TunnelClient) getConn(addr string) (*grpc.ClientConn, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    ynet.KeepAlivePeriod,
-			Timeout: 1 * time.Second,
-		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
