@@ -7,7 +7,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"log"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 var connCount = new(debug.Counter)
@@ -30,80 +30,38 @@ func init() {
 type TunnelClient struct {
 	srvAddr string
 	tlsConf *tls.Config
-	done    chan struct{}
-
-	mu          sync.RWMutex // guards following map
-	conns       map[string]*grpc.ClientConn
-	startIdle   map[string]time.Time
-	watchPeriod time.Duration // for test
-	idleTimeout time.Duration // for test
+	mu      sync.RWMutex // guards conns
+	conns   []*grpc.ClientConn
 }
 
-func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
-	c := &TunnelClient{
-		srvAddr:   address,
-		tlsConf:   tlsConf,
-		conns:     make(map[string]*grpc.ClientConn),
-		startIdle: make(map[string]time.Time),
-		done:      make(chan struct{}),
+// 如何预估所需grpc连接数目：
+//
+//	每个 gRPC connection 可能使用多个 HTTP/2 连接，连接的数量基于该服务器解析的IP数量，
+//	每个连接通常限制 100 个并发的 stream (可以用 MaxConcurrentStreams 修改)
+//	假设目标服务器只有 1 个IP，gRPC connection 使用 1 条连接，平均每条连接处理 50 个并发请求，
+//	需要的 connection 数量是 ceil(并发请求数 / 50)
+//	例如预估有 100 个并发请求，需要 ceil(100 / 50) == 2 个 connection，连接池大小为 2
+const defaultConnNum = 2
+
+func NewTunnelClient(address string, tlsConf *tls.Config, connNum int) *TunnelClient {
+	if connNum <= defaultConnNum {
+		connNum = defaultConnNum
 	}
-	go c.watch()
-	connCount.Register(c.Len)
+	c := &TunnelClient{
+		srvAddr: address,
+		tlsConf: tlsConf,
+		conns:   make([]*grpc.ClientConn, connNum),
+	}
+	connCount.Register(c.countConn)
 	return c
 }
 
-const defaultWatchPeriod = time.Minute
-
-// watch watches and closes the idle timeout connection.
-// grpc-go does not implement the feature on client side,
-// see https://github.com/grpc/grpc-go/issues/1719
-func (c *TunnelClient) watch() {
-	period := c.watchPeriod
-	if period == 0 {
-		period = defaultWatchPeriod
-	}
-	idleTimeout := c.idleTimeout
-	if idleTimeout == 0 {
-		idleTimeout = ynet.IdleTimeout
-	}
-
-	ticker := time.NewTicker(period)
-	for {
-		select {
-		case <-c.done:
-			ticker.Stop()
-			return
-		case <-ticker.C:
-			c.mu.Lock()
-			for key, conn := range c.conns {
-				if conn.GetState() != connectivity.Idle {
-					delete(c.startIdle, key)
-					continue
-				}
-				t, ok := c.startIdle[key]
-				if !ok {
-					c.startIdle[key] = time.Now()
-					continue
-				}
-				if time.Since(t) >= idleTimeout {
-					conn.Close()
-					delete(c.conns, key)
-					delete(c.startIdle, key)
-					if debug.Enabled() {
-						log.Printf("close idle timeout connection: %s", key)
-					}
-				}
-			}
-			c.mu.Unlock()
-		}
-	}
-}
-
 func (c *TunnelClient) getConn(addr string) (*grpc.ClientConn, error) {
+	i := len(addr) % len(c.conns)
 	c.mu.RLock()
-	conn, ok := c.conns[addr]
+	conn := c.conns[i]
 	c.mu.RUnlock()
-	if ok {
+	if conn != nil {
 		if conn.GetState() == connectivity.Shutdown {
 			return nil, errors.New("dead connection")
 		}
@@ -112,6 +70,10 @@ func (c *TunnelClient) getConn(addr string) (*grpc.ClientConn, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    ynet.KeepAlivePeriod,
+			Timeout: 1 * time.Second,
+		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
@@ -129,11 +91,11 @@ func (c *TunnelClient) getConn(addr string) (*grpc.ClientConn, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if conn, ok := c.conns[addr]; ok {
+	if conn := c.conns[i]; conn != nil {
 		newConn.Close()
 		return conn, nil
 	}
-	c.conns[addr] = newConn
+	c.conns[i] = newConn
 	return newConn, nil
 }
 
@@ -169,19 +131,25 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	return sw, nil
 }
 
-func (c *TunnelClient) Len() int {
+func (c *TunnelClient) countConn() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return len(c.conns)
+	var i int
+	for _, conn := range c.conns {
+		if conn != nil && conn.GetState() != connectivity.Shutdown {
+			i++
+		}
+	}
+	return i
 }
 
 func (c *TunnelClient) Close() error {
-	close(c.done)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for key, conn := range c.conns {
-		conn.Close()
-		delete(c.conns, key)
+	for _, conn := range c.conns {
+		if conn != nil {
+			conn.Close()
+		}
 	}
 	return nil
 }

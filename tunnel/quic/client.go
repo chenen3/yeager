@@ -6,14 +6,12 @@ import (
 	"errors"
 	"expvar"
 	"io"
-	"log"
 	"sync"
-	"time"
 
 	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 var connCount = new(debug.Counter)
@@ -26,45 +24,23 @@ type TunnelClient struct {
 	srvAddr string
 	tlsConf *tls.Config
 	mu      sync.RWMutex
-	conns   map[string]quic.Connection
-	done    chan struct{}
+	conns   []quic.Connection
 }
 
-func NewTunnelClient(address string, tlsConf *tls.Config) *TunnelClient {
+const defaultConnNum = 2
+
+func NewTunnelClient(address string, tlsConf *tls.Config, connNum int) *TunnelClient {
+	if connNum <= defaultConnNum {
+		connNum = defaultConnNum
+	}
 	tlsConf.NextProtos = []string{"quic"}
 	c := &TunnelClient{
 		srvAddr: address,
 		tlsConf: tlsConf,
-		conns:   make(map[string]quic.Connection),
-		done:    make(chan struct{}),
+		conns:   make([]quic.Connection, connNum),
 	}
-	go c.watch()
-	connCount.Register(c.Len)
+	connCount.Register(c.countConn)
 	return c
-}
-
-const watchPeriod = 2 * time.Minute
-
-func (c *TunnelClient) watch() {
-	tick := time.NewTicker(watchPeriod)
-	for {
-		select {
-		case <-c.done:
-			tick.Stop()
-			return
-		case <-tick.C:
-			c.mu.Lock()
-			for key, conn := range c.conns {
-				if isClosed(conn) {
-					delete(c.conns, key)
-					if debug.Enabled() {
-						log.Printf("clear idle timeout connection: %s", key)
-					}
-				}
-			}
-			c.mu.Unlock()
-		}
-	}
 }
 
 func isClosed(conn quic.Connection) bool {
@@ -77,19 +53,18 @@ func isClosed(conn quic.Connection) bool {
 }
 
 func (c *TunnelClient) getConn(addr string) (quic.Connection, error) {
+	i := len(addr) % len(c.conns)
 	c.mu.RLock()
-	conn, ok := c.conns[addr]
+	conn := c.conns[i]
 	c.mu.RUnlock()
-	if ok && !isClosed(conn) {
+	if conn != nil && !isClosed(conn) {
 		return conn, nil
 	}
 
 	conf := &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
 		MaxIdleTimeout:       ynet.IdleTimeout,
-		// experiement shows that once keepalive is enabled,
-		// the quic connection won't be closed even if MaxIdleTimeout is exceeded
-		// KeepAlivePeriod: ynet.KeepAlivePeriod,
+		KeepAlivePeriod:      ynet.KeepAlivePeriod,
 	}
 	newConn, err := quic.DialAddr(c.srvAddr, c.tlsConf, conf)
 	if err != nil {
@@ -98,11 +73,11 @@ func (c *TunnelClient) getConn(addr string) (quic.Connection, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if conn, ok := c.conns[addr]; ok && !isClosed(conn) {
+	if conn := c.conns[i]; conn != nil && !isClosed(conn) {
 		newConn.CloseWithError(0, "")
 		return conn, nil
 	}
-	c.conns[addr] = newConn
+	c.conns[i] = newConn
 	return newConn, nil
 }
 
@@ -112,36 +87,43 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, errors.New("dial quic: " + err.Error())
 	}
 
-	rawStream, err := conn.OpenStream()
+	stream, err := conn.OpenStream()
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
 
-	stream := wrapStream(rawStream)
-	if err := tunnel.WriteHeader(stream, dst); err != nil {
-		stream.Close()
+	sw := wrapStream(stream)
+	if err := tunnel.WriteHeader(sw, dst); err != nil {
+		sw.Close()
 		return nil, err
 	}
-	return stream, nil
+	return sw, nil
 }
 
-func (c *TunnelClient) Len() int {
+func (c *TunnelClient) countConn() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return len(c.conns)
+	var i int
+	for _, conn := range c.conns {
+		if conn != nil && !isClosed(conn) {
+			i++
+		}
+	}
+	return i
 }
 
 func (c *TunnelClient) Close() error {
-	close(c.done)
 	var err error
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for key, conn := range c.conns {
-		e := conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+	for _, conn := range c.conns {
+		if conn == nil {
+			continue
+		}
+		e := conn.CloseWithError(0, "")
 		if e != nil {
 			err = e
 		}
-		delete(c.conns, key)
 	}
 	return err
 }
@@ -150,13 +132,15 @@ type streamWrapper struct {
 	quic.Stream
 }
 
-// wrapStream wrap the raw quic.Stream with method Close modified
+// wrapStream wrap quic.Stream with method Close modified
 func wrapStream(raw quic.Stream) *streamWrapper {
 	return &streamWrapper{raw}
 }
 
-// Close closes read-direction and write-direction of the stream
+// Close closes the read and write directions of the stream.
+// Since quic.Stream.Close() does not close reads and writes by convention,
+// future reads will block forever.
 func (s *streamWrapper) Close() error {
-	s.CancelRead(ynet.ErrCodeCancelRead)
+	s.CancelRead(ynet.StreamNoError)
 	return s.Stream.Close()
 }

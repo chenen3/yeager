@@ -38,7 +38,8 @@ var testRawConf = `
 				"eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+",
 				"9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl",
 				"-----END CERTIFICATE-----"
-			]
+			],
+			"connNum": 2
 		}
 	],
 	"rules": [
@@ -85,6 +86,7 @@ func TestConfig(t *testing.T) {
 				KeyFile:  "/path/to/client-key.pem",
 				CAFile:   "/path/to/ca-cert.pem",
 				CAPEM:    splitLines(testCAPEM),
+				ConnNum:  2,
 			},
 		},
 		Rules: []string{"final,proxy"},

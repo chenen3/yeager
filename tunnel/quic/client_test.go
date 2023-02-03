@@ -39,7 +39,7 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf)
+	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf, 1)
 	return ts, tc, nil
 }
 

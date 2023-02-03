@@ -11,7 +11,7 @@ import (
 
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 // TunnelServer is a QUIC tunnel server, its zero value is ready to use
