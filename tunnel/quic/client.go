@@ -23,33 +23,6 @@ func init() {
 	expvar.Publish("connquic", connCount)
 }
 
-type TunnelClientConfig struct {
-	Target            string
-	TLSConfig         *tls.Config
-	WatchPeriod       time.Duration // default to 1 minute
-	IdleTimeout       time.Duration // default to 2 minutes
-	MaxStreamsPerConn int           // default to 100
-}
-
-func (cc *TunnelClientConfig) tidy() TunnelClientConfig {
-	if cc.TLSConfig == nil {
-		// tidy() will be called on initialization, do not return an error
-		panic("TLS config required")
-	}
-	cc.TLSConfig.NextProtos = []string{"quic"}
-	if cc.WatchPeriod == 0 {
-		cc.WatchPeriod = time.Minute
-	}
-	if cc.IdleTimeout == 0 {
-		cc.IdleTimeout = ynet.IdleTimeout
-	}
-	if cc.MaxStreamsPerConn <= 0 {
-		// MaxIncomingStreams of quic.Config default to 100
-		cc.MaxStreamsPerConn = 100
-	}
-	return *cc
-}
-
 type TunnelClient struct {
 	conf        TunnelClientConfig
 	mu          sync.RWMutex // guards conns
@@ -58,11 +31,34 @@ type TunnelClient struct {
 	ticker      *time.Ticker
 }
 
+type TunnelClientConfig struct {
+	Target            string
+	TLSConfig         *tls.Config
+	WatchPeriod       time.Duration // default to 1 minute
+	IdleTimeout       time.Duration // default to 2 minutes
+	MaxStreamsPerConn int           // default to 100
+}
+
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
-	c := &TunnelClient{
-		conf: conf.tidy(),
+	if conf.TLSConfig == nil {
+		panic("TLS config required")
 	}
-	c.ticker = time.NewTicker(c.conf.WatchPeriod)
+	conf.TLSConfig.NextProtos = []string{"quic"}
+	if conf.WatchPeriod == 0 {
+		conf.WatchPeriod = time.Minute
+	}
+	if conf.IdleTimeout == 0 {
+		conf.IdleTimeout = ynet.IdleTimeout
+	}
+	if conf.MaxStreamsPerConn <= 0 {
+		// MaxIncomingStreams of quic.Config default to 100
+		conf.MaxStreamsPerConn = 100
+	}
+
+	c := &TunnelClient{
+		conf:   conf,
+		ticker: time.NewTicker(conf.WatchPeriod),
+	}
 	go c.watch()
 	connCount.Register(c.countConn)
 	return c
@@ -114,6 +110,7 @@ func (c *TunnelClient) getConn() (quic.Connection, error) {
 			c.mu.RUnlock()
 			return conn, nil
 		}
+		// do not clear closed connection here (requires write lock), keep it simple
 	}
 	c.mu.RUnlock()
 
