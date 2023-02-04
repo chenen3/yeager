@@ -39,7 +39,6 @@ var testRawConf = `
 				"9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl",
 				"-----END CERTIFICATE-----"
 			],
-			"connNum": 2,
 			"maxStreamsPerConn": 10
 		}
 	],
@@ -87,7 +86,6 @@ func TestConfig(t *testing.T) {
 				KeyFile:           "/path/to/client-key.pem",
 				CAFile:            "/path/to/ca-cert.pem",
 				CAPEM:             splitLines(testCAPEM),
-				ConnNum:           2,
 				MaxStreamsPerConn: 10,
 			},
 		},

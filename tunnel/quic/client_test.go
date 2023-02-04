@@ -123,12 +123,11 @@ func TestScale(t *testing.T) {
 		IdleTimeout:       10 * time.Millisecond,
 		MaxStreamsPerConn: 1,
 	})
-	go tc.watch()
 	defer tc.Close()
 
 	// debug.Enable()
 	// issues two connection
-	for i := 0; i < 2; i++ {
+	issueConnection := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
@@ -145,6 +144,9 @@ func TestScale(t *testing.T) {
 		if _, err := rwc.Read(got); err != nil {
 			t.Fatal(err)
 		}
+	}
+	for i := 0; i < 2; i++ {
+		issueConnection()
 	}
 
 	// check whether scale down
