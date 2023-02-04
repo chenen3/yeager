@@ -39,7 +39,8 @@ var testRawConf = `
 				"9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl",
 				"-----END CERTIFICATE-----"
 			],
-			"connNum": 2
+			"connNum": 2,
+			"maxStreamsPerConn": 10
 		}
 	],
 	"rules": [
@@ -79,14 +80,15 @@ func TestConfig(t *testing.T) {
 		},
 		TunnelClients: []TunnelClient{
 			{
-				Policy:   "proxy",
-				Type:     "grpc",
-				Address:  "127.0.0.1:9000",
-				CertFile: "/path/to/client-cert.pem",
-				KeyFile:  "/path/to/client-key.pem",
-				CAFile:   "/path/to/ca-cert.pem",
-				CAPEM:    splitLines(testCAPEM),
-				ConnNum:  2,
+				Policy:            "proxy",
+				Type:              "grpc",
+				Address:           "127.0.0.1:9000",
+				CertFile:          "/path/to/client-cert.pem",
+				KeyFile:           "/path/to/client-key.pem",
+				CAFile:            "/path/to/ca-cert.pem",
+				CAPEM:             splitLines(testCAPEM),
+				ConnNum:           2,
+				MaxStreamsPerConn: 10,
 			},
 		},
 		Rules: []string{"final,proxy"},
