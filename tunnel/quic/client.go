@@ -55,30 +55,24 @@ type TunnelClient struct {
 	mu          sync.RWMutex // guards conns
 	conns       []quic.Connection
 	streamCount int32
-	done        chan struct{}
+	ticker      *time.Ticker
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	c := &TunnelClient{
 		conf: conf.tidy(),
-		done: make(chan struct{}),
 	}
+	c.ticker = time.NewTicker(c.conf.WatchPeriod)
 	go c.watch()
 	connCount.Register(c.countConn)
 	return c
 }
 
 func (c *TunnelClient) watch() {
-	tick := time.NewTicker(c.conf.WatchPeriod)
-	for {
-		select {
-		case <-c.done:
-			tick.Stop()
-		case <-tick.C:
-			c.mu.Lock()
-			c.clearConnectionLocked()
-			c.mu.Unlock()
-		}
+	for range c.ticker.C {
+		c.mu.Lock()
+		c.clearConnectionLocked()
+		c.mu.Unlock()
 	}
 }
 
@@ -90,7 +84,7 @@ func (c *TunnelClient) clearConnectionLocked() {
 
 	live := make([]quic.Connection, 0, len(c.conns))
 	for _, conn := range c.conns {
-		if conn != nil && !isClosed(conn) {
+		if !isClosed(conn) {
 			live = append(live, conn)
 		}
 	}
@@ -113,22 +107,15 @@ func isClosed(conn quic.Connection) bool {
 
 func (c *TunnelClient) getConn() (quic.Connection, error) {
 	i := int(atomic.LoadInt32(&c.streamCount)) / c.conf.MaxStreamsPerConn
-	c.mu.Lock()
+	c.mu.RLock()
 	if i < len(c.conns) {
 		conn := c.conns[i]
 		if !isClosed(conn) {
-			c.mu.Unlock()
+			c.mu.RUnlock()
 			return conn, nil
 		}
-		if i == 0 {
-			c.conns = nil
-		} else if i == len(c.conns)-1 {
-			c.conns = c.conns[:i-1]
-		} else {
-			c.conns = append(c.conns[:i], c.conns[i+1:]...)
-		}
 	}
-	c.mu.Unlock()
+	c.mu.RUnlock()
 
 	conf := &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
@@ -177,7 +164,9 @@ func (c *TunnelClient) countConn() int {
 }
 
 func (c *TunnelClient) Close() error {
-	close(c.done)
+	if c.ticker != nil {
+		c.ticker.Stop()
+	}
 	var err error
 	c.mu.Lock()
 	defer c.mu.Unlock()
