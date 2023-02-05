@@ -20,12 +20,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// max concurrent streams per connection
+const maxConcurrentStreams = 100
+
 // TunnelServer is a GRPC tunnel server, its zero value is ready to use
 type TunnelServer struct {
 	pb.UnimplementedTunnelServer
-	mu          sync.Mutex
-	gs          *grpc.Server
-	idleTimeout time.Duration // for test
+	mu sync.Mutex
+	gs *grpc.Server
+
+	idleTimeout time.Duration // for testing
 }
 
 // Serve will return a non-nil error unless Close is called.
@@ -36,9 +40,13 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	}
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
+		grpc.MaxConcurrentStreams(maxConcurrentStreams),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: idleTimeout,
 		}),
+		// grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+		// 	MinTime: ynet.KeepAlivePeriod,
+		// }),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
 	s.mu.Lock()
@@ -47,13 +55,13 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	return grpcServer.Serve(lis)
 }
 
-func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
-	if rawStream.Context().Err() != nil {
-		return rawStream.Context().Err()
+func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
+	if stream.Context().Err() != nil {
+		return stream.Context().Err()
 	}
 
-	stream := wrapServerStream(rawStream)
-	dst, err := tunnel.TimeReadHeader(stream, ynet.HandshakeTimeout)
+	sw := wrapServerStream(stream)
+	dst, err := tunnel.TimeReadHeader(sw, ynet.HandshakeTimeout)
 	if err != nil {
 		return fmt.Errorf("read header: %s", err)
 	}
@@ -65,8 +73,8 @@ func (s *TunnelServer) Stream(rawStream pb.Tunnel_StreamServer) error {
 	defer remote.Close()
 
 	ch := make(chan error, 2)
-	go oneWayRelay(remote, stream, ch)
-	go oneWayRelay(stream, remote, ch)
+	go oneWayRelay(remote, sw, ch)
+	go oneWayRelay(sw, remote, ch)
 	if err := <-ch; err != nil && !closedOrCanceled(err) {
 		log.Printf("relay %s: %s", dst, err)
 	}

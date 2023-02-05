@@ -84,16 +84,17 @@ func (tl *TunnelListen) GetCAPEM() ([]byte, error) {
 }
 
 type TunnelClient struct {
-	Policy string `json:"policy"`
-	Type   string `json:"type"`
-	// target server address
-	Address  string   `json:"address"`
+	Policy   string   `json:"policy"`
+	Type     string   `json:"type"`
+	Address  string   `json:"address"` // target server address
 	CertFile string   `json:"certFile,omitempty"`
 	CertPEM  []string `json:"certPEM,omitempty"`
 	KeyFile  string   `json:"keyFile,omitempty"`
 	KeyPEM   []string `json:"keyPEM,omitempty"`
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
+
+	MaxStreamsPerConn int `json:"maxStreamsPerConn,omitempty"` // default to 100
 }
 
 func (tc *TunnelClient) GetCertPEM() ([]byte, error) {

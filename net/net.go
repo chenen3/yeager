@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -18,7 +18,7 @@ import (
 const (
 	DialTimeout      = 10 * time.Second
 	HandshakeTimeout = 5 * time.Second
-	KeepAlivePeriod  = 30 * time.Second
+	KeepAlivePeriod  = 15 * time.Second
 	IdleTimeout      = 120 * time.Second
 )
 
@@ -97,7 +97,7 @@ func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err er
 	return send.N, recv.N, err
 }
 
-const ErrCodeCancelRead = 0
+const StreamNoError = 0
 
 // check for closed or canceled error cause by dst.Close() in oneWayRelay
 func closedOrCanceled(err error) bool {
@@ -106,7 +106,7 @@ func closedOrCanceled(err error) bool {
 	}
 	if errors.Is(err, new(quic.StreamError)) {
 		i, _ := err.(*quic.StreamError)
-		return i.ErrorCode == ErrCodeCancelRead
+		return i.ErrorCode == StreamNoError
 	}
 	s, ok := status.FromError(err)
 	return ok && s != nil && s.Code() == codes.Canceled

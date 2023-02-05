@@ -11,7 +11,6 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 	ynet "github.com/chenen3/yeager/net"
-	"google.golang.org/grpc"
 )
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {
@@ -39,7 +38,10 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf)
+	tc := NewTunnelClient(TunnelClientConfig{
+		Target:    listener.Addr().String(),
+		TLSConfig: cliTLSConf,
+	})
 	return ts, tc, nil
 }
 
@@ -79,7 +81,7 @@ func TestTunnel(t *testing.T) {
 	}
 }
 
-func TestWatchIdleTimeout(t *testing.T) {
+func TestScale(t *testing.T) {
 	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)
@@ -98,61 +100,59 @@ func TestWatchIdleTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := new(TunnelServer)
-	ts.idleTimeout = 20 * time.Millisecond
+	ts := TunnelServer{idleTimeout: 10 * time.Millisecond}
 	go func() {
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
-			t.Error(err)
+			log.Print(err)
 		}
 	}()
+	defer ts.Close()
 
 	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tc := &TunnelClient{
-		srvAddr:     listener.Addr().String(),
-		tlsConf:     cliTLSConf,
-		conns:       make(map[string]*grpc.ClientConn),
-		startIdle:   make(map[string]time.Time),
-		done:        make(chan struct{}),
-		idleTimeout: 20 * time.Millisecond,
-		watchPeriod: 10 * time.Millisecond,
-	}
-	go tc.watch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ts.Close()
+	tc := NewTunnelClient(TunnelClientConfig{
+		Target:            listener.Addr().String(),
+		TLSConfig:         cliTLSConf,
+		WatchPeriod:       5 * time.Millisecond,
+		IdleTimeout:       10 * time.Millisecond,
+		MaxStreamsPerConn: 1,
+	})
 	defer tc.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
+	issueConnection := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rwc.Close()
+		want := []byte{1}
+		got := make([]byte, len(want))
+		if _, err := rwc.Write(want); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rwc.Read(got); err != nil {
+			t.Fatal(err)
+		}
 	}
-	want := []byte{1}
-	got := make([]byte, len(want))
-	if _, err := rwc.Write(want); err != nil {
-		t.Fatal(err)
+	for i := 0; i < 2; i++ {
+		issueConnection()
 	}
-	if _, err := rwc.Read(got); err != nil {
-		t.Fatal(err)
-	}
-	rwc.Close()
 
-	// no activity, wait for watch() clearing the idle timeout connection
-	for i := 0; i < 6; i++ {
-		time.Sleep(10 * time.Millisecond)
-		if tc.Len() == 0 {
+	// check whether scale down
+	for i := 0; i < 5; i++ {
+		time.Sleep(tc.conf.WatchPeriod)
+		if tc.countConn() == 0 {
 			return
 		}
 	}
-	t.Fatalf("got %d connection, want 0", tc.Len())
+	t.Fatalf("got %d connections, want %d", tc.countConn(), 0)
 }
 
 func BenchmarkThroughput(b *testing.B) {

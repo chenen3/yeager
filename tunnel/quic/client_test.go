@@ -39,7 +39,11 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf)
+
+	tc := NewTunnelClient(TunnelClientConfig{
+		Target:    lis.Addr().String(),
+		TLSConfig: cliTLSConf,
+	})
 	return ts, tc, nil
 }
 
@@ -75,6 +79,84 @@ func TestTunnel(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
+}
+
+func TestScale(t *testing.T) {
+	echo, err := ynet.StartEchoServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer echo.Close()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lis.Close()
+
+	ct, err := cert.Generate("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ts := new(TunnelServer)
+	go func() {
+		if e := ts.Serve(lis.Addr().String(), srvTLSConf); e != nil {
+			t.Error(e)
+		}
+	}()
+	defer ts.Close()
+
+	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cliTLSConf.NextProtos = []string{"quic"}
+	tc := NewTunnelClient(TunnelClientConfig{
+		Target:            lis.Addr().String(),
+		TLSConfig:         cliTLSConf,
+		WatchPeriod:       5 * time.Millisecond,
+		IdleTimeout:       10 * time.Millisecond,
+		MaxStreamsPerConn: 1,
+	})
+	defer tc.Close()
+
+	// debug.Enable()
+	// issues two connection
+	issueConnection := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rwc.Close()
+
+		want := []byte{1}
+		got := make([]byte, len(want))
+		if _, err := rwc.Write(want); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rwc.Read(got); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		issueConnection()
+	}
+
+	// check whether scale down
+	for i := 0; i < 5; i++ {
+		time.Sleep(tc.conf.WatchPeriod)
+		if tc.countConn() == 0 {
+			return
+		}
+	}
+	t.Fatalf("got %d connections, want %d", tc.countConn(), 0)
 }
 
 func BenchmarkThroughput(b *testing.B) {
