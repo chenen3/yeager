@@ -102,7 +102,7 @@ func (c *TunnelClient) clearConnectionLocked() {
 func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 	i := int(atomic.LoadInt32(&c.streamCount)) / c.conf.MaxStreamsPerConn
 	c.mu.RLock()
-	if i < len(c.conns)-1 {
+	if i < len(c.conns) {
 		conn := c.conns[i]
 		if conn.GetState() != connectivity.Shutdown {
 			c.mu.RUnlock()
