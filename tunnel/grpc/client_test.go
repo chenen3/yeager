@@ -205,16 +205,3 @@ func BenchmarkThroughput(b *testing.B) {
 	rwc.Close()
 	<-done
 }
-
-// fixed number of connection
-// BenchmarkThroughput-4   	   68307	     16693 ns/op	       478.8 mbps	    7052 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   88024	     14909 ns/op	       536.4 mbps	    7034 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   90344	     14411 ns/op	       554.5 mbps	    7014 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   89446	     13127 ns/op	       608.9 mbps	    6985 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   90462	     13039 ns/op	       612.9 mbps	    6992 B/op	      13 allocs/op
-
-// dynamic number of connection
-// BenchmarkThroughput-4   	   75130	     17879 ns/op	       447.4 mbps	    7012 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   86664	     15511 ns/op	       515.5 mbps	    7002 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   87466	     13242 ns/op	       603.4 mbps	    6997 B/op	      13 allocs/op
-// BenchmarkThroughput-4   	   88327	     13052 ns/op	       612.3 mbps	    6997 B/op	      13 allocs/op

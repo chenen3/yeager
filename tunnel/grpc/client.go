@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	// "google.golang.org/grpc/keepalive"
 )
 
 var connCount = new(debug.Counter)
