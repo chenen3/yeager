@@ -6,7 +6,6 @@ import (
 	"errors"
 	"expvar"
 	"io"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,9 +85,7 @@ func (c *TunnelClient) clearConnectionLocked() {
 	}
 	if len(live) < len(c.conns) {
 		c.conns = live
-		if debug.Enabled() {
-			log.Printf("scale down to %d connection", len(live))
-		}
+		debug.Logf("scale down to %d connection", len(live))
 	}
 }
 
@@ -101,16 +98,14 @@ func isClosed(conn quic.Connection) bool {
 	}
 }
 
-func (c *TunnelClient) getConn() (quic.Connection, error) {
+func (c *TunnelClient) getConn(ctx context.Context) (quic.Connection, error) {
 	i := int(atomic.LoadInt32(&c.streamCount)) / c.conf.MaxStreamsPerConn
 	c.mu.RLock()
-	if i < len(c.conns) {
+	if i < len(c.conns) && !isClosed(c.conns[i]) {
+		// everything is fine
 		conn := c.conns[i]
-		if !isClosed(conn) {
-			c.mu.RUnlock()
-			return conn, nil
-		}
-		// do not clear closed connection here (requires write lock), keep it simple
+		c.mu.RUnlock()
+		return conn, nil
 	}
 	c.mu.RUnlock()
 
@@ -120,22 +115,32 @@ func (c *TunnelClient) getConn() (quic.Connection, error) {
 		// it seems MaxIdleTimeout does not work when keep-alive enabled
 		// KeepAlivePeriod: ynet.KeepAlivePeriod,
 	}
-	newConn, err := quic.DialAddr(c.conf.Target, c.conf.TLSConfig, conf)
+	conn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, conf)
 	if err != nil {
 		return nil, err
 	}
 
 	c.mu.Lock()
-	c.conns = append(c.conns, newConn)
-	if debug.Enabled() {
-		log.Printf("scale up to %d connection", len(c.conns))
+	defer c.mu.Unlock()
+	if i >= len(c.conns) {
+		// still need more connections
+		c.conns = append(c.conns, conn)
+		debug.Logf("scale up to %d connection", len(c.conns))
+		return conn, nil
 	}
-	c.mu.Unlock()
-	return newConn, nil
+
+	if !isClosed(c.conns[i]) {
+		// other goroutine has set up new connection
+		conn.CloseWithError(0, "")
+		return c.conns[i], nil
+	}
+
+	c.conns[i] = conn
+	return conn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn()
+	conn, err := c.getConn(ctx)
 	if err != nil {
 		return nil, errors.New("dial quic: " + err.Error())
 	}
@@ -168,11 +173,8 @@ func (c *TunnelClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, conn := range c.conns {
-		if conn == nil {
-			continue
-		}
 		e := conn.CloseWithError(0, "")
-		if e != nil {
+		if e != nil && err == nil {
 			err = e
 		}
 	}

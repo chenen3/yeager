@@ -104,7 +104,7 @@ func TestScale(t *testing.T) {
 	go func() {
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
-			log.Print(err)
+			t.Error(err)
 		}
 	}()
 	defer ts.Close()

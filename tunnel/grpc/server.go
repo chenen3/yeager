@@ -87,7 +87,7 @@ func closedOrCanceled(err error) bool {
 		return true
 	}
 	s, ok := status.FromError(err)
-	return ok && s != nil && s.Code() == codes.Canceled
+	return ok && s.Code() == codes.Canceled
 }
 
 func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {

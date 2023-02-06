@@ -1,6 +1,10 @@
 package debug
 
-import "strconv"
+import (
+	"fmt"
+	"log"
+	"strconv"
+)
 
 var enable bool
 
@@ -9,9 +13,12 @@ func Enable() {
 	enable = true
 }
 
-// Enabled returns true if debugging is enabled
-func Enabled() bool {
-	return enable
+// Logf is equivalent to log.Printf, if debug is enabled
+func Logf(format string, v ...any) {
+	if !enable {
+		return
+	}
+	log.Default().Output(2, fmt.Sprintf(format, v...))
 }
 
 // Counter implements the expvar.Var interface

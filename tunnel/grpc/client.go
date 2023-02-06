@@ -6,7 +6,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -93,21 +92,17 @@ func (c *TunnelClient) clearConnectionLocked() {
 	}
 	if len(live) < len(c.conns) {
 		c.conns = live
-		if debug.Enabled() {
-			log.Printf("scale down to %d connection", len(live))
-		}
+		debug.Logf("scale down to %d connection", len(live))
 	}
 }
 
 func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 	i := int(atomic.LoadInt32(&c.streamCount)) / c.conf.MaxStreamsPerConn
 	c.mu.RLock()
-	if i < len(c.conns) {
+	if i < len(c.conns) && c.conns[i].GetState() != connectivity.Shutdown {
 		conn := c.conns[i]
-		if conn.GetState() != connectivity.Shutdown {
-			c.mu.RUnlock()
-			return conn, nil
-		}
+		c.mu.RUnlock()
+		return conn, nil
 	}
 	c.mu.RUnlock()
 
@@ -127,19 +122,27 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 			MinConnectTimeout: 5 * time.Second,
 		}),
 	}
-	// non-blocking dial
-	newConn, err := grpc.Dial(c.conf.Target, opts...)
+	// non-blocking dial, no context required
+	conn, err := grpc.Dial(c.conf.Target, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	c.mu.Lock()
-	c.conns = append(c.conns, newConn)
-	if debug.Enabled() {
-		log.Printf("scale up to %d connection", len(c.conns))
+	defer c.mu.Unlock()
+	if i >= len(c.conns) {
+		c.conns = append(c.conns, conn)
+		debug.Logf("scale up to %d connection", len(c.conns))
+		return conn, nil
 	}
-	c.mu.Unlock()
-	return newConn, nil
+
+	if c.conns[i].GetState() != connectivity.Shutdown {
+		conn.Close()
+		return c.conns[i], nil
+	}
+
+	c.conns[i] = conn
+	return conn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -151,15 +154,15 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 
 	// requires a context for controling the entire lifecycle of stream, not for dialing
 	streamCtx, streamCancel := context.WithCancel(context.Background())
-	doneOpeningStream := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
 		select {
 		case <-ctx.Done():
 			streamCancel()
-		case <-doneOpeningStream:
+		case <-done:
 		}
 	}()
-	defer close(doneOpeningStream)
+	defer close(done)
 
 	stream, err := client.Stream(streamCtx)
 	if err != nil {
@@ -186,6 +189,9 @@ func (c *TunnelClient) countConn() int {
 }
 
 func (c *TunnelClient) Close() error {
+	if c.ticker != nil {
+		c.ticker.Stop()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, conn := range c.conns {
