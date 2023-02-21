@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 var connCount = new(debug.Counter)
@@ -108,10 +109,10 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(c.conf.TLSConfig)),
-		// grpc.WithKeepaliveParams(keepalive.ClientParameters{
-		// 	Time:    ynet.KeepAlivePeriod,
-		// 	Timeout: 1 * time.Second,
-		// }),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    ynet.KeepAlivePeriod,
+			Timeout: 1 * time.Second,
+		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
