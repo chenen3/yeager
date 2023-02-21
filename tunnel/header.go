@@ -99,7 +99,6 @@ func WriteHeader(w io.Writer, hostport string) error {
 	return err
 }
 
-// ReadHeader 读取 header, 解析其目的地址
 func ReadHeader(r io.Reader) (hostport string, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):

@@ -188,7 +188,6 @@ type streamWrapper struct {
 	once    sync.Once
 }
 
-// wrapStream wrap quic.Stream with method Close modified
 func wrapStream(stream quic.Stream, onClose func()) *streamWrapper {
 	return &streamWrapper{
 		Stream:  stream,
@@ -196,13 +195,11 @@ func wrapStream(stream quic.Stream, onClose func()) *streamWrapper {
 	}
 }
 
-// Close closes the read and write directions of the stream.
-// Since quic.Stream.Close() does not close reads and writes by convention,
-// future reads will block forever.
 func (s *streamWrapper) Close() error {
 	if s.onClose != nil {
 		s.once.Do(s.onClose)
 	}
+	// stop receiving on this stream since quic.Stream.Close() does not handle this
 	s.CancelRead(ynet.StreamNoError)
 	return s.Stream.Close()
 }
