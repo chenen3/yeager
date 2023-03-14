@@ -174,6 +174,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				Target:            tc.Address,
 				TLSConfig:         tlsConf,
 				MaxStreamsPerConn: tc.MaxStreamsPerConn,
+				Keepalive:         tc.Keepalive,
 			})
 			dialers[policy] = client
 			// clean up connections

@@ -41,13 +41,13 @@ type TunnelClientConfig struct {
 	WatchPeriod       time.Duration // default to 1 minute
 	IdleTimeout       time.Duration // default to 2 minutes
 	MaxStreamsPerConn int           // default to 100
+	Keepalive         bool
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	if conf.TLSConfig == nil {
 		panic("TLS config required")
 	}
-	conf.TLSConfig.NextProtos = []string{"quic"}
 	if conf.WatchPeriod == 0 {
 		conf.WatchPeriod = time.Minute
 	}
@@ -109,10 +109,6 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(c.conf.TLSConfig)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    ynet.KeepAlivePeriod,
-			Timeout: 1 * time.Second,
-		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
@@ -122,6 +118,12 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 			},
 			MinConnectTimeout: 5 * time.Second,
 		}),
+	}
+	if c.conf.Keepalive {
+		opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    ynet.KeepalivePeriod,
+			Timeout: 1 * time.Second,
+		}))
 	}
 	// non-blocking dial, no context required
 	conn, err := grpc.Dial(c.conf.Target, opts...)

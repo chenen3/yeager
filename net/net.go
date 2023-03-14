@@ -18,7 +18,7 @@ import (
 const (
 	DialTimeout      = 10 * time.Second
 	HandshakeTimeout = 5 * time.Second
-	KeepAlivePeriod  = 15 * time.Second
+	KeepalivePeriod  = 15 * time.Second
 	IdleTimeout      = 120 * time.Second
 )
 
