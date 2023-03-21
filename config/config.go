@@ -15,6 +15,7 @@ import (
 const (
 	TunGRPC = "grpc"
 	TunQUIC = "quic"
+	TunWSS  = "wss"
 )
 
 // Load loads configuration from the given bytes
@@ -30,7 +31,8 @@ type Config struct {
 	TunnelListens []TunnelListen `json:"tunnelListens,omitempty"`
 	TunnelClients []TunnelClient `json:"tunnelClients,omitempty"`
 	Rules         []string       `json:"rules,omitempty"`
-	// developer only: enable debug logging, start HTTP server for profiling
+	
+	// enable debug logging, start HTTP server for profiling
 	Debug bool `json:"debug,omitempty"`
 }
 

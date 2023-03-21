@@ -18,6 +18,7 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/quic"
+	"github.com/chenen3/yeager/tunnel/wss"
 )
 
 // StartServices starts services with the given config,
@@ -112,6 +113,18 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 				}
 			}()
 			closers = append(closers, &s)
+		case config.TunWSS:
+			lis, err := net.Listen("tcp", tl.Listen)
+			if err != nil {
+				return nil, err
+			}
+			var s wss.TunnelServer
+			go func() {
+				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
+				if err := s.Serve(lis, tlsConf); err != nil {
+					log.Printf("%s tunnel serve: %s", tl.Type, err)
+				}
+			}()
 		}
 	}
 	return closers, nil
@@ -190,6 +203,10 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			// clean up connections
 			t.closers = append(t.closers, client)
 			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
+		case config.TunWSS:
+			client := wss.NewTunnelClient(tc.Address, tlsConf)
+			dialers[policy] = client
+			log.Printf("%s targeting WSS tunnel %s", tc.Policy, tc.Address)
 		default:
 			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
 		}
