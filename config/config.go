@@ -30,7 +30,7 @@ type Config struct {
 	TunnelListens []TunnelListen `json:"tunnelListens,omitempty"`
 	TunnelClients []TunnelClient `json:"tunnelClients,omitempty"`
 	Rules         []string       `json:"rules,omitempty"`
-	// developer only: enable debug logging, start HTTP server for profiling
+	// enable debug logging, start HTTP server for profiling
 	Debug bool `json:"debug,omitempty"`
 }
 
@@ -95,7 +95,7 @@ type TunnelClient struct {
 	CAPEM    []string `json:"caPEM,omitempty"`
 
 	MaxStreamsPerConn int  `json:"maxStreamsPerConn,omitempty"` // default to 100
-	Keepalive         bool `json:"keepalive,omitempty"`
+	KeepAlive         bool `json:"keepAlive,omitempty"`
 }
 
 func (tc *TunnelClient) GetCertPEM() ([]byte, error) {

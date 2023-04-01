@@ -94,10 +94,9 @@ func parseRule(rule string) (*rule, error) {
 }
 
 type host struct {
-	IsDomain bool
-	Domain   string
-	IsIPv4   bool
-	IP       net.IP
+	Domain string
+	IsIPv4 bool
+	IP     net.IP
 }
 
 func parseHost(s string) (host, error) {
@@ -107,7 +106,6 @@ func parseHost(s string) (host, error) {
 
 	var h host
 	if ip := net.ParseIP(s); ip == nil {
-		h.IsDomain = true
 		h.Domain = s
 	} else if ipv4 := ip.To4(); ipv4 != nil {
 		h.IsIPv4 = true
@@ -143,6 +141,17 @@ func (rs Rules) Match(host string) (policy string, err error) {
 		return "", err
 	}
 	for _, r := range rs {
+		// do not dive deep if the rule type is not match
+		switch r.rtype {
+		case domain, domainSuffix, domainKeyword, geoSite:
+			if h.Domain == "" {
+				continue
+			}
+		case ipCIDR:
+			if h.IP == nil {
+				continue
+			}
+		}
 		if r.Match(h) {
 			return r.policy, nil
 		}

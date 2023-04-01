@@ -127,17 +127,13 @@ func main() {
 	if conf.Debug {
 		debug.Enable()
 		go func() {
-			err := http.ListenAndServe("localhost:6060", nil)
-			if err != nil {
-				log.Printf("http server exit: %s", err)
-			}
+			log.Println(http.ListenAndServe("localhost:6060", nil))
 		}()
 	}
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	s := <-ch
-	log.Println("signal", s)
+	log.Println("signal", <-ch)
 	CloseAll(closers)
 	log.Println("goodbye")
 }

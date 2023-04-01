@@ -41,7 +41,7 @@ type TunnelClientConfig struct {
 	WatchPeriod       time.Duration // default to 1 minute
 	IdleTimeout       time.Duration // default to 2 minutes
 	MaxStreamsPerConn int           // default to 100
-	Keepalive         bool
+	KeepAlive         bool
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
@@ -119,7 +119,7 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 			MinConnectTimeout: 5 * time.Second,
 		}),
 	}
-	if c.conf.Keepalive {
+	if c.conf.KeepAlive {
 		opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:    ynet.KeepalivePeriod,
 			Timeout: 1 * time.Second,

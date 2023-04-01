@@ -1,13 +1,14 @@
 package rule
 
 import (
-	"github.com/chenen3/yeager/rule/pb"
 	"strings"
 	"testing"
+
+	"github.com/chenen3/yeager/rule/pb"
 )
 
 func BenchmarkGeoSite(b *testing.B) {
-	h := host{IsDomain: true, Domain: "fake.com"}
+	h := host{Domain: "fake.com"}
 	m, err := newGeoSiteMatcher("cn")
 	if err != nil {
 		b.Fatal(err)
@@ -19,7 +20,7 @@ func BenchmarkGeoSite(b *testing.B) {
 }
 
 func BenchmarkGeoSiteInterface(b *testing.B) {
-	h := host{IsDomain: true, Domain: "fake.com"}
+	h := host{Domain: "fake.com"}
 	m, err := newGeoSiteMatcherInterface("cn")
 	if err != nil {
 		b.Fatal(err)

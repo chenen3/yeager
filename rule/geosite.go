@@ -123,6 +123,9 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 }
 
 func (g geoSiteMatcher) Match(h host) bool {
+	if h.Domain == "" {
+		return false
+	}
 	for _, f := range g {
 		if f(h) {
 			return true

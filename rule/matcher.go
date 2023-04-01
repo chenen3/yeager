@@ -13,26 +13,26 @@ type matcher interface {
 type domainMatcher string
 
 func (d domainMatcher) Match(h host) bool {
-	return h.IsDomain && string(d) == h.Domain
+	return h.Domain == string(d)
 }
 
 type domainKeywordMatcher string
 
 func (key domainKeywordMatcher) Match(h host) bool {
-	return h.IsDomain && strings.Contains(h.Domain, string(key))
+	return strings.Contains(h.Domain, string(key))
 }
 
 type domainSuffixMatcher string
 
 func (m domainSuffixMatcher) Match(h host) bool {
-	if !h.IsDomain {
+	if h.Domain == "" {
 		return false
 	}
-	domain := h.Domain
-	if !strings.HasSuffix(domain, string(m)) {
+	if !strings.HasSuffix(h.Domain, string(m)) {
 		return false
 	}
 
+	domain := h.Domain
 	return len(m) == len(domain) || domain[len(domain)-len(m)-1] == '.'
 }
 
@@ -49,7 +49,7 @@ func newRegexMatcher(expr string) (*domainRegexMatcher, error) {
 }
 
 func (m *domainRegexMatcher) Match(h host) bool {
-	return h.IsDomain && m.re.MatchString(h.Domain)
+	return h.Domain != "" && m.re.MatchString(h.Domain)
 }
 
 type cidrMatcher struct {
