@@ -100,8 +100,8 @@ type host struct {
 }
 
 func parseHost(s string) (host, error) {
-	if len(s) == 0 || len(s) > 255 {
-		return host{}, errors.New("bad domain name")
+	if s == "" {
+		return host{}, errors.New("empty host name")
 	}
 
 	var h host
