@@ -27,17 +27,12 @@ jobs:
           tar -czf yeager-macos-amd64.tar.gz yeager geosite.dat README.md
           shasum -a 256 yeager-macos-amd64.tar.gz >> shasums.txt
 
-          CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
-          tar -czf yeager-freebsd-amd64.tar.gz yeager geosite.dat README.md
-          shasum -a 256 yeager-freebsd-amd64.tar.gz >> shasums.txt
-
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             yeager-linux-amd64.tar.gz
             yeager-macos-amd64.tar.gz
-            yeager-freebsd-amd64.tar.gz
             shasums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
