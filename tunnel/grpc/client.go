@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/debug"
-	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
@@ -20,6 +19,10 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
+
+const keepAlivePeriod = 60 * time.Second
+
+const defaultMaxStreamsPerConn = 100
 
 var connCount = new(debug.Counter)
 
@@ -39,7 +42,6 @@ type TunnelClientConfig struct {
 	Target            string
 	TLSConfig         *tls.Config
 	WatchPeriod       time.Duration // default to 1 minute
-	IdleTimeout       time.Duration // default to 2 minutes
 	MaxStreamsPerConn int           // default to 100
 	KeepAlive         bool
 }
@@ -51,11 +53,8 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	if conf.WatchPeriod == 0 {
 		conf.WatchPeriod = time.Minute
 	}
-	if conf.IdleTimeout == 0 {
-		conf.IdleTimeout = ynet.IdleTimeout
-	}
 	if conf.MaxStreamsPerConn <= 0 {
-		conf.MaxStreamsPerConn = maxConcurrentStreams
+		conf.MaxStreamsPerConn = defaultMaxStreamsPerConn
 	}
 
 	c := &TunnelClient{
@@ -121,7 +120,7 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 	}
 	if c.conf.KeepAlive {
 		opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    ynet.KeepalivePeriod,
+			Time:    keepAlivePeriod,
 			Timeout: 1 * time.Second,
 		}))
 	}
@@ -234,12 +233,6 @@ func (sw *clientStreamWrapper) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-// Write wraps method Send of client side stream, which is SendMsg actually.
-// according to gRPC doc:
-//
-//	SendMsg does not wait until the message is received by the server. An
-//	untimely stream closure may result in lost messages. To ensure delivery,
-//	users should ensure the RPC completed successfully using RecvMsg.
 func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
 	err = sw.stream.Send(&pb.Data{Data: b})
 	if err != nil {

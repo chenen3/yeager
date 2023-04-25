@@ -117,7 +117,6 @@ func TestScale(t *testing.T) {
 		Target:            listener.Addr().String(),
 		TLSConfig:         cliTLSConf,
 		WatchPeriod:       5 * time.Millisecond,
-		IdleTimeout:       10 * time.Millisecond,
 		MaxStreamsPerConn: 1,
 	})
 	defer tc.Close()

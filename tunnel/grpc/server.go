@@ -20,9 +20,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// max concurrent streams per connection
-const maxConcurrentStreams = 100
-
 // TunnelServer is a GRPC tunnel server, its zero value is ready to use
 type TunnelServer struct {
 	pb.UnimplementedTunnelServer
@@ -40,12 +37,12 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	}
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
-		grpc.MaxConcurrentStreams(maxConcurrentStreams),
+		// grpc.MaxConcurrentStreams(maxConcurrentStreams),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: idleTimeout,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime: 2 * ynet.KeepalivePeriod,
+			MinTime: 2 * keepAlivePeriod,
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
