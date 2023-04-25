@@ -1,12 +1,14 @@
 FROM golang:1.19-alpine AS builder
-WORKDIR /yeager
+WORKDIR /app
 COPY . .
-RUN mkdir build &&\
-    CGO_ENABLED=0 go build -o build/yeager .
+RUN go mod download
+RUN CGO_ENABLED=0 go build -o yeager .
 
-FROM alpine:latest
+FROM ubuntu:latest
+RUN apt-get update && \
+    apt-get install -y ca-certificates
 WORKDIR /
-COPY --from=builder /yeager/build/yeager /usr/local/bin/yeager
-COPY --from=builder /yeager/rule/testdata/geosite.dat /usr/local/share/yeager/geosite.dat
+COPY --from=builder /app/yeager /usr/local/bin/yeager
+COPY --from=builder /app/rule/testdata/geosite.dat /usr/local/share/yeager/geosite.dat
 
 CMD ["/usr/local/bin/yeager", "-config", "/usr/local/etc/yeager/config.json"]
