@@ -20,7 +20,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-const keepAlivePeriod = 60 * time.Second
+// changed from 15s to 30s
+const keepAlivePeriod = 30 * time.Second
 
 const defaultMaxStreamsPerConn = 100
 
@@ -41,17 +42,16 @@ type TunnelClient struct {
 type TunnelClientConfig struct {
 	Target            string
 	TLSConfig         *tls.Config
-	WatchPeriod       time.Duration // default to 1 minute
+	watchPeriod       time.Duration // default to 1 minute
 	MaxStreamsPerConn int           // default to 100
-	KeepAlive         bool
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	if conf.TLSConfig == nil {
 		panic("TLS config required")
 	}
-	if conf.WatchPeriod == 0 {
-		conf.WatchPeriod = time.Minute
+	if conf.watchPeriod == 0 {
+		conf.watchPeriod = time.Minute
 	}
 	if conf.MaxStreamsPerConn <= 0 {
 		conf.MaxStreamsPerConn = defaultMaxStreamsPerConn
@@ -59,7 +59,7 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 
 	c := &TunnelClient{
 		conf:   conf,
-		ticker: time.NewTicker(conf.WatchPeriod),
+		ticker: time.NewTicker(conf.watchPeriod),
 	}
 	go c.watch()
 	connCount.Register(c.countConn)
@@ -117,13 +117,12 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 			},
 			MinConnectTimeout: 5 * time.Second,
 		}),
-	}
-	if c.conf.KeepAlive {
-		opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:    keepAlivePeriod,
 			Timeout: 1 * time.Second,
-		}))
+		}),
 	}
+
 	// non-blocking dial, no context required
 	conn, err := grpc.Dial(c.conf.Target, opts...)
 	if err != nil {

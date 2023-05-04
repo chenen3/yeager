@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-var testRawConf = `
+var rawConf = `
 {
 	"socksListen": "127.0.0.1:1081",
 	"httpListen": "127.0.0.1:8081",
@@ -93,7 +93,7 @@ func TestConfig(t *testing.T) {
 		Debug: true,
 	}
 
-	got, err := Load([]byte(testRawConf))
+	got, err := Load([]byte(rawConf))
 	if err != nil {
 		t.Fatal(err)
 	}

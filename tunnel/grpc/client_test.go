@@ -116,7 +116,7 @@ func TestScale(t *testing.T) {
 	tc := NewTunnelClient(TunnelClientConfig{
 		Target:            listener.Addr().String(),
 		TLSConfig:         cliTLSConf,
-		WatchPeriod:       5 * time.Millisecond,
+		watchPeriod:       5 * time.Millisecond,
 		MaxStreamsPerConn: 1,
 	})
 	defer tc.Close()
@@ -146,7 +146,7 @@ func TestScale(t *testing.T) {
 
 	// check whether scale down
 	for i := 0; i < 5; i++ {
-		time.Sleep(tc.conf.WatchPeriod)
+		time.Sleep(tc.conf.watchPeriod)
 		if tc.countConn() == 0 {
 			return
 		}

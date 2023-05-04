@@ -94,8 +94,7 @@ type TunnelClient struct {
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
 
-	MaxStreamsPerConn int  `json:"maxStreamsPerConn,omitempty"` // default to 100
-	KeepAlive         bool `json:"keepAlive,omitempty"`
+	MaxStreamsPerConn int `json:"maxStreamsPerConn,omitempty"`
 }
 
 func (tc *TunnelClient) GetCertPEM() ([]byte, error) {
