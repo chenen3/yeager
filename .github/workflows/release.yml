@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  build_binary:
+  binary:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -17,7 +17,7 @@ jobs:
       - name: Build
         run: |
           cp rule/testdata/geosite.dat .
-          ldflags="-X main.version=${GITHUB_REF#refs/tags/}"
+          ldflags="-X main.version=${{ github.ref_name }}"
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat README.md
@@ -37,19 +37,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version
-        id: extract-version
-        run: |
-          printf "::set-output name=%s::%s\n" tag-name "${GITHUB_REF#refs/tags/}"
-
-      - name: Update homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v1.12
+      - name: Bump Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v2
         with:
           formula-name: yeager
           formula-path: Formula/yeager.rb
           homebrew-tap: chenen3/homebrew-yeager
           base-branch: master
-          download-url: https://github.com/chenen3/yeager/releases/download/${{ steps.extract-version.outputs.tag-name }}/yeager-macos-amd64.tar.gz
+          download-url: https://github.com/chenen3/yeager/releases/download/${{ github.ref_name }}/yeager-macos-amd64.tar.gz
           commit-message: |
             {{formulaName}} {{version}}
 
@@ -57,38 +52,26 @@ jobs:
         env:
           COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
 
-  build_container:
+  docker:
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
     steps:
-      - name: Check out the repo
-        uses: actions/checkout@v2
-
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version
-        id: extract-version
-        run: |
-          printf "::set-output name=%s::%s\n" version "${GITHUB_REF#refs/tags/}"
-
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           push: true
-          platforms: linux/amd64
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ steps.extract-version.outputs.version }}
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
