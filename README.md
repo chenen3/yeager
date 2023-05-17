@@ -13,93 +13,44 @@ Here is how the traffic flows:
 browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpoints
 ```
 
-## Install
-
-### Binaries
-Manually download the [release](https://github.com/chenen3/yeager/releases)
-```sh
-# assuming Linux, amd64 architecture
-curl -LO https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
-tar -xzvf yeager-linux-amd64.tar.gz
-mv yeager /usr/local/bin/yeager
-# on client side
-mkdir -p /usr/local/share/yeager
-mv geosite.dat /usr/local/share/yeager/geosite.dat
-```
-
-### Docker
-```sh
-docker pull ghcr.io/chenen3/yeager
-```
-
-### Homebrew
-```sh
-brew tap chenen3/yeager
-brew install yeager
-```
-
-### Source
-```sh
-go install github.com/chenen3/yeager@latest
-```
-
 ## As remote server
 
-### 1. Generate config
+1. deploy
+    ```sh
+    wget https://raw.githubusercontent.com/chenen3/yeager/master/install.sh
+    # root permission required
+    bash install.sh
+    ```
 
-```sh
-mkdir -p /usr/local/etc/yeager
-cd /usr/local/etc/yeager
-yeager -genconf
-# if you prefer docker:
-# docker run --rm --workdir /usr/local/etc/yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager ghcr.io/chenen3/yeager yeager -genconf
-ln -s server.json config.json
-```
-
-here generates a pair of config:
-- `/usr/local/etc/yeager/server.json`
-- `/usr/local/etc/yeager/client.json` (**should be copyed to local machine later**)
-
-### 2. Run service
-
-```sh
-yeager -config /usr/local/etc/yeager/config.json
-# if you prefer docker:
-# docker run -d --restart=always --name yeager -v /usr/local/etc/yeager:/usr/local/etc/yeager -p 9001:9001 ghcr.io/chenen3/yeager
-```
-
-### 3. Update firewall
-**Allow TCP port 9001**
+2. update firewall, allow TCP port 57175
 
 ## As local client
 
-### 1. Configure
+1. Install
 
-On remote machine we have generated client config `/usr/local/etc/yeager/client.json`, now copy it to local machine as `/usr/local/etc/yeager/config.json`
+    Download the release manually, or via homebrew:
+    ```sh
+    brew tap chenen3/yeager
+    brew install yeager
+    ```
 
-### 2. Run service
+2. Configure
 
-For the binary:
-```sh
-yeager -config /usr/local/etc/yeager/config.json
-```
+    Copy `/usr/local/etc/yeager/client.json` from remote machine to local machine as `/usr/local/etc/yeager/config.json`
 
-For Homebrew (macOS only):
-```sh
-brew services start yeager
-```
+3. Run service
 
-For Docker:
-```sh
-docker run -d \
-    --restart=always \
-    --network host \
-    --name yeager \
-    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
-    ghcr.io/chenen3/yeager
-```
+    For Homebrew:
+    ```sh
+    brew services start yeager
+    ```
 
-### 3. Setup proxy
+    For the binary:
+    ```sh
+    yeager -config /usr/local/etc/yeager/config.json
+    ```
+
+4. Setup proxy
 - setting HTTP and HTTPS proxy to localhost:8080
 - setting SOCKS proxy to localhost:1080
 
@@ -147,7 +98,38 @@ brew uninstall yeager
 brew untap chenen3/yeager
 ```
 
-For Docker:
+## Docker
+In case you prefer Docker over binary installation, here is how to do it.
+
+As remote server:
+
+```sh
+docker run --rm \
+    --workdir /usr/local/etc/yeager \
+    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
+    ghcr.io/chenen3/yeager \
+    yeager -genconf -srvconf config.json -cliconf client.json
+
+docker run -d --restart=always --name yeager \
+    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
+    -p 57175:57175 \
+    ghcr.io/chenen3/yeager
+```
+
+As local client:
+
+```sh
+# copy to `/usr/local/etc/yeager/client.json` from remote machine 
+# to local machine as `/usr/local/etc/yeager/config.json`
+docker run -d \
+    --restart=always \
+    --network host \
+    --name yeager \
+    -v /usr/local/etc/yeager:/usr/local/etc/yeager \
+    ghcr.io/chenen3/yeager
+```
+
+Uninstall
 
 ```sh
 docker stop yeager
