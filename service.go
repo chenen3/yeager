@@ -171,9 +171,8 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 		switch tc.Type {
 		case config.TunGRPC:
 			client := grpc.NewTunnelClient(grpc.TunnelClientConfig{
-				Target:            tc.Address,
-				TLSConfig:         tlsConf,
-				MaxStreamsPerConn: tc.MaxStreamsPerConn,
+				Target:    tc.Address,
+				TLSConfig: tlsConf,
 			})
 			dialers[policy] = client
 			// clean up connections
@@ -181,9 +180,8 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
 			client := quic.NewTunnelClient(quic.TunnelClientConfig{
-				Target:            tc.Address,
-				TLSConfig:         tlsConf,
-				MaxStreamsPerConn: tc.MaxStreamsPerConn,
+				Target:    tc.Address,
+				TLSConfig: tlsConf,
 			})
 			dialers[policy] = client
 			// clean up connections

@@ -121,7 +121,6 @@ func TestScale(t *testing.T) {
 		TLSConfig:         cliTLSConf,
 		WatchPeriod:       5 * time.Millisecond,
 		IdleTimeout:       10 * time.Millisecond,
-		MaxStreamsPerConn: 1,
 	})
 	defer tc.Close()
 

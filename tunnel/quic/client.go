@@ -7,7 +7,6 @@ import (
 	"expvar"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/chenen3/yeager/debug"
@@ -23,19 +22,17 @@ func init() {
 }
 
 type TunnelClient struct {
-	conf        TunnelClientConfig
-	mu          sync.RWMutex // guards conns
-	conns       []quic.Connection
-	streamCount int32
-	ticker      *time.Ticker
+	conf   TunnelClientConfig
+	mu     sync.RWMutex // guards conns
+	conns  map[string]quic.Connection
+	ticker *time.Ticker
 }
 
 type TunnelClientConfig struct {
-	Target            string
-	TLSConfig         *tls.Config
-	WatchPeriod       time.Duration // default to 1 minute
-	IdleTimeout       time.Duration // default to 2 minutes
-	MaxStreamsPerConn int           // default to 100
+	Target      string
+	TLSConfig   *tls.Config
+	WatchPeriod time.Duration // default to 1 minute
+	IdleTimeout time.Duration // default to 2 minutes
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
@@ -49,14 +46,11 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	if conf.IdleTimeout == 0 {
 		conf.IdleTimeout = ynet.IdleTimeout
 	}
-	if conf.MaxStreamsPerConn <= 0 {
-		// MaxIncomingStreams of quic.Config default to 100
-		conf.MaxStreamsPerConn = 100
-	}
 
 	c := &TunnelClient{
 		conf:   conf,
 		ticker: time.NewTicker(conf.WatchPeriod),
+		conns:  make(map[string]quic.Connection),
 	}
 	go c.watch()
 	connCount.Register(c.countConn)
@@ -77,15 +71,14 @@ func (c *TunnelClient) clearConnectionLocked() {
 		return
 	}
 
-	live := make([]quic.Connection, 0, len(c.conns))
-	for _, conn := range c.conns {
-		if !isClosed(conn) {
-			live = append(live, conn)
+	n := len(c.conns)
+	for key, conn := range c.conns {
+		if isClosed(conn) {
+			delete(c.conns, key)
 		}
 	}
-	if len(live) < len(c.conns) {
-		c.conns = live
-		debug.Logf("scale down to %d connection", len(live))
+	if len(c.conns) < n {
+		debug.Logf("clear %d connections", n-len(c.conns))
 	}
 }
 
@@ -98,16 +91,13 @@ func isClosed(conn quic.Connection) bool {
 	}
 }
 
-func (c *TunnelClient) getConn(ctx context.Context) (quic.Connection, error) {
-	i := int(atomic.LoadInt32(&c.streamCount)) / c.conf.MaxStreamsPerConn
+func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection, error) {
 	c.mu.RLock()
-	if i < len(c.conns) && !isClosed(c.conns[i]) {
-		// everything is fine
-		conn := c.conns[i]
-		c.mu.RUnlock()
+	conn, ok := c.conns[key]
+	c.mu.RUnlock()
+	if ok && !isClosed(conn) {
 		return conn, nil
 	}
-	c.mu.RUnlock()
 
 	conf := &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
@@ -115,32 +105,25 @@ func (c *TunnelClient) getConn(ctx context.Context) (quic.Connection, error) {
 		// it seems MaxIdleTimeout does not work when keep-alive enabled
 		// KeepAlivePeriod: ynet.KeepAlivePeriod,
 	}
-	conn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, conf)
+	newconn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, conf)
 	if err != nil {
 		return nil, err
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if i >= len(c.conns) {
-		// still need more connections
-		c.conns = append(c.conns, conn)
-		debug.Logf("scale up to %d connection", len(c.conns))
-		return conn, nil
-	}
-
-	if !isClosed(c.conns[i]) {
+	if cc, ok := c.conns[key]; ok && !isClosed(cc) {
 		// other goroutine has set up new connection
-		conn.CloseWithError(0, "")
-		return c.conns[i], nil
+		newconn.CloseWithError(0, "")
+		return cc, nil
 	}
 
-	c.conns[i] = conn
-	return conn, nil
+	c.conns[key] = newconn
+	return newconn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(ctx)
+	conn, err := c.getConn(ctx, dst)
 	if err != nil {
 		return nil, errors.New("dial quic: " + err.Error())
 	}
@@ -150,8 +133,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
 
-	atomic.AddInt32(&c.streamCount, 1)
-	sw := wrapStream(stream, func() { atomic.AddInt32(&c.streamCount, -1) })
+	sw := wrapStream(stream, nil)
 	if err := tunnel.WriteHeader(sw, dst); err != nil {
 		sw.Close()
 		return nil, err

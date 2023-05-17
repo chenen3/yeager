@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"sync"
-	"time"
 
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
@@ -25,24 +24,14 @@ type TunnelServer struct {
 	pb.UnimplementedTunnelServer
 	mu sync.Mutex
 	gs *grpc.Server
-
-	idleTimeout time.Duration // for testing
 }
 
 // Serve will return a non-nil error unless Close is called.
 func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
-	idleTimeout := s.idleTimeout
-	if idleTimeout == 0 {
-		idleTimeout = ynet.IdleTimeout
-	}
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
-		// grpc.MaxConcurrentStreams(maxConcurrentStreams),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: idleTimeout,
-		}),
-		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime: 2 * keepAlivePeriod,
+			MaxConnectionIdle: ynet.IdleTimeout,
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)

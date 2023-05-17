@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/chenen3/yeager/debug"
@@ -17,13 +16,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
 )
-
-// changed from 15s to 30s
-const keepAlivePeriod = 30 * time.Second
-
-const defaultMaxStreamsPerConn = 100
 
 var connCount = new(debug.Counter)
 
@@ -32,18 +25,16 @@ func init() {
 }
 
 type TunnelClient struct {
-	conf        TunnelClientConfig
-	mu          sync.RWMutex // guards conns
-	conns       []*grpc.ClientConn
-	streamCount int32
-	ticker      *time.Ticker
+	conf   TunnelClientConfig
+	mu     sync.RWMutex // guards conns
+	conns  map[string]*grpc.ClientConn
+	ticker *time.Ticker
 }
 
 type TunnelClientConfig struct {
-	Target            string
-	TLSConfig         *tls.Config
-	watchPeriod       time.Duration // default to 1 minute
-	MaxStreamsPerConn int           // default to 100
+	Target      string
+	TLSConfig   *tls.Config
+	watchPeriod time.Duration // default to 1 minute
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
@@ -53,13 +44,11 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	if conf.watchPeriod == 0 {
 		conf.watchPeriod = time.Minute
 	}
-	if conf.MaxStreamsPerConn <= 0 {
-		conf.MaxStreamsPerConn = defaultMaxStreamsPerConn
-	}
 
 	c := &TunnelClient{
 		conf:   conf,
 		ticker: time.NewTicker(conf.watchPeriod),
+		conns:  make(map[string]*grpc.ClientConn),
 	}
 	go c.watch()
 	connCount.Register(c.countConn)
@@ -79,32 +68,28 @@ func (c *TunnelClient) clearConnectionLocked() {
 		return
 	}
 
-	live := make([]*grpc.ClientConn, 0, len(c.conns))
-	for _, conn := range c.conns {
+	n := len(c.conns)
+	for key, conn := range c.conns {
 		// grpc-go does not implement idle timeout on the client side,
 		// when the server connection idle timeout and sends GO_AWAY,
 		// ClientConn will reconnect and idle.
 		if conn.GetState() == connectivity.Idle {
 			conn.Close()
-			continue
+			delete(c.conns, key)
 		}
-		live = append(live, conn)
 	}
-	if len(live) < len(c.conns) {
-		c.conns = live
-		debug.Logf("scale down to %d connection", len(live))
+	if len(c.conns) < n {
+		debug.Logf("clear %d connections", n-len(c.conns))
 	}
 }
 
-func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
-	i := int(atomic.LoadInt32(&c.streamCount)) / c.conf.MaxStreamsPerConn
+func (c *TunnelClient) getConn(dst string) (*grpc.ClientConn, error) {
 	c.mu.RLock()
-	if i < len(c.conns) && c.conns[i].GetState() != connectivity.Shutdown {
-		conn := c.conns[i]
-		c.mu.RUnlock()
+	conn, ok := c.conns[dst]
+	c.mu.RUnlock()
+	if ok && conn.GetState() != connectivity.Shutdown {
 		return conn, nil
 	}
-	c.mu.RUnlock()
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(c.conf.TLSConfig)),
@@ -117,37 +102,25 @@ func (c *TunnelClient) getConn() (*grpc.ClientConn, error) {
 			},
 			MinConnectTimeout: 5 * time.Second,
 		}),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    keepAlivePeriod,
-			Timeout: 1 * time.Second,
-		}),
 	}
-
 	// non-blocking dial, no context required
-	conn, err := grpc.Dial(c.conf.Target, opts...)
+	newconn, err := grpc.Dial(c.conf.Target, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if i >= len(c.conns) {
-		c.conns = append(c.conns, conn)
-		debug.Logf("scale up to %d connection", len(c.conns))
-		return conn, nil
+	if c, ok := c.conns[dst]; ok && c.GetState() != connectivity.Shutdown {
+		newconn.Close()
+		return c, nil
 	}
-
-	if c.conns[i].GetState() != connectivity.Shutdown {
-		conn.Close()
-		return c.conns[i], nil
-	}
-
-	c.conns[i] = conn
-	return conn, nil
+	c.conns[dst] = newconn
+	return newconn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn()
+	conn, err := c.getConn(dst)
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
@@ -171,11 +144,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, fmt.Errorf("create grpc stream: %s", err)
 	}
 
-	atomic.AddInt32(&c.streamCount, 1)
-	sw := wrapClientStream(stream, func() {
-		streamCancel()
-		atomic.AddInt32(&c.streamCount, -1)
-	})
+	sw := wrapClientStream(stream, streamCancel)
 	if err := tunnel.WriteHeader(sw, dst); err != nil {
 		sw.Close()
 		return nil, err
@@ -242,8 +211,7 @@ func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
 
 func (sw *clientStreamWrapper) Close() error {
 	if sw.onClose != nil {
-		// caller may call Close() twice,
-		// which will result in an incorrect streamCount
+		// caller may call Close() twice
 		sw.once.Do(sw.onClose)
 	}
 	return nil

@@ -203,7 +203,8 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 	if len(srvConf.TunnelListens) == 0 {
 		return fmt.Errorf("no tunnelListens in server config")
 	}
-	srvConf.TunnelListens[0].Listen = "0.0.0.0:9001"
+	port := 57175
+	srvConf.TunnelListens[0].Listen = fmt.Sprintf("0.0.0.0:%d", port)
 	bs, err := json.MarshalIndent(srvConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)
@@ -217,7 +218,7 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 	if len(cliConf.TunnelClients) == 0 {
 		return fmt.Errorf("no tunnelClients in client config")
 	}
-	cliConf.TunnelClients[0].Address = fmt.Sprintf("%s:%d", ip, 9001)
+	cliConf.TunnelClients[0].Address = fmt.Sprintf("%s:%d", ip, port)
 	cliConf.SOCKSListen = "127.0.0.1:1080"
 	cliConf.HTTPListen = "127.0.0.1:8080"
 	cliConf.Rules = []string{
@@ -226,8 +227,8 @@ func Generate(ip, srvConfOutput, cliConfOutput string) error {
 		"ip-cidr,172.16.0.0/12,direct",
 		"ip-cidr,10.0.0.0/8,direct",
 		"domain,localhost,direct",
-		"geosite,cn,direct",
-		"geosite,apple@cn,direct",
+		// "geosite,cn,direct",
+		// "geosite,apple@cn,direct",
 		"final,proxy",
 	}
 	bs, err = json.MarshalIndent(cliConf, "", "\t")
