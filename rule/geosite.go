@@ -3,7 +3,6 @@ package rule
 import (
 	"errors"
 	"os"
-	"path"
 	"runtime/debug"
 	"strings"
 
@@ -11,25 +10,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	defaultAssetDir = "/usr/local/share/yeager"
-	envAssetDir     = "YEAGER_ASSET_DIR"
-)
-
-var assetDirs []string
-
-func init() {
-	assetDirs = append(assetDirs, defaultAssetDir)
-	if d := os.Getenv(envAssetDir); d != "" {
-		assetDirs = append(assetDirs, d)
-	}
-}
+var domainListPaths = []string{"/usr/local/etc/yeager/geosite.dat"}
 
 func loadGeoSite() (*pb.GeoSiteList, error) {
 	var data []byte
 	var err error
-	for _, dir := range assetDirs {
-		data, err = os.ReadFile(path.Join(dir, "geosite.dat"))
+	for _, p := range domainListPaths {
+		data, err = os.ReadFile(p)
 		if err == nil {
 			break
 		}

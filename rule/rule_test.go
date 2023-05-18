@@ -11,7 +11,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	assetDirs = []string{filepath.Join(dir, "testdata")}
+	domainListPaths = []string{filepath.Join(dir, "testdata", "geosite.dat")}
 	os.Exit(m.Run())
 }
 

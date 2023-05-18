@@ -16,15 +16,14 @@ jobs:
 
       - name: Build
         run: |
-          cp rule/testdata/geosite.dat .
           ldflags="-X main.version=${{ github.ref_name }}"
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
-          tar -czf yeager-linux-amd64.tar.gz yeager geosite.dat README.md
+          tar -czf yeager-linux-amd64.tar.gz yeager README.md
           shasum -a 256 yeager-linux-amd64.tar.gz >> shasums.txt
 
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
-          tar -czf yeager-macos-amd64.tar.gz yeager geosite.dat README.md
+          tar -czf yeager-macos-amd64.tar.gz yeager README.md
           shasum -a 256 yeager-macos-amd64.tar.gz >> shasums.txt
 
       - name: Release

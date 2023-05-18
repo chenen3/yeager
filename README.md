@@ -75,7 +75,14 @@ For example:
 - `domain,www.apple.com,direct` access directly if domain name matches
 - `domain-suffix,apple.com,direct`access directly if root domain name matches
 - `domain-keyword,apple,direct` access directly if keyword matches
-- `geosite,cn,direct` access directly if the domain name is located in mainland China. The geosite rule supports [domain-list-community](https://github.com/v2fly/domain-list-community)
+- `geosite,cn,direct` access directly if the domain name is located in mainland China.
+    > **Note** 
+    >
+    > need to download the pre-defined domain list first:
+    > ```sh
+    > wget --output-document /usr/local/etc/yeager/geosite.dat \
+    >   https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
+    > ```
 - `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
 
 ## Uninstall
@@ -84,9 +91,9 @@ For the pre-built binary:
 
 ```sh
 rm /usr/local/bin/yeager
-rm /usr/local/share/yeager/geosite.dat
-rmdir /usr/local/share/yeager
 rm /usr/local/etc/yeager/config.json
+# In case you have downloaded the pre-defined domain list:
+#   rm /usr/local/etc/yeager/geosite.dat
 rmdir /usr/local/etc/yeager
 ```
 
