@@ -75,7 +75,7 @@ For example:
 - `domain,www.apple.com,direct` access directly if domain name matches
 - `domain-suffix,apple.com,direct`access directly if root domain name matches
 - `domain-keyword,apple,direct` access directly if keyword matches
-- `geosite,cn,direct` access directly if the domain name is located in mainland China.
+- `geosite,cn,direct` access directly if the domain name is located in CN.
     > **Note** 
     >
     > need to download the pre-defined domain list first:
