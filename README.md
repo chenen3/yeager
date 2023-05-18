@@ -86,9 +86,8 @@ For the pre-built binary:
 rm /usr/local/bin/yeager
 rm /usr/local/share/yeager/geosite.dat
 rmdir /usr/local/share/yeager
-# remove the configuration files if you wish:
-#   rm /usr/local/etc/yeager/config.json
-#   rmdir /usr/local/etc/yeager
+rm /usr/local/etc/yeager/config.json
+rmdir /usr/local/etc/yeager
 ```
 
 For Homebrew:
