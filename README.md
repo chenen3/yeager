@@ -36,7 +36,7 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 
 2. Configure
 
-    Copy `/usr/local/etc/yeager/client.json` from remote machine to local machine as `/usr/local/etc/yeager/config.json`
+    Copy `/usr/local/etc/yeager/client.json` from remote to local machine, place at `/usr/local/etc/yeager/config.json`
 
 3. Run service
 
@@ -51,10 +51,10 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
     ```
 
 4. Setup proxy
-- setting HTTP and HTTPS proxy to localhost:8080
-- setting SOCKS proxy to localhost:1080
+    - setting HTTP and HTTPS proxy to localhost:8080
+    - setting SOCKS proxy to localhost:1080
 
-That's all, good luck.
+So far, most need should be met, good luck.
 
 (For more details, see below...)
 
