@@ -117,10 +117,10 @@ func TestScale(t *testing.T) {
 	}
 	cliTLSConf.NextProtos = []string{"quic"}
 	tc := NewTunnelClient(TunnelClientConfig{
-		Target:            lis.Addr().String(),
-		TLSConfig:         cliTLSConf,
-		WatchPeriod:       5 * time.Millisecond,
-		IdleTimeout:       10 * time.Millisecond,
+		Target:      lis.Addr().String(),
+		TLSConfig:   cliTLSConf,
+		WatchPeriod: 5 * time.Millisecond,
+		IdleTimeout: 10 * time.Millisecond,
 	})
 	defer tc.Close()
 
@@ -151,11 +151,11 @@ func TestScale(t *testing.T) {
 	// check whether scale down
 	for i := 0; i < 5; i++ {
 		time.Sleep(tc.conf.WatchPeriod)
-		if tc.countConn() == 0 {
+		if tc.CountConn() == 0 {
 			return
 		}
 	}
-	t.Fatalf("got %d connections, want %d", tc.countConn(), 0)
+	t.Fatalf("got %d connections, want %d", tc.CountConn(), 0)
 }
 
 func BenchmarkThroughput(b *testing.B) {

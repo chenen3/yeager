@@ -3,7 +3,6 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	"expvar"
 	"fmt"
 	"io"
 	"sync"
@@ -17,12 +16,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 )
-
-var connCount = new(debug.Counter)
-
-func init() {
-	expvar.Publish("conngrpc", connCount)
-}
 
 type TunnelClient struct {
 	conf   TunnelClientConfig
@@ -51,7 +44,6 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 		conns:  make(map[string]*grpc.ClientConn),
 	}
 	go c.watch()
-	connCount.Register(c.countConn)
 	return c
 }
 
@@ -152,7 +144,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	return sw, nil
 }
 
-func (c *TunnelClient) countConn() int {
+func (c *TunnelClient) CountConn() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return len(c.conns)

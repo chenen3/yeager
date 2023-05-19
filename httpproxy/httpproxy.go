@@ -6,7 +6,6 @@ package httpproxy
 import (
 	"bufio"
 	"context"
-	"expvar"
 	"fmt"
 	"log"
 	"net"
@@ -20,12 +19,6 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
-var connCount = new(debug.Counter)
-
-func init() {
-	expvar.Publish("connhttp", connCount)
-}
-
 type Server struct {
 	mu         sync.Mutex
 	lis        net.Listener
@@ -38,7 +31,6 @@ func NewServer() *Server {
 		activeConn: make(map[net.Conn]struct{}),
 		done:       make(chan struct{}),
 	}
-	connCount.Register(s.Len)
 	return s
 }
 

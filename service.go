@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -19,6 +20,8 @@ import (
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/quic"
 )
+
+var connStats = expvar.NewMap("connstats")
 
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
@@ -50,6 +53,9 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}
 		}()
 		closers = append(closers, hs)
+		connStats.Set("http", expvar.Func(func() any {
+			return hs.Len()
+		}))
 	}
 
 	if conf.SOCKSListen != "" {
@@ -68,6 +74,9 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}
 		}()
 		closers = append(closers, ss)
+		connStats.Set("socks", expvar.Func(func() any {
+			return ss.Len()
+		}))
 	}
 
 	for _, tl := range conf.TunnelListens {
@@ -175,8 +184,10 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				TLSConfig: tlsConf,
 			})
 			dialers[policy] = client
-			// clean up connections
 			t.closers = append(t.closers, client)
+			connStats.Set(tc.Policy, expvar.Func(func() any {
+				return client.CountConn()
+			}))
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
 			client := quic.NewTunnelClient(quic.TunnelClientConfig{
@@ -184,8 +195,10 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				TLSConfig: tlsConf,
 			})
 			dialers[policy] = client
-			// clean up connections
 			t.closers = append(t.closers, client)
+			connStats.Set(tc.Policy, expvar.Func(func() any {
+				return client.CountConn()
+			}))
 			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
 		default:
 			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
@@ -212,7 +225,7 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 
 	switch policy {
 	case rule.Reject:
-		return nil, errors.New("rule rejected")
+		return nil, errors.New("rejected by rules")
 	case rule.Direct:
 		debug.Logf("connect %s", target)
 		var d net.Dialer

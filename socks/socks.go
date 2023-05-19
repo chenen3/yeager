@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -18,12 +17,6 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
-var connCount = new(debug.Counter)
-
-func init() {
-	expvar.Publish("connsocks", connCount)
-}
-
 type Server struct {
 	lis        net.Listener
 	mu         sync.Mutex
@@ -36,7 +29,6 @@ func NewServer() *Server {
 		activeConn: make(map[net.Conn]struct{}),
 		done:       make(chan struct{}),
 	}
-	connCount.Register(s.Len)
 	return s
 }
 
