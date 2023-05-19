@@ -4,22 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"expvar"
 	"io"
+	"log"
+	"net"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/quic-go/quic-go"
 )
-
-var connCount = new(debug.Counter)
-
-func init() {
-	expvar.Publish("connquic", connCount)
-}
 
 type TunnelClient struct {
 	conf   TunnelClientConfig
@@ -53,7 +47,6 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 		conns:  make(map[string]quic.Connection),
 	}
 	go c.watch()
-	connCount.Register(c.countConn)
 	return c
 }
 
@@ -71,14 +64,10 @@ func (c *TunnelClient) clearConnectionLocked() {
 		return
 	}
 
-	n := len(c.conns)
 	for key, conn := range c.conns {
 		if isClosed(conn) {
 			delete(c.conns, key)
 		}
-	}
-	if len(c.conns) < n {
-		debug.Logf("clear %d connections", n-len(c.conns))
 	}
 }
 
@@ -102,8 +91,6 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 	conf := &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
 		MaxIdleTimeout:       c.conf.IdleTimeout,
-		// it seems MaxIdleTimeout does not work when keep-alive enabled
-		// KeepAlivePeriod: ynet.KeepAlivePeriod,
 	}
 	newconn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, conf)
 	if err != nil {
@@ -122,13 +109,32 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 	return newconn, nil
 }
 
-func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(ctx, dst)
+// openStream opens a new stream, reconnect if necessary.
+func (c *TunnelClient) openStream(ctx context.Context, key string) (quic.Stream, error) {
+	conn, err := c.getConn(ctx, key)
 	if err != nil {
-		return nil, errors.New("dial quic: " + err.Error())
+		return nil, err
+	}
+	stream, err := conn.OpenStream()
+	if err == nil {
+		return stream, nil
 	}
 
-	stream, err := conn.OpenStream()
+	if ne, ok := err.(net.Error); ok && ne.Temporary() {
+		// reaching the peer's stream limit
+		return nil, err
+	}
+	log.Printf("stream error: %s, reconnecting...", err)
+	conn.CloseWithError(0, "")
+	rc, re := c.getConn(ctx, key)
+	if re != nil {
+		return nil, re
+	}
+	return rc.OpenStream()
+}
+
+func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
+	stream, err := c.openStream(ctx, dst)
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
@@ -141,7 +147,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	return sw, nil
 }
 
-func (c *TunnelClient) countConn() int {
+func (c *TunnelClient) CountConn() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return len(c.conns)
