@@ -125,7 +125,7 @@ docker run -d --restart=always --name yeager \
 As local client:
 
 ```sh
-# copy to `/usr/local/etc/yeager/client.json` from remote machine 
+# copy `/usr/local/etc/yeager/client.json` from remote 
 # to local machine as `/usr/local/etc/yeager/config.json`
 docker run -d \
     --restart=always \
