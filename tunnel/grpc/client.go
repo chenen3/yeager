@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
@@ -60,7 +59,6 @@ func (c *TunnelClient) clearConnectionLocked() {
 		return
 	}
 
-	n := len(c.conns)
 	for key, conn := range c.conns {
 		// grpc-go does not implement idle timeout on the client side,
 		// when the server connection idle timeout and sends GO_AWAY,
@@ -69,9 +67,6 @@ func (c *TunnelClient) clearConnectionLocked() {
 			conn.Close()
 			delete(c.conns, key)
 		}
-	}
-	if len(c.conns) < n {
-		debug.Logf("clear %d connections", n-len(c.conns))
 	}
 }
 
@@ -118,7 +113,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	}
 	client := pb.NewTunnelClient(conn)
 
-	// requires a context for controling the entire lifecycle of stream, not for dialing
+	// the context controls the entire lifecycle of stream
 	streamCtx, streamCancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {

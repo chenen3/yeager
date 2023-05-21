@@ -81,7 +81,7 @@ func TestTunnel(t *testing.T) {
 	}
 }
 
-func TestScale(t *testing.T) {
+func TestWatch(t *testing.T) {
 	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)
@@ -119,8 +119,8 @@ func TestScale(t *testing.T) {
 	tc := NewTunnelClient(TunnelClientConfig{
 		Target:      lis.Addr().String(),
 		TLSConfig:   cliTLSConf,
-		WatchPeriod: 5 * time.Millisecond,
-		IdleTimeout: 10 * time.Millisecond,
+		watchPeriod: 5 * time.Millisecond,
+		idleTimeout: 10 * time.Millisecond,
 	})
 	defer tc.Close()
 
@@ -150,7 +150,7 @@ func TestScale(t *testing.T) {
 
 	// check whether scale down
 	for i := 0; i < 5; i++ {
-		time.Sleep(tc.conf.WatchPeriod)
+		time.Sleep(tc.conf.watchPeriod)
 		if tc.CountConn() == 0 {
 			return
 		}

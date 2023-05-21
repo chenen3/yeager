@@ -12,8 +12,8 @@ func Enable() {
 	enable = true
 }
 
-// Logf is equivalent to log.Printf, if debug is enabled
-func Logf(format string, v ...any) {
+// Printf is equivalent to log.Printf, if debug is enabled
+func Printf(format string, v ...any) {
 	if !enable {
 		return
 	}

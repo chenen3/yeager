@@ -25,8 +25,8 @@ type TunnelClient struct {
 type TunnelClientConfig struct {
 	Target      string
 	TLSConfig   *tls.Config
-	WatchPeriod time.Duration // default to 1 minute
-	IdleTimeout time.Duration // default to 2 minutes
+	watchPeriod time.Duration
+	idleTimeout time.Duration
 }
 
 func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
@@ -34,40 +34,31 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 		panic("TLS config required")
 	}
 	conf.TLSConfig.NextProtos = []string{"quic"}
-	if conf.WatchPeriod == 0 {
-		conf.WatchPeriod = time.Minute
+	if conf.watchPeriod == 0 {
+		conf.watchPeriod = time.Minute
 	}
-	if conf.IdleTimeout == 0 {
-		conf.IdleTimeout = ynet.IdleTimeout
+	if conf.idleTimeout == 0 {
+		conf.idleTimeout = ynet.IdleTimeout
 	}
-
 	c := &TunnelClient{
 		conf:   conf,
-		ticker: time.NewTicker(conf.WatchPeriod),
+		ticker: time.NewTicker(conf.watchPeriod),
 		conns:  make(map[string]quic.Connection),
 	}
 	go c.watch()
 	return c
 }
 
+// watch periodically clears connections closed due to idle timeout
 func (c *TunnelClient) watch() {
 	for range c.ticker.C {
 		c.mu.Lock()
-		c.clearConnectionLocked()
-		c.mu.Unlock()
-	}
-}
-
-// clearConnectionLocked clears connections that have been closed due to idle timeouts.
-func (c *TunnelClient) clearConnectionLocked() {
-	if len(c.conns) == 0 {
-		return
-	}
-
-	for key, conn := range c.conns {
-		if isClosed(conn) {
-			delete(c.conns, key)
+		for key, conn := range c.conns {
+			if isClosed(conn) {
+				delete(c.conns, key)
+			}
 		}
+		c.mu.Unlock()
 	}
 }
 
@@ -88,11 +79,10 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 		return conn, nil
 	}
 
-	conf := &quic.Config{
+	newconn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
-		MaxIdleTimeout:       c.conf.IdleTimeout,
-	}
-	newconn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, conf)
+		MaxIdleTimeout:       c.conf.idleTimeout,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +112,7 @@ func (c *TunnelClient) openStream(ctx context.Context, key string) (quic.Stream,
 
 	if ne, ok := err.(net.Error); ok && ne.Temporary() {
 		// reaching the peer's stream limit
-		return nil, err
+		return nil, ne
 	}
 	log.Printf("stream error: %s, reconnecting...", err)
 	conn.CloseWithError(0, "")
@@ -139,7 +129,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
 
-	sw := wrapStream(stream, nil)
+	sw := wrapStream(stream)
 	if err := tunnel.WriteHeader(sw, dst); err != nil {
 		sw.Close()
 		return nil, err
@@ -172,21 +162,16 @@ func (c *TunnelClient) Close() error {
 
 type streamWrapper struct {
 	quic.Stream
-	onClose func()
-	once    sync.Once
 }
 
-func wrapStream(stream quic.Stream, onClose func()) *streamWrapper {
+// wrap the stream with modified method Close
+func wrapStream(stream quic.Stream) *streamWrapper {
 	return &streamWrapper{
-		Stream:  stream,
-		onClose: onClose,
+		Stream: stream,
 	}
 }
 
 func (s *streamWrapper) Close() error {
-	if s.onClose != nil {
-		s.once.Do(s.onClose)
-	}
 	// stop receiving on this stream since quic.Stream.Close() does not handle this
 	s.CancelRead(ynet.StreamNoError)
 	return s.Stream.Close()
