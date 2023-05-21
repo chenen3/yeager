@@ -70,7 +70,7 @@ func (c *TunnelClient) clearConnectionLocked() {
 	}
 }
 
-func (c *TunnelClient) getConn(dst string) (*grpc.ClientConn, error) {
+func (c *TunnelClient) getConn(ctx context.Context, dst string) (*grpc.ClientConn, error) {
 	c.mu.RLock()
 	conn, ok := c.conns[dst]
 	c.mu.RUnlock()
@@ -89,9 +89,10 @@ func (c *TunnelClient) getConn(dst string) (*grpc.ClientConn, error) {
 			},
 			MinConnectTimeout: 5 * time.Second,
 		}),
+		// blocking dial facilitates clear logic while creating stream
+		grpc.WithBlock(),
 	}
-	// non-blocking dial, no context required
-	newconn, err := grpc.Dial(c.conf.Target, opts...)
+	newconn, err := grpc.DialContext(ctx, c.conf.Target, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,31 +108,21 @@ func (c *TunnelClient) getConn(dst string) (*grpc.ClientConn, error) {
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(dst)
+	conn, err := c.getConn(ctx, dst)
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
+
 	client := pb.NewTunnelClient(conn)
-
-	// the context controls the entire lifecycle of stream
-	streamCtx, streamCancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			streamCancel()
-		case <-done:
-		}
-	}()
-	defer close(done)
-
+	// the context controls the lifecycle of stream
+	streamCtx, cancel := context.WithCancel(context.Background())
 	stream, err := client.Stream(streamCtx)
 	if err != nil {
-		streamCancel()
+		cancel()
 		return nil, fmt.Errorf("create grpc stream: %s", err)
 	}
 
-	sw := wrapClientStream(stream, streamCancel)
+	sw := wrapClientStream(stream, cancel)
 	if err := tunnel.WriteHeader(sw, dst); err != nil {
 		sw.Close()
 		return nil, err
@@ -164,7 +155,6 @@ var _ io.ReadWriteCloser = (*clientStreamWrapper)(nil)
 
 type clientStreamWrapper struct {
 	stream  pb.Tunnel_StreamClient
-	once    sync.Once
 	onClose func()
 	buf     []byte
 	off     int
@@ -198,8 +188,7 @@ func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
 
 func (sw *clientStreamWrapper) Close() error {
 	if sw.onClose != nil {
-		// caller may call Close() twice
-		sw.once.Do(sw.onClose)
+		sw.onClose()
 	}
 	return nil
 }
