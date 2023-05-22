@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
@@ -49,24 +50,17 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 func (c *TunnelClient) watch() {
 	for range c.ticker.C {
 		c.mu.Lock()
-		c.clearConnectionLocked()
-		c.mu.Unlock()
-	}
-}
-
-func (c *TunnelClient) clearConnectionLocked() {
-	if len(c.conns) == 0 {
-		return
-	}
-
-	for key, conn := range c.conns {
-		// grpc-go does not implement idle timeout on the client side,
-		// when the server connection idle timeout and sends GO_AWAY,
-		// ClientConn will reconnect and idle.
-		if conn.GetState() == connectivity.Idle {
-			conn.Close()
-			delete(c.conns, key)
+		for key, conn := range c.conns {
+			// grpc-go does not implement idle timeout on the client side,
+			// when the server connection idle timeout and sends GO_AWAY,
+			// ClientConn will reconnect and idle.
+			if conn.GetState() == connectivity.Idle {
+				conn.Close()
+				delete(c.conns, key)
+				debug.Printf("clear idle conn %s", key)
+			}
 		}
+		c.mu.Unlock()
 	}
 }
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script deploys the yeager server.
-# Tested in Ubuntu 22.04 LTS on Amazon Lightsail, root permission required.
+# Tested in Ubuntu 22.04 LTS, root permission required.
 
 # install yeager
 cd /tmp

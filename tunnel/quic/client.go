@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/quic-go/quic-go"
@@ -56,6 +57,7 @@ func (c *TunnelClient) watch() {
 		for key, conn := range c.conns {
 			if isClosed(conn) {
 				delete(c.conns, key)
+				debug.Printf("clear idle conn %s", key)
 			}
 		}
 		c.mu.Unlock()
@@ -114,7 +116,7 @@ func (c *TunnelClient) openStream(ctx context.Context, key string) (quic.Stream,
 		// reaching the peer's stream limit
 		return nil, ne
 	}
-	log.Printf("stream error: %s, reconnecting...", err)
+	log.Printf("streaming error: %s, reconnecting...", err)
 	conn.CloseWithError(0, "")
 	rc, re := c.getConn(ctx, key)
 	if re != nil {
