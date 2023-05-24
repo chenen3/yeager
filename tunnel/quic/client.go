@@ -139,7 +139,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	return sw, nil
 }
 
-func (c *TunnelClient) CountConn() int {
+func (c *TunnelClient) ConnNum() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return len(c.conns)

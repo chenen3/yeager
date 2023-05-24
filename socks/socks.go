@@ -94,8 +94,8 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 	}
 }
 
-// Len returns the number of active connections
-func (s *Server) Len() int {
+// ConnNum returns the number of active connections
+func (s *Server) ConnNum() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.activeConn)

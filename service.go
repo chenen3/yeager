@@ -54,7 +54,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}()
 		closers = append(closers, hs)
 		connStats.Set("http", expvar.Func(func() any {
-			return hs.Len()
+			return hs.ConnNum()
 		}))
 	}
 
@@ -75,7 +75,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}()
 		closers = append(closers, ss)
 		connStats.Set("socks", expvar.Func(func() any {
-			return ss.Len()
+			return ss.ConnNum()
 		}))
 	}
 
@@ -186,7 +186,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			dialers[policy] = client
 			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
-				return client.CountConn()
+				return client.ConnNum()
 			}))
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
@@ -197,7 +197,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			dialers[policy] = client
 			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
-				return client.CountConn()
+				return client.ConnNum()
 			}))
 			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
 		default:

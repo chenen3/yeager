@@ -151,11 +151,11 @@ func TestWatch(t *testing.T) {
 	// check whether scale down
 	for i := 0; i < 5; i++ {
 		time.Sleep(tc.conf.watchPeriod)
-		if tc.CountConn() == 0 {
+		if tc.ConnNum() == 0 {
 			return
 		}
 	}
-	t.Fatalf("got %d connections, want %d", tc.CountConn(), 0)
+	t.Fatalf("got %d connections, want %d", tc.ConnNum(), 0)
 }
 
 func BenchmarkThroughput(b *testing.B) {
