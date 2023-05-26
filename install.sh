@@ -1,6 +1,12 @@
 #!/bin/bash
 # This script deploys the yeager server.
-# Tested in Ubuntu 22.04 LTS, root permission required.
+# Tested in Ubuntu 22.04 LTS
+
+# check if the script is running as root
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run this script as root!"
+    exit 1
+fi
 
 # install yeager
 cd /tmp
@@ -23,6 +29,7 @@ User=ubuntu
 Group=ubuntu
 ExecStart=/usr/local/bin/yeager -config /usr/local/etc/yeager/config.json
 TimeoutStopSec=5s
+LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target
@@ -32,9 +39,8 @@ systemctl daemon-reload
 systemctl enable yeager
 systemctl start yeager
 
-# enable BBR congestion control
-has_bbr=$(lsmod | grep bbr)
-if [ -z "$has_bbr" ] ;then
+# use BBR congestion control
+if ! lsmod | grep -q "bbr"; then
 	echo "enable BBR congestion control..."
 	echo net.core.default_qdisc=fq >> /etc/sysctl.conf
 	echo net.ipv4.tcp_congestion_control=bbr >> /etc/sysctl.conf
@@ -44,4 +50,4 @@ fi
 
 echo "\nA few steps to do:"
 echo "1. allows TCP port 57175"
-echo "2. use the /usr/local/etc/yeager/client.json as configuration for local client"
+echo "2. use /usr/local/etc/yeager/client.json to config the client"
