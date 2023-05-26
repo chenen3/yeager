@@ -30,6 +30,7 @@ var bufPool = sync.Pool{
 	},
 }
 
+// TODO: whether to use io.CopyBuffer ?
 // Copy adapted from io.Copy, copies from src to dst using a cached or allocated buffer.
 func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	b := bufPool.Get().(*[]byte)
