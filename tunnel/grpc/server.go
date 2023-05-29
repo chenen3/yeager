@@ -67,7 +67,6 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	return nil
 }
 
-// check for closed or canceled error cause by dst.Close() in oneWayRelay
 func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
 		return true
@@ -100,6 +99,7 @@ type serverStreamWrapper struct {
 	off    int
 }
 
+// wrap stream as io.ReadWriter
 func wrapServerStream(stream pb.Tunnel_StreamServer) *serverStreamWrapper {
 	return &serverStreamWrapper{stream: stream}
 }
