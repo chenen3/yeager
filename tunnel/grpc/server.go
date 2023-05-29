@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
@@ -31,7 +32,7 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: ynet.IdleTimeout,
+			MaxConnectionIdle: 2 * time.Minute,
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)

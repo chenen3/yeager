@@ -39,7 +39,7 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 		conf.watchPeriod = time.Minute
 	}
 	if conf.idleTimeout == 0 {
-		conf.idleTimeout = ynet.IdleTimeout
+		conf.idleTimeout = idleTimeout
 	}
 	c := &TunnelClient{
 		conf:   conf,

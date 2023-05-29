@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	DialTimeout      = 10 * time.Second
+	DialTimeout      = 5 * time.Second
 	HandshakeTimeout = 5 * time.Second
-	IdleTimeout      = 5 * time.Minute
 )
 
 var bufPool = sync.Pool{
