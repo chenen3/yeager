@@ -85,7 +85,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		ContentLength: -1,
 	}
 	req.Header.Add("dst", dst)
-	req.Header.Set("User-Agent", "Safari/605.1.15")
+	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
 	// FIXME: in production environment, the client side prints error:
 	// 	Connect "https://1.2.3.4:4321": context deadline exceeded
