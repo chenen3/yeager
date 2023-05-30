@@ -18,6 +18,7 @@ import (
 	"github.com/chenen3/yeager/socks"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
+	"github.com/chenen3/yeager/tunnel/http2"
 	"github.com/chenen3/yeager/tunnel/quic"
 )
 
@@ -106,7 +107,6 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}
 			var s grpc.TunnelServer
 			go func() {
-				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
 				if err := s.Serve(lis, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
@@ -115,13 +115,21 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		case config.TunQUIC:
 			var s quic.TunnelServer
 			go func() {
-				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
+				if err := s.Serve(tl.Listen, tlsConf); err != nil {
+					log.Printf("%s tunnel serve: %s", tl.Type, err)
+				}
+			}()
+			closers = append(closers, &s)
+		case config.TunHTTP2:
+			var s http2.TunnelServer
+			go func() {
 				if err := s.Serve(tl.Listen, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()
 			closers = append(closers, &s)
 		}
+		log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
 	}
 	return closers, nil
 }
@@ -188,7 +196,6 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
 			client := quic.NewTunnelClient(quic.TunnelClientConfig{
 				Target:    tc.Address,
@@ -199,10 +206,13 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
+		case config.TunHTTP2:
+			client := http2.NewTunnelClient(tc.Address, tlsConf)
+			dialers[policy] = client
 		default:
 			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
 		}
+		log.Printf("%s targeting %s tunnel %s", tc.Policy, tc.Type, tc.Address)
 	}
 	t.dialers = dialers
 	return &t, nil
