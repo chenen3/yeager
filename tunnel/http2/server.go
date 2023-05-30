@@ -62,10 +62,10 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if flusher, ok := w.(http.Flusher); ok {
+	if f, ok := w.(http.Flusher); ok {
 		// flush the buffered headers to the client,
 		// otherwise the client may not start to read
-		flusher.Flush()
+		f.Flush()
 	}
 
 	done := make(chan struct{})
@@ -100,8 +100,8 @@ type flushWriter struct {
 
 func (w *flushWriter) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
 	}
 	return n, err
 }
