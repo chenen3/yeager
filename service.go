@@ -209,6 +209,10 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 		case config.TunHTTP2:
 			client := http2.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
+			t.closers = append(t.closers, client)
+			connStats.Set(tc.Policy, expvar.Func(func() any {
+				return client.ConnNum()
+			}))
 		default:
 			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
 		}

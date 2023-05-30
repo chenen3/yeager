@@ -8,36 +8,66 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"golang.org/x/net/http2"
 )
 
 type TunnelClient struct {
-	addr    string
-	tlsConf *tls.Config
-	client  *http.Client
+	addr     string
+	tlsConf  *tls.Config
+	mu       sync.Mutex
+	clients  map[string]*http.Client
+	connStat map[string]int
 }
 
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
-	tc := &TunnelClient{
-		addr:    addr,
-		tlsConf: tlsConf,
+	return &TunnelClient{
+		addr:     addr,
+		tlsConf:  tlsConf,
+		clients:  make(map[string]*http.Client),
+		connStat: make(map[string]int),
 	}
+}
+
+func (c *TunnelClient) client(dst string) *http.Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	client, ok := c.clients[dst]
+	if ok {
+		return client
+	}
+
 	transport := &http2.Transport{
 		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}
-			return tls.DialWithDialer(d, "tcp", addr, tlsConf)
+			return tls.DialWithDialer(d, "tcp", addr, c.tlsConf)
 		},
 	}
-	tc.client = &http.Client{Transport: transport}
-	return tc
+	client = &http.Client{Transport: transport}
+	c.clients[c.addr] = client
+	return client
 }
 
-func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
+func (c *TunnelClient) trackConn(dst string, add bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if add {
+		c.connStat[dst]++
+	} else {
+		c.connStat[dst]--
+		if c.connStat[dst] == 0 {
+			delete(c.connStat, dst)
+			delete(c.clients, dst)
+		}
+	}
+}
+
+func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	u, err := url.Parse("https://" + c.addr)
 	if err != nil {
 		return nil, err
@@ -54,35 +84,74 @@ func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadW
 		Host:          u.Host,
 		ContentLength: -1,
 	}
-	req.Header.Add("dst", target)
+	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Safari/605.1.15")
 
-	resp, err := c.client.Do(req)
+	// FIXME: in production environment, the client side prints error:
+	// 	Connect "https://1.2.3.4:4321": context deadline exceeded
+	//
+	// meanwhile, the server side prints TLS handshake error:
+	//  2023/05/30 04:44:33 server.go:42: EOF
+	resp, err := c.client(dst).Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("h2 request: " + err.Error())
+	}
+	c.trackConn(dst, true)
+
+	rwc := &rwc{
+		respBody:  resp.Body,
+		reqBodyPW: pw,
+		onclose: func() {
+			c.trackConn(dst, false)
+		},
 	}
 	if resp.StatusCode != http.StatusOK {
+		rwc.Close()
 		return nil, errors.New(resp.Status)
 	}
-	return &rwc{resp.Body, pw}, nil
+	return rwc, nil
+}
+
+func (c *TunnelClient) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, client := range c.clients {
+		client.CloseIdleConnections()
+	}
+	return nil
+}
+
+func (c *TunnelClient) ConnNum() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var sum int
+	for _, n := range c.connStat {
+		sum += n
+	}
+	return sum
 }
 
 type rwc struct {
-	rc io.ReadCloser
-	wc io.WriteCloser
+	respBody  io.ReadCloser
+	reqBodyPW *io.PipeWriter
+	onclose   func()
 }
 
 func (r *rwc) Read(p []byte) (n int, err error) {
-	return r.rc.Read(p)
+	return r.respBody.Read(p)
 }
 
 func (r *rwc) Write(p []byte) (n int, err error) {
-	return r.wc.Write(p)
+	return r.reqBodyPW.Write(p)
 }
 
 func (r *rwc) Close() error {
-	we := r.wc.Close()
-	re := r.rc.Close()
+	if r.onclose != nil {
+		r.onclose()
+	}
+	we := r.reqBodyPW.Close()
+	re := r.respBody.Close()
+	io.Copy(io.Discard, r.respBody)
 	if we != nil {
 		return we
 	}

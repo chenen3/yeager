@@ -1,13 +1,12 @@
 package http2
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"log"
 	"net"
 	"net/http"
-
-	// "net/http/httputil"
 	"sync"
 	"time"
 
@@ -38,8 +37,13 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 			return err
 		}
 		tlsConn := tls.Server(conn, tlsConf)
-		if err := tlsConn.Handshake(); err != nil {
-			log.Print(err)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = tlsConn.HandshakeContext(ctx)
+		cancel()
+		if err != nil {
+			// FIXME: EOF
+			log.Printf("tls handshake: %s", err)
+			tlsConn.Close()
 			continue
 		}
 
