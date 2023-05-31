@@ -44,6 +44,7 @@ if ! lsmod | grep -q "bbr"; then
 	echo "enable BBR congestion control..."
 	echo net.core.default_qdisc=fq >> /etc/sysctl.conf
 	echo net.ipv4.tcp_congestion_control=bbr >> /etc/sysctl.conf
+	# increase the maximum buffer size for quic-go
 	echo net.core.rmem_max=2500000 >> /etc/sysctl.conf
 	sysctl -p
 fi
