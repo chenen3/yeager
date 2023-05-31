@@ -125,6 +125,7 @@ type rwc struct {
 	respBody  io.ReadCloser
 	reqBodyPW *io.PipeWriter
 	onclose   func()
+	once      sync.Once
 }
 
 func (r *rwc) Read(p []byte) (n int, err error) {
@@ -137,7 +138,7 @@ func (r *rwc) Write(p []byte) (n int, err error) {
 
 func (r *rwc) Close() error {
 	if r.onclose != nil {
-		r.onclose()
+		r.once.Do(r.onclose)
 	}
 	we := r.reqBodyPW.Close()
 	re := r.respBody.Close()
