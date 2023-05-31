@@ -21,7 +21,6 @@ type TunnelServer struct {
 
 // Serve will return a non-nil error unless Close is called.
 func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
-	tlsConf.NextProtos = []string{"h2"}
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
@@ -30,12 +29,17 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
-	h2srv := &http2.Server{IdleTimeout: 5 * time.Minute}
+	h2s := &http2.Server{IdleTimeout: 5 * time.Minute}
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				err = nil
+			}
 			return err
 		}
+
+		tlsConf.NextProtos = []string{"h2"}
 		tlsConn := tls.Server(conn, tlsConf)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err = tlsConn.HandshakeContext(ctx)
@@ -47,7 +51,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 			continue
 		}
 
-		h2srv.ServeConn(tlsConn, &http2.ServeConnOpts{
+		go h2s.ServeConn(tlsConn, &http2.ServeConnOpts{
 			Handler: http.HandlerFunc(serveHTTP),
 		})
 	}
@@ -71,8 +75,11 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 	done := make(chan struct{})
 	go func() {
 		_, e := ynet.Copy(remote, r.Body)
-		if e != nil && !errors.Is(e, net.ErrClosed) {
-			log.Printf("copy to remote: %s", e)
+		if e != nil {
+			se, ok := e.(http2.StreamError)
+			if !ok || se.Code != http2.ErrCodeCancel {
+				log.Printf("copy to remote: %s", e)
+			}
 		}
 		// unblock Read on remote
 		remote.Close()

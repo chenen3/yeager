@@ -10,12 +10,11 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/cert"
-	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 )
 
 func init() {
-	debug.Enable()
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {

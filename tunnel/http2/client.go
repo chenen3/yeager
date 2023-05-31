@@ -68,10 +68,6 @@ func (c *TunnelClient) trackConn(dst string, add bool) {
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	u, err := url.Parse("https://" + c.addr)
-	if err != nil {
-		return nil, err
-	}
 	pr, pw := io.Pipe()
 	req := &http.Request{
 		Method:        "CONNECT",
@@ -81,17 +77,11 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		ProtoMinor:    0,
 		Header:        make(http.Header),
 		Body:          pr,
-		Host:          u.Host,
 		ContentLength: -1,
 	}
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
-	// FIXME: in production environment, the client side prints error:
-	// 	Connect "https://1.2.3.4:4321": context deadline exceeded
-	//
-	// meanwhile, the server side prints TLS handshake error:
-	//  2023/05/30 04:44:33 server.go:42: EOF
 	resp, err := c.client(dst).Do(req)
 	if err != nil {
 		return nil, errors.New("h2 request: " + err.Error())
