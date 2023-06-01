@@ -79,7 +79,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			se, ok := e.(http2.StreamError)
 			if !ok || se.Code != http2.ErrCodeCancel {
-				debug.Printf("copy to remote: %s", e)
+				debug.Printf("send: %s", e)
 			}
 		}
 		// unblock Read on remote
@@ -89,7 +89,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	_, err = ynet.Copy(&flushWriter{w}, remote)
 	if err != nil && !errors.Is(err, net.ErrClosed) {
-		debug.Printf("copy from remote: %s", err)
+		debug.Printf("receive: %s", err)
 	}
 	// unblock Read on r.Body
 	r.Body.Close()

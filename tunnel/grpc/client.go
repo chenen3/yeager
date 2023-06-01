@@ -47,6 +47,7 @@ func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
 	return c
 }
 
+// TODO: would it better to rename to sweep?
 func (c *TunnelClient) watch() {
 	for range c.ticker.C {
 		c.mu.Lock()

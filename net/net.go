@@ -102,6 +102,9 @@ func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
 		return true
 	}
+	if errors.Is(err, io.ErrClosedPipe) {
+		return true
+	}
 	if errors.Is(err, new(quic.StreamError)) {
 		i, _ := err.(*quic.StreamError)
 		return i.ErrorCode == StreamNoError

@@ -5,13 +5,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/debug"
 	"golang.org/x/net/http2"
 )
 
@@ -60,14 +60,12 @@ func (c *TunnelClient) trackConn(dst string, add bool) {
 	defer c.mu.Unlock()
 	if add {
 		c.connStat[dst]++
-		if c.connStat[dst] > 1 {
-			log.Printf("reuse h2 client for %s", dst)
-		}
 	} else {
 		c.connStat[dst]--
 		if c.connStat[dst] == 0 {
 			delete(c.connStat, dst)
 			delete(c.clients, dst)
+			debug.Printf("remove h2 client: %s", dst)
 		}
 	}
 }
@@ -121,8 +119,8 @@ func (c *TunnelClient) ConnNum() int {
 type rwc struct {
 	rc      io.ReadCloser
 	wc      io.WriteCloser
+	once    sync.Once // guard onClose
 	onclose func()
-	once    sync.Once
 }
 
 func (r *rwc) Read(p []byte) (n int, err error) {
