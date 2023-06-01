@@ -146,7 +146,6 @@ func CloseAll(closers []io.Closer) {
 type Tunneler struct {
 	dialers map[string]tunnel.Dialer
 	rules   rule.Rules
-	closers []io.Closer
 }
 
 // NewTunneler creates a new Tunneler for client side proxy
@@ -192,7 +191,6 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				TLSConfig: tlsConf,
 			})
 			dialers[policy] = client
-			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
@@ -202,14 +200,12 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				TLSConfig: tlsConf,
 			})
 			dialers[policy] = client
-			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		case config.TunHTTP2:
 			client := http2.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
-			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
@@ -257,9 +253,11 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 // Close closes all the tunnel dialers and return the first error encountered
 func (t *Tunneler) Close() error {
 	var err error
-	for _, c := range t.closers {
-		if e := c.Close(); e != nil && err == nil {
-			err = e
+	for _, d := range t.dialers {
+		if c, ok := d.(io.Closer); ok {
+			if e := c.Close(); e != nil && err == nil {
+				err = e
+			}
 		}
 	}
 	return err
