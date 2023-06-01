@@ -50,7 +50,7 @@ func (c *TunnelClient) client(dst string) *http.Client {
 		},
 	}
 	client = &http.Client{Transport: transport}
-	c.clients[c.addr] = client
+	c.clients[dst] = client
 	return client
 }
 
