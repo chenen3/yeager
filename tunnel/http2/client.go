@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -53,11 +54,15 @@ func (c *TunnelClient) client(dst string) *http.Client {
 	return client
 }
 
+// TODO: is it too much lock contention?
 func (c *TunnelClient) trackConn(dst string, add bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if add {
 		c.connStat[dst]++
+		if c.connStat[dst] > 1 {
+			log.Printf("reuse h2 client for %s", dst)
+		}
 	} else {
 		c.connStat[dst]--
 		if c.connStat[dst] == 0 {
@@ -72,9 +77,6 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req := &http.Request{
 		Method:        "CONNECT",
 		URL:           &url.URL{Scheme: "https", Host: c.addr},
-		Proto:         "HTTP/2",
-		ProtoMajor:    2,
-		ProtoMinor:    0,
 		Header:        make(http.Header),
 		Body:          pr,
 		ContentLength: -1,
@@ -83,17 +85,16 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
 	resp, err := c.client(dst).Do(req)
-	if err != nil {
-		return nil, errors.New("h2 request: " + err.Error())
-	}
 	c.trackConn(dst, true)
+	if err != nil {
+		c.trackConn(dst, false)
+		return nil, errors.New("connect http2: " + err.Error())
+	}
 
 	rwc := &rwc{
-		respBody:  resp.Body,
-		reqBodyPW: pw,
-		onclose: func() {
-			c.trackConn(dst, false)
-		},
+		rc:      resp.Body,
+		wc:      pw,
+		onclose: func() { c.trackConn(dst, false) },
 	}
 	if resp.StatusCode != http.StatusOK {
 		rwc.Close()
@@ -114,35 +115,32 @@ func (c *TunnelClient) Close() error {
 func (c *TunnelClient) ConnNum() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var sum int
-	for _, n := range c.connStat {
-		sum += n
-	}
-	return sum
+	return len(c.clients)
 }
 
 type rwc struct {
-	respBody  io.ReadCloser
-	reqBodyPW *io.PipeWriter
-	onclose   func()
-	once      sync.Once
+	rc      io.ReadCloser
+	wc      io.WriteCloser
+	onclose func()
+	once    sync.Once
 }
 
 func (r *rwc) Read(p []byte) (n int, err error) {
-	return r.respBody.Read(p)
+	return r.rc.Read(p)
 }
 
 func (r *rwc) Write(p []byte) (n int, err error) {
-	return r.reqBodyPW.Write(p)
+	return r.wc.Write(p)
 }
 
 func (r *rwc) Close() error {
 	if r.onclose != nil {
 		r.once.Do(r.onclose)
 	}
-	we := r.reqBodyPW.Close()
-	re := r.respBody.Close()
-	io.Copy(io.Discard, r.respBody)
+	we := r.wc.Close()
+	re := r.rc.Close()
+	// drain the response body
+	io.Copy(io.Discard, r.rc)
 	if we != nil {
 		return we
 	}

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"golang.org/x/net/http2"
 )
@@ -19,8 +20,9 @@ type TunnelServer struct {
 	lis net.Listener
 }
 
-// Serve will return a non-nil error unless Close is called.
+// Serve blocks until closed, or error occurs.
 func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
+	tlsConf.NextProtos = []string{http2.NextProtoTLS}
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
@@ -39,13 +41,11 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 			return err
 		}
 
-		tlsConf.NextProtos = []string{"h2"}
 		tlsConn := tls.Server(conn, tlsConf)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err = tlsConn.HandshakeContext(ctx)
 		cancel()
 		if err != nil {
-			// FIXME: EOF
 			log.Printf("tls handshake: %s", err)
 			tlsConn.Close()
 			continue
@@ -67,8 +67,9 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
-		// flush the buffered headers to the client,
-		// otherwise the client may not start to read
+		// If this is not done,
+		// the client will wait for the request to complete
+		// and cannot delay writing to the request body.
 		f.Flush()
 	}
 
@@ -78,7 +79,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			se, ok := e.(http2.StreamError)
 			if !ok || se.Code != http2.ErrCodeCancel {
-				log.Printf("copy to remote: %s", e)
+				debug.Printf("copy to remote: %s", e)
 			}
 		}
 		// unblock Read on remote
@@ -88,7 +89,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	_, err = ynet.Copy(&flushWriter{w}, remote)
 	if err != nil && !errors.Is(err, net.ErrClosed) {
-		log.Printf("copy from remote: %s", err)
+		debug.Printf("copy from remote: %s", err)
 	}
 	// unblock Read on r.Body
 	r.Body.Close()
