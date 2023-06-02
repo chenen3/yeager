@@ -32,12 +32,24 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	}
 }
 
-func (c *TunnelClient) client(dst string) *http.Client {
+func (c *TunnelClient) client(dst string) (client *http.Client, closeFunc func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.connStat[dst]++
+	closeFunc = func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.connStat[dst]--
+		if c.connStat[dst] == 0 {
+			delete(c.connStat, dst)
+			delete(c.clients, dst)
+			debug.Printf("remove h2 client: %s", dst)
+		}
+	}
+
 	client, ok := c.clients[dst]
 	if ok {
-		return client
+		return client, closeFunc
 	}
 
 	transport := &http2.Transport{
@@ -51,23 +63,7 @@ func (c *TunnelClient) client(dst string) *http.Client {
 	}
 	client = &http.Client{Transport: transport}
 	c.clients[dst] = client
-	return client
-}
-
-// TODO: is it too much lock contention?
-func (c *TunnelClient) trackConn(dst string, add bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if add {
-		c.connStat[dst]++
-	} else {
-		c.connStat[dst]--
-		if c.connStat[dst] == 0 {
-			delete(c.connStat, dst)
-			delete(c.clients, dst)
-			debug.Printf("remove h2 client: %s", dst)
-		}
-	}
+	return client, closeFunc
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -82,17 +78,17 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
-	resp, err := c.client(dst).Do(req)
-	c.trackConn(dst, true)
+	client, closeClient := c.client(dst)
+	resp, err := client.Do(req)
 	if err != nil {
-		c.trackConn(dst, false)
-		return nil, errors.New("connect http2: " + err.Error())
+		closeClient()
+		return nil, errors.New("do http2 request: " + err.Error())
 	}
 
 	rwc := &rwc{
 		rc:      resp.Body,
 		wc:      pw,
-		onclose: func() { c.trackConn(dst, false) },
+		onclose: closeClient,
 	}
 	if resp.StatusCode != http.StatusOK {
 		rwc.Close()
