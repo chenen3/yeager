@@ -195,7 +195,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			}))
 			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
 		default:
-			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
+			log.Printf("ignore unsupported tunnel %s: %s", tc.Type, tc.Policy)
 		}
 	}
 	t.dialers = dialers
