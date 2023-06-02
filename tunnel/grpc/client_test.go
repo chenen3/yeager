@@ -38,10 +38,7 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tc := NewTunnelClient(TunnelClientConfig{
-		Target:    listener.Addr().String(),
-		TLSConfig: cliTLSConf,
-	})
+	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf)
 	return ts, tc, nil
 }
 

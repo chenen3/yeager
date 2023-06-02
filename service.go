@@ -179,10 +179,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 
 		switch tc.Type {
 		case config.TunGRPC:
-			client := grpc.NewTunnelClient(grpc.TunnelClientConfig{
-				Target:    tc.Address,
-				TLSConfig: tlsConf,
-			})
+			client := grpc.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
 			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {

@@ -24,11 +24,6 @@ type TunnelClient struct {
 	ticker *time.Ticker
 }
 
-type TunnelClientConfig struct {
-	Target    string
-	TLSConfig *tls.Config
-}
-
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	tlsConf.NextProtos = []string{"quic"}
 	c := &TunnelClient{
@@ -37,12 +32,12 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 		ticker: time.NewTicker(time.Minute),
 		conns:  make(map[string]quic.Connection),
 	}
-	go c.watch()
+	go c.sweep()
 	return c
 }
 
-// watch periodically clears connections closed due to idle timeout
-func (c *TunnelClient) watch() {
+// sweep periodically clears connections closed due to idle timeout
+func (c *TunnelClient) sweep() {
 	for range c.ticker.C {
 		c.mu.Lock()
 		for key, conn := range c.conns {
