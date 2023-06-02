@@ -190,10 +190,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			}))
 			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
-			client := quic.NewTunnelClient(quic.TunnelClientConfig{
-				Target:    tc.Address,
-				TLSConfig: tlsConf,
-			})
+			client := quic.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
 			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
