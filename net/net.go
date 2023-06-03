@@ -77,7 +77,7 @@ func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
 }
 
 // Relay copies data in both directions between local and remote,
-// blocks until one of them completes, returns the number of bytes
+// blocks until completes, returns the number of bytes
 // sent to remote and received from remote.
 func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err error) {
 	sendCh := make(chan result)

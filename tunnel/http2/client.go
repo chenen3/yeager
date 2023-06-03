@@ -82,7 +82,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	resp, err := client.Do(req)
 	if err != nil {
 		closeClient()
-		return nil, errors.New("do http2 request: " + err.Error())
+		return nil, errors.New("http2 request: " + err.Error())
 	}
 
 	rwc := &rwc{
