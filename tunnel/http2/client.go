@@ -81,18 +81,22 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	client, closeClient := c.client(dst)
 	resp, err := client.Do(req)
 	if err != nil {
+		pw.Close()
 		closeClient()
 		return nil, errors.New("http2 request: " + err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		pw.Close()
+		closeClient()
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		return nil, errors.New(resp.Status)
 	}
 
 	rwc := &rwc{
 		rc:      resp.Body,
 		wc:      pw,
 		onclose: closeClient,
-	}
-	if resp.StatusCode != http.StatusOK {
-		rwc.Close()
-		return nil, errors.New(resp.Status)
 	}
 	return rwc, nil
 }
@@ -132,9 +136,9 @@ func (r *rwc) Close() error {
 		r.once.Do(r.onclose)
 	}
 	we := r.wc.Close()
-	re := r.rc.Close()
 	// drain the response body
 	io.Copy(io.Discard, r.rc)
+	re := r.rc.Close()
 	if we != nil {
 		return we
 	}
