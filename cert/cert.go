@@ -176,6 +176,7 @@ func MakeServerTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 // MakeClientTLSConfig make client-side TLS config for mutual authentication
 func MakeClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	tlsConf := &tls.Config{
+		MinVersion:         tls.VersionTLS13,
 		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 	}
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
