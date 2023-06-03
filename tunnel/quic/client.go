@@ -17,41 +17,27 @@ import (
 )
 
 type TunnelClient struct {
-	conf   TunnelClientConfig
+	addr   string
+	conf   *tls.Config
 	mu     sync.RWMutex // guards conns
 	conns  map[string]quic.Connection
 	ticker *time.Ticker
 }
 
-type TunnelClientConfig struct {
-	Target      string
-	TLSConfig   *tls.Config
-	watchPeriod time.Duration
-	idleTimeout time.Duration
-}
-
-func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
-	if conf.TLSConfig == nil {
-		panic("TLS config required")
-	}
-	conf.TLSConfig.NextProtos = []string{"quic"}
-	if conf.watchPeriod == 0 {
-		conf.watchPeriod = time.Minute
-	}
-	if conf.idleTimeout == 0 {
-		conf.idleTimeout = idleTimeout
-	}
+func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
+	tlsConf.NextProtos = []string{"quic"}
 	c := &TunnelClient{
-		conf:   conf,
-		ticker: time.NewTicker(conf.watchPeriod),
+		addr:   addr,
+		conf:   tlsConf,
+		ticker: time.NewTicker(time.Minute),
 		conns:  make(map[string]quic.Connection),
 	}
-	go c.watch()
+	go c.sweep()
 	return c
 }
 
-// watch periodically clears connections closed due to idle timeout
-func (c *TunnelClient) watch() {
+// sweep periodically clears connections closed due to idle timeout
+func (c *TunnelClient) sweep() {
 	for range c.ticker.C {
 		c.mu.Lock()
 		for key, conn := range c.conns {
@@ -81,9 +67,9 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 		return conn, nil
 	}
 
-	newconn, err := quic.DialAddrContext(ctx, c.conf.Target, c.conf.TLSConfig, &quic.Config{
+	newconn, err := quic.DialAddrContext(ctx, c.addr, c.conf, &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
-		MaxIdleTimeout:       c.conf.idleTimeout,
+		MaxIdleTimeout:       idleTimeout,
 	})
 	if err != nil {
 		return nil, err

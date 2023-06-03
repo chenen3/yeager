@@ -154,40 +154,43 @@ func createCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, ke
 
 // MakeServerTLSConfig make server-side TLS config for mutual authentication
 func MakeServerTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
-	tlsConf := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-	}
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, errors.New("parse cert pem: " + err.Error())
-	}
-	tlsConf.Certificates = []tls.Certificate{cert}
-
 	pool := x509.NewCertPool()
 	ok := pool.AppendCertsFromPEM(caPEM)
 	if !ok {
 		return nil, errors.New("failed to parse root cert pem")
 	}
-	tlsConf.ClientCAs = pool
-	tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-	return tlsConf, nil
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, errors.New("parse cert pem: " + err.Error())
+	}
+
+	conf := &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    pool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}
+	return conf, nil
 }
 
 // MakeClientTLSConfig make client-side TLS config for mutual authentication
 func MakeClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
-	tlsConf := &tls.Config{
-		MinVersion:         tls.VersionTLS13,
-		ClientSessionCache: tls.NewLRUClientSessionCache(64),
-	}
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, err
-	}
-	tlsConf.Certificates = []tls.Certificate{cert}
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
 		return nil, errors.New("parse root certificate")
 	}
-	tlsConf.RootCAs = pool
-	return tlsConf, nil
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	conf := &tls.Config{
+		MinVersion:         tls.VersionTLS13,
+		ClientSessionCache: tls.NewLRUClientSessionCache(64),
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            pool,
+	}
+	return conf, nil
 }

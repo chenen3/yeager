@@ -186,19 +186,13 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 
 		switch tc.Type {
 		case config.TunGRPC:
-			client := grpc.NewTunnelClient(grpc.TunnelClientConfig{
-				Target:    tc.Address,
-				TLSConfig: tlsConf,
-			})
+			client := grpc.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		case config.TunQUIC:
-			client := quic.NewTunnelClient(quic.TunnelClientConfig{
-				Target:    tc.Address,
-				TLSConfig: tlsConf,
-			})
+			client := quic.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
@@ -210,7 +204,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				return client.ConnNum()
 			}))
 		default:
-			return nil, fmt.Errorf("unknown tunnel type: %s", tc.Type)
+			log.Printf("ignore unsupported tunnel %s: %s", tc.Type, tc.Policy)
 		}
 		log.Printf("%s targeting %s tunnel %s", tc.Policy, tc.Type, tc.Address)
 	}

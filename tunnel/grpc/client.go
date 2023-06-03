@@ -18,37 +18,25 @@ import (
 )
 
 type TunnelClient struct {
-	conf   TunnelClientConfig
+	addr   string
+	conf   *tls.Config
 	mu     sync.RWMutex // guards conns
 	conns  map[string]*grpc.ClientConn
 	ticker *time.Ticker
 }
 
-type TunnelClientConfig struct {
-	Target      string
-	TLSConfig   *tls.Config
-	watchPeriod time.Duration // default to 1 minute
-}
-
-func NewTunnelClient(conf TunnelClientConfig) *TunnelClient {
-	if conf.TLSConfig == nil {
-		panic("TLS config required")
-	}
-	if conf.watchPeriod == 0 {
-		conf.watchPeriod = time.Minute
-	}
-
+func NewTunnelClient(addr string, conf *tls.Config) *TunnelClient {
 	c := &TunnelClient{
+		addr:   addr,
 		conf:   conf,
-		ticker: time.NewTicker(conf.watchPeriod),
+		ticker: time.NewTicker(time.Minute),
 		conns:  make(map[string]*grpc.ClientConn),
 	}
-	go c.watch()
+	go c.sweep()
 	return c
 }
 
-// TODO: would it better to rename to sweep?
-func (c *TunnelClient) watch() {
+func (c *TunnelClient) sweep() {
 	for range c.ticker.C {
 		c.mu.Lock()
 		for key, conn := range c.conns {
@@ -74,7 +62,7 @@ func (c *TunnelClient) getConn(ctx context.Context, dst string) (*grpc.ClientCon
 	}
 
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(c.conf.TLSConfig)),
+		grpc.WithTransportCredentials(credentials.NewTLS(c.conf)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
@@ -87,7 +75,7 @@ func (c *TunnelClient) getConn(ctx context.Context, dst string) (*grpc.ClientCon
 		// blocking dial facilitates clear logic while creating stream
 		grpc.WithBlock(),
 	}
-	newconn, err := grpc.DialContext(ctx, c.conf.Target, opts...)
+	newconn, err := grpc.DialContext(ctx, c.addr, opts...)
 	if err != nil {
 		return nil, err
 	}
