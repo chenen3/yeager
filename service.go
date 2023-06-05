@@ -18,6 +18,7 @@ import (
 	"github.com/chenen3/yeager/socks"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
+	"github.com/chenen3/yeager/tunnel/http2"
 	"github.com/chenen3/yeager/tunnel/quic"
 )
 
@@ -106,7 +107,6 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}
 			var s grpc.TunnelServer
 			go func() {
-				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
 				if err := s.Serve(lis, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
@@ -115,13 +115,21 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		case config.TunQUIC:
 			var s quic.TunnelServer
 			go func() {
-				log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
+				if err := s.Serve(tl.Listen, tlsConf); err != nil {
+					log.Printf("%s tunnel serve: %s", tl.Type, err)
+				}
+			}()
+			closers = append(closers, &s)
+		case config.TunHTTP2:
+			var s http2.TunnelServer
+			go func() {
 				if err := s.Serve(tl.Listen, tlsConf); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Type, err)
 				}
 			}()
 			closers = append(closers, &s)
 		}
+		log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
 	}
 	return closers, nil
 }
@@ -138,7 +146,6 @@ func CloseAll(closers []io.Closer) {
 type Tunneler struct {
 	dialers map[string]tunnel.Dialer
 	rules   rule.Rules
-	closers []io.Closer
 }
 
 // NewTunneler creates a new Tunneler for client side proxy
@@ -181,22 +188,25 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 		case config.TunGRPC:
 			client := grpc.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
-			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-			log.Printf("%s targeting GRPC tunnel %s", tc.Policy, tc.Address)
 		case config.TunQUIC:
 			client := quic.NewTunnelClient(tc.Address, tlsConf)
 			dialers[policy] = client
-			t.closers = append(t.closers, client)
 			connStats.Set(tc.Policy, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-			log.Printf("%s targeting QUIC tunnel %s", tc.Policy, tc.Address)
+		case config.TunHTTP2:
+			client := http2.NewTunnelClient(tc.Address, tlsConf)
+			dialers[policy] = client
+			connStats.Set(tc.Policy, expvar.Func(func() any {
+				return client.ConnNum()
+			}))
 		default:
 			log.Printf("ignore unsupported tunnel %s: %s", tc.Type, tc.Policy)
 		}
+		log.Printf("%s targeting %s tunnel %s", tc.Policy, tc.Type, tc.Address)
 	}
 	t.dialers = dialers
 	return &t, nil
@@ -237,9 +247,11 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 // Close closes all the tunnel dialers and return the first error encountered
 func (t *Tunneler) Close() error {
 	var err error
-	for _, c := range t.closers {
-		if e := c.Close(); e != nil && err == nil {
-			err = e
+	for _, d := range t.dialers {
+		if c, ok := d.(io.Closer); ok {
+			if e := c.Close(); e != nil && err == nil {
+				err = e
+			}
 		}
 	}
 	return err

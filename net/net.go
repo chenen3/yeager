@@ -77,7 +77,7 @@ func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
 }
 
 // Relay copies data in both directions between local and remote,
-// blocks until one of them completes, returns the number of bytes
+// blocks until completes, returns the number of bytes
 // sent to remote and received from remote.
 func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err error) {
 	sendCh := make(chan result)
@@ -100,6 +100,9 @@ const StreamNoError = 0
 // check for closed or canceled error cause by dst.Close() in oneWayRelay
 func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	if errors.Is(err, io.ErrClosedPipe) {
 		return true
 	}
 	if errors.Is(err, new(quic.StreamError)) {

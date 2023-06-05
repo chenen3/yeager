@@ -85,12 +85,13 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 		}
 	}
 
-	sent, recv, err := ynet.Relay(conn, remote)
+	start := time.Now()
+	_, _, err = ynet.Relay(conn, remote)
 	if err != nil {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
-	debug.Printf("done %s, sent %s, recv %s", dst, ynet.ReadableBytes(sent), ynet.ReadableBytes(recv))
+	debug.Printf("done %s, timed %0.0fs", dst, time.Since(start).Seconds())
 }
 
 func (s *Server) trackConn(c net.Conn, add bool) {

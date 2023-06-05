@@ -13,8 +13,9 @@ import (
 
 // tunnel type
 const (
-	TunGRPC = "grpc"
-	TunQUIC = "quic"
+	TunGRPC  = "grpc"
+	TunQUIC  = "quic"
+	TunHTTP2 = "http2"
 )
 
 // Load loads configuration from the given bytes
