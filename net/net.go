@@ -29,7 +29,7 @@ var bufPool = sync.Pool{
 	},
 }
 
-// Copy adapted from io.Copy, copies from src to dst using a cached or allocated buffer.
+// Copy adapted from io.Copy, using buffer pool to copy data from src to dst.
 func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	b := bufPool.Get().(*[]byte)
 	for {
