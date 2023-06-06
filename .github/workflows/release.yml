@@ -15,6 +15,7 @@ jobs:
       - run: go version
 
       - name: Build
+        id: build
         run: |
           ldflags="-X main.version=${{ github.ref_name }}"
 
@@ -25,6 +26,9 @@ jobs:
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
           tar -czf yeager-macos-amd64.tar.gz yeager README.md
           shasum -a 256 yeager-macos-amd64.tar.gz >> shasums.txt
+          
+          mac_bin_sha=$(shasum -a 256 yeager-macos-amd64.tar.gz |awk '{print $1}')
+          echo "mac_bin_sha=$mac_bin_sha" >> $GITHUB_OUTPUT
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -44,6 +48,8 @@ jobs:
           homebrew-tap: chenen3/homebrew-yeager
           base-branch: master
           download-url: https://github.com/chenen3/yeager/releases/download/${{ github.ref_name }}/yeager-macos-amd64.tar.gz
+          # avoid downloading the file
+          download-sha256: ${{ steps.build.outputs.mac_bin_sha }}
           commit-message: |
             {{formulaName}} {{version}}
 
