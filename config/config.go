@@ -21,8 +21,17 @@ const (
 // Load loads configuration from the given bytes
 func Load(bs []byte) (Config, error) {
 	var c Config
-	err := json.Unmarshal(bs, &c)
-	return c, err
+	if err := json.Unmarshal(bs, &c); err != nil {
+		return c, err
+	}
+	// backward compatible
+	for i := range c.TunnelClients {
+		tc := &c.TunnelClients[i]
+		if tc.Name == "" && tc.Policy != "" {
+			tc.Name = tc.Policy
+		}
+	}
+	return c, nil
 }
 
 type Config struct {
@@ -85,7 +94,9 @@ func (tl *TunnelListen) GetCAPEM() ([]byte, error) {
 }
 
 type TunnelClient struct {
-	Policy   string   `json:"policy"`
+	Name string `json:"name"`
+	// deprecated, use Name instead
+	Policy   string   `json:"policy,omitempty"`
 	Type     string   `json:"type"`
 	Address  string   `json:"address"` // target server address
 	CertFile string   `json:"certFile,omitempty"`
@@ -173,7 +184,7 @@ func Pair(host string) (srv, cli Config, err error) {
 		HTTPListen:  fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
 		TunnelClients: []TunnelClient{
 			{
-				Policy:  "proxy",
+				Name:    "proxy",
 				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
 				Type:    TunGRPC,
 				CAPEM:   splitLines(string(cert.RootCert)),

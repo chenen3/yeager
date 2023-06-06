@@ -119,7 +119,7 @@ func (c *TunnelClient) ConnNum() int {
 type rwc struct {
 	rc      io.ReadCloser
 	wc      io.WriteCloser
-	once    sync.Once // guard onClose
+	once    sync.Once
 	onclose func()
 }
 

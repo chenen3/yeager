@@ -111,8 +111,15 @@ func main() {
 		return
 	}
 	if len(conf.TunnelClients) == 0 && len(conf.TunnelListens) == 0 {
-		log.Printf("at least one tunnel client or server is required in config")
+		log.Printf("bad config: no tunnel client nor server")
 		return
+	}
+
+	if conf.Debug {
+		debug.Enable()
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
 	}
 
 	log.Printf("yeager %s starting", version)
@@ -123,13 +130,6 @@ func main() {
 		return
 	}
 	rule.Cleanup()
-
-	if conf.Debug {
-		debug.Enable()
-		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
-		}()
-	}
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)

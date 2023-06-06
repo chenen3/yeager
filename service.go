@@ -161,9 +161,12 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 
 	dialers := make(map[string]tunnel.Dialer)
 	for _, tc := range tunClients {
-		policy := strings.ToLower(tc.Policy)
-		if _, ok := dialers[policy]; ok {
-			return nil, fmt.Errorf("duplicated tunnel policy: %s", policy)
+		if tc.Name == "" {
+			return nil, fmt.Errorf("empty tunnel name")
+		}
+		name := strings.ToLower(tc.Name)
+		if _, ok := dialers[name]; ok {
+			return nil, fmt.Errorf("duplicated tunnel name: %s", name)
 		}
 
 		certPEM, err := tc.GetCertPEM()
@@ -187,26 +190,27 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 		switch tc.Type {
 		case config.TunGRPC:
 			client := grpc.NewTunnelClient(tc.Address, tlsConf)
-			dialers[policy] = client
-			connStats.Set(tc.Policy, expvar.Func(func() any {
+			dialers[name] = client
+			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		case config.TunQUIC:
 			client := quic.NewTunnelClient(tc.Address, tlsConf)
-			dialers[policy] = client
-			connStats.Set(tc.Policy, expvar.Func(func() any {
+			dialers[name] = client
+			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		case config.TunHTTP2:
 			client := http2.NewTunnelClient(tc.Address, tlsConf)
-			dialers[policy] = client
-			connStats.Set(tc.Policy, expvar.Func(func() any {
+			dialers[name] = client
+			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		default:
-			log.Printf("ignore unsupported tunnel %s: %s", tc.Type, tc.Policy)
+			log.Printf("ignore unsupported %s tunnel: %s", tc.Type, tc.Name)
+			continue
 		}
-		log.Printf("%s targeting %s tunnel %s", tc.Policy, tc.Type, tc.Address)
+		log.Printf("%s targeting %s tunnel %s", tc.Name, tc.Type, tc.Address)
 	}
 	t.dialers = dialers
 	return &t, nil
