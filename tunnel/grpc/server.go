@@ -32,7 +32,7 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: 30 * time.Second,
+			MaxConnectionIdle: 15 * time.Second,
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
@@ -59,26 +59,17 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	defer remote.Close()
 
-	ch := make(chan error, 2)
-	go oneWayRelay(remote, sw, ch)
-	go oneWayRelay(sw, remote, ch)
-	if err := <-ch; err != nil && !closedOrCanceled(err) {
+	err = ynet.Relay(sw, remote)
+	if err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		}
+		if s, ok := status.FromError(err); ok && s.Code() == codes.Canceled {
+			return nil
+		}
 		log.Printf("relay %s: %s", dst, err)
 	}
 	return nil
-}
-
-func closedOrCanceled(err error) bool {
-	if errors.Is(err, net.ErrClosed) {
-		return true
-	}
-	s, ok := status.FromError(err)
-	return ok && s.Code() == codes.Canceled
-}
-
-func oneWayRelay(dst io.Writer, src io.Reader, ch chan<- error) {
-	_, err := ynet.Copy(dst, src)
-	ch <- err
 }
 
 func (s *TunnelServer) Close() error {

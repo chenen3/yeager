@@ -77,7 +77,7 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer remote.Close()
 
 	start := time.Now()
-	_, _, err = ynet.Relay(conn, remote)
+	err = ynet.Relay(conn, remote)
 	if err != nil {
 		log.Printf("relay %s: %s", dst, err)
 		return

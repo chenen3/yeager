@@ -48,7 +48,7 @@ jobs:
           homebrew-tap: chenen3/homebrew-yeager
           base-branch: master
           download-url: https://github.com/chenen3/yeager/releases/download/${{ github.ref_name }}/yeager-macos-amd64.tar.gz
-          # avoid downloading the file
+          # avoid downloading files that have just been uploaded, or they may fail
           download-sha256: ${{ steps.build.outputs.mac_bin_sha }}
           commit-message: |
             {{formulaName}} {{version}}

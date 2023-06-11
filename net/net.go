@@ -2,17 +2,12 @@ package net
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/quic-go/quic-go"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -63,6 +58,7 @@ func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	return written, err
 }
 
+/*
 type result struct {
 	N   int64
 	Err error
@@ -76,6 +72,7 @@ func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
 	dst.Close()
 }
 
+// Deprecated
 // Relay copies data in both directions between local and remote,
 // blocks until completes, returns the number of bytes
 // sent to remote and received from remote.
@@ -95,14 +92,9 @@ func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err er
 	return send.N, recv.N, err
 }
 
-const StreamNoError = 0
-
 // check for closed or canceled error cause by dst.Close() in oneWayRelay
 func closedOrCanceled(err error) bool {
 	if errors.Is(err, net.ErrClosed) {
-		return true
-	}
-	if errors.Is(err, io.ErrClosedPipe) {
 		return true
 	}
 	if errors.Is(err, new(quic.StreamError)) {
@@ -112,6 +104,24 @@ func closedOrCanceled(err error) bool {
 	s, ok := status.FromError(err)
 	return ok && s != nil && s.Code() == codes.Canceled
 }
+*/
+
+// Relay copies data in both directions between a and b,
+// blocks until one of which completes.
+func Relay(a, b io.ReadWriter) error {
+	c := make(chan error, 2)
+	go func() {
+		_, err := Copy(a, b)
+		c <- err
+	}()
+	go func() {
+		_, err := Copy(b, a)
+		c <- err
+	}()
+	return <-c
+}
+
+const StreamNoError = 0
 
 // ReadableBytes converts the number of bytes into a more readable format.
 // For example, given n=1024, returns "1.0KB"

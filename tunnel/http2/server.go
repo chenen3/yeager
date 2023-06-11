@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"golang.org/x/net/http2"
 )
@@ -58,12 +58,14 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 }
 
 func serveHTTP(w http.ResponseWriter, r *http.Request) {
-	remote, err := net.Dial("tcp", r.Header.Get("dst"))
+	dst := r.Header.Get("dst")
+	remote, err := net.Dial("tcp", dst)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Print(err)
 		return
 	}
+	defer remote.Close()
 
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
@@ -73,27 +75,16 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	done := make(chan struct{})
-	go func() {
-		_, e := ynet.Copy(remote, r.Body)
-		if e != nil {
-			se, ok := e.(http2.StreamError)
-			if !ok || se.Code != http2.ErrCodeCancel {
-				debug.Printf("send: %s", e)
-			}
+	err = ynet.Relay(&readwriter{r.Body, &flushWriter{w}}, remote)
+	if err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return
 		}
-		// unblock Read on remote
-		remote.Close()
-		close(done)
-	}()
-
-	_, err = ynet.Copy(&flushWriter{w}, remote)
-	if err != nil && !errors.Is(err, net.ErrClosed) {
-		debug.Printf("receive: %s", err)
+		if se, ok := err.(http2.StreamError); ok && se.Code == http2.ErrCodeCancel {
+			return
+		}
+		log.Printf("relay %s: %s", dst, err)
 	}
-	// unblock Read on r.Body
-	r.Body.Close()
-	<-done
 }
 
 func (s *TunnelServer) Close() error {
@@ -112,4 +103,17 @@ func (w *flushWriter) Write(b []byte) (int, error) {
 		f.Flush()
 	}
 	return n, err
+}
+
+type readwriter struct {
+	r io.Reader
+	w io.Writer
+}
+
+func (rw *readwriter) Read(p []byte) (int, error) {
+	return rw.r.Read(p)
+}
+
+func (rw *readwriter) Write(p []byte) (int, error) {
+	return rw.w.Write(p)
 }

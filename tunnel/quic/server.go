@@ -88,7 +88,11 @@ func handleStream(stream quic.Stream) {
 	}
 	defer remote.Close()
 
-	if _, _, err := ynet.Relay(stream, remote); err != nil {
+	err = ynet.Relay(stream, remote)
+	if err != nil {
+		if e, ok := err.(*quic.StreamError); ok && e.ErrorCode == quic.StreamErrorCode(quic.NoError) {
+			return
+		}
 		log.Printf("relay %s: %s", dst, err)
 	}
 }
