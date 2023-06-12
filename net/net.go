@@ -121,8 +121,6 @@ func Relay(a, b io.ReadWriter) error {
 	return <-c
 }
 
-const StreamNoError = 0
-
 // ReadableBytes converts the number of bytes into a more readable format.
 // For example, given n=1024, returns "1.0KB"
 func ReadableBytes(n int64) string {

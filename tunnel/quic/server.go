@@ -90,7 +90,7 @@ func handleStream(stream quic.Stream) {
 
 	err = ynet.Relay(stream, remote)
 	if err != nil {
-		if e, ok := err.(*quic.StreamError); ok && e.ErrorCode == quic.StreamErrorCode(quic.NoError) {
+		if e, ok := err.(*quic.ApplicationError); ok && e.ErrorCode == 0 {
 			return
 		}
 		log.Printf("relay %s: %s", dst, err)

@@ -161,6 +161,6 @@ func wrapStream(stream quic.Stream) *streamWrapper {
 
 func (s *streamWrapper) Close() error {
 	// stop receiving on this stream since quic.Stream.Close() does not handle this
-	s.CancelRead(ynet.StreamNoError)
+	s.CancelRead(0)
 	return s.Stream.Close()
 }
