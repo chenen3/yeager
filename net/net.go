@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -58,6 +57,21 @@ func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	return written, err
 }
 
+// Relay copies data in both directions between a and b,
+// blocks until one of which completes.
+func Relay(a, b io.ReadWriter) error {
+	c := make(chan error, 2)
+	go func() {
+		_, err := Copy(a, b)
+		c <- err
+	}()
+	go func() {
+		_, err := Copy(b, a)
+		c <- err
+	}()
+	return <-c
+}
+
 /*
 type result struct {
 	N   int64
@@ -104,22 +118,6 @@ func closedOrCanceled(err error) bool {
 	s, ok := status.FromError(err)
 	return ok && s != nil && s.Code() == codes.Canceled
 }
-*/
-
-// Relay copies data in both directions between a and b,
-// blocks until one of which completes.
-func Relay(a, b io.ReadWriter) error {
-	c := make(chan error, 2)
-	go func() {
-		_, err := Copy(a, b)
-		c <- err
-	}()
-	go func() {
-		_, err := Copy(b, a)
-		c <- err
-	}()
-	return <-c
-}
 
 // ReadableBytes converts the number of bytes into a more readable format.
 // For example, given n=1024, returns "1.0KB"
@@ -133,6 +131,7 @@ func ReadableBytes(n int64) string {
 		return strconv.FormatFloat(float64(n)/(1024*1024), 'f', 1, 64) + "MB"
 	}
 }
+*/
 
 // EchoServer accepts connection and writes back anything it reads from the connection.
 type EchoServer struct {

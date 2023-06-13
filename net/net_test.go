@@ -115,6 +115,7 @@ func BenchmarkBufSize32KB(b *testing.B) {
 	}
 }
 
+/*
 func TestReadableBytes(t *testing.T) {
 	type args struct {
 		n int64
@@ -136,3 +137,4 @@ func TestReadableBytes(t *testing.T) {
 		})
 	}
 }
+*/

@@ -119,7 +119,6 @@ func (c *TunnelClient) ConnNum() int {
 type rwc struct {
 	rc      io.ReadCloser
 	wc      io.WriteCloser
-	once    sync.Once
 	onclose func()
 }
 
@@ -133,7 +132,7 @@ func (r *rwc) Write(p []byte) (n int, err error) {
 
 func (r *rwc) Close() error {
 	if r.onclose != nil {
-		r.once.Do(r.onclose)
+		r.onclose()
 	}
 	we := r.wc.Close()
 	// drain the response body

@@ -33,7 +33,7 @@ func NewServer() *Server {
 }
 
 // Serve serves connection accepted by lis,
-// blocks until an unexpected error is encounttered or Close is called
+// blocking until the server closes or encounters an unexpected error
 func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
