@@ -32,11 +32,18 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	}
 }
 
-func (c *TunnelClient) client(dst string) (client *http.Client, closeFunc func()) {
+// getClient returns a http2 getClient for dst, create one if not exists.
+//
+// Since all requests are forwarded to the same tunnel server address,
+// if we only use one http2 client, according to the multiplexing feature,
+// all requests will be transmitted on the same connection.
+// When encountering the head-of-line blocking problem of TCP,
+// all requests will be affected. Therefore using multiple clients
+func (c *TunnelClient) getClient(dst string) (client *http.Client, close func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connStat[dst]++
-	closeFunc = func() {
+	close = func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		c.connStat[dst]--
@@ -49,7 +56,7 @@ func (c *TunnelClient) client(dst string) (client *http.Client, closeFunc func()
 
 	client, ok := c.clients[dst]
 	if ok {
-		return client, closeFunc
+		return client, close
 	}
 
 	transport := &http2.Transport{
@@ -63,7 +70,7 @@ func (c *TunnelClient) client(dst string) (client *http.Client, closeFunc func()
 	}
 	client = &http.Client{Transport: transport}
 	c.clients[dst] = client
-	return client, closeFunc
+	return client, close
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -78,7 +85,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
-	client, closeClient := c.client(dst)
+	client, closeClient := c.getClient(dst)
 	resp, err := client.Do(req)
 	if err != nil {
 		pw.Close()
