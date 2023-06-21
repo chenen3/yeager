@@ -25,8 +25,6 @@ Documentation=https://github.com/chenen3/yeager
 After=network.target
 
 [Service]
-User=ubuntu
-Group=ubuntu
 ExecStart=/usr/local/bin/yeager -config /usr/local/etc/yeager/config.json
 TimeoutStopSec=5s
 LimitNOFILE=1048576
