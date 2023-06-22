@@ -148,22 +148,22 @@ func allocPort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-// Pair make a pair of client and server config
-func Pair(host string) (srv, cli Config, err error) {
+// Generate generates a pair of client and server configuration for the given host
+func Generate(host string) (cli, srv Config, err error) {
 	cert, err := cert.Generate(host)
 	if err != nil {
-		return srv, cli, err
+		return
 	}
 	tunnelPort, err := allocPort()
 	if err != nil {
-		return srv, cli, err
+		return
 	}
 
 	srv = Config{
 		TunnelListens: []TunnelListen{
 			{
 				Listen:  fmt.Sprintf("0.0.0.0:%d", tunnelPort),
-				Type:    TunGRPC,
+				Type:    TunHTTP2,
 				CAPEM:   splitLines(string(cert.RootCert)),
 				CertPEM: splitLines(string(cert.ServerCert)),
 				KeyPEM:  splitLines(string(cert.ServerKey)),
@@ -173,11 +173,11 @@ func Pair(host string) (srv, cli Config, err error) {
 
 	socksProxyPort, err := allocPort()
 	if err != nil {
-		return srv, cli, err
+		return
 	}
 	httpProxyPort, err := allocPort()
 	if err != nil {
-		return srv, cli, err
+		return
 	}
 	cli = Config{
 		SOCKSListen: fmt.Sprintf("127.0.0.1:%d", socksProxyPort),
@@ -186,7 +186,7 @@ func Pair(host string) (srv, cli Config, err error) {
 			{
 				Name:    "proxy",
 				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
-				Type:    TunGRPC,
+				Type:    TunHTTP2,
 				CAPEM:   splitLines(string(cert.RootCert)),
 				CertPEM: splitLines(string(cert.ClientCert)),
 				KeyPEM:  splitLines(string(cert.ClientKey)),
@@ -194,63 +194,5 @@ func Pair(host string) (srv, cli Config, err error) {
 		},
 		Rules: []string{"final,proxy"},
 	}
-	return srv, cli, nil
-}
-
-// Generate generates the corrensponding client and server config file
-func Generate(ip, srvConfOutput, cliConfOutput string) error {
-	_, err := os.Stat(srvConfOutput)
-	if err == nil {
-		return fmt.Errorf("found %s, operation aborted", srvConfOutput)
-	}
-	_, err = os.Stat(cliConfOutput)
-	if err == nil {
-		return fmt.Errorf("found %s, operation aborted", cliConfOutput)
-	}
-
-	srvConf, cliConf, err := Pair(ip)
-	if err != nil {
-		return fmt.Errorf("failed to generate config: %s", err)
-	}
-	if len(srvConf.TunnelListens) == 0 {
-		return fmt.Errorf("no tunnelListens in server config")
-	}
-	port := 57175
-	srvConf.TunnelListens[0].Listen = fmt.Sprintf("0.0.0.0:%d", port)
-	bs, err := json.MarshalIndent(srvConf, "", "\t")
-	if err != nil {
-		return fmt.Errorf("failed to marshal server config: %s", err)
-	}
-	err = os.WriteFile(srvConfOutput, bs, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write server config: %s", err)
-	}
-	fmt.Printf("generated server config file: %s\n", srvConfOutput)
-
-	if len(cliConf.TunnelClients) == 0 {
-		return fmt.Errorf("no tunnelClients in client config")
-	}
-	cliConf.TunnelClients[0].Address = fmt.Sprintf("%s:%d", ip, port)
-	cliConf.SOCKSListen = "127.0.0.1:1080"
-	cliConf.HTTPListen = "127.0.0.1:8080"
-	cliConf.Rules = []string{
-		"ip-cidr,127.0.0.1/8,direct",
-		"ip-cidr,192.168.0.0/16,direct",
-		"ip-cidr,172.16.0.0/12,direct",
-		"ip-cidr,10.0.0.0/8,direct",
-		"domain,localhost,direct",
-		// "geosite,cn,direct",
-		// "geosite,apple@cn,direct",
-		"final,proxy",
-	}
-	bs, err = json.MarshalIndent(cliConf, "", "\t")
-	if err != nil {
-		return fmt.Errorf("failed to marshal client config: %s", err)
-	}
-	err = os.WriteFile(cliConfOutput, bs, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write client config: %s", err)
-	}
-	fmt.Printf("generated client config file: %s\n", cliConfOutput)
-	return nil
+	return cli, srv, nil
 }

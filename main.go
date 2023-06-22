@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	_ "expvar"
 	"flag"
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/chenen3/yeager/config"
@@ -37,7 +38,7 @@ Example:
   yeager -version
     	print version number
 
-  yeager -genconf [-ip 1.2.3.4] [-srvconf config.json] [-cliconf client.json]
+  yeager -genconf [-ip 1.2.3.4] [-cliconf client.json] [-srvconf config.json]
     	generate a pair of configuration for server and client
 `
 
@@ -51,8 +52,62 @@ func checkIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ip = bytes.TrimSpace(ip)
-	return string(ip), nil
+	return strings.TrimSpace(string(ip)), nil
+}
+
+func genConfig(host, cliConfOutput, srvConfOutput string) error {
+	_, err := os.Stat(srvConfOutput)
+	if err == nil {
+		return fmt.Errorf("file %s already exists, operation aborted", srvConfOutput)
+	}
+	_, err = os.Stat(cliConfOutput)
+	if err == nil {
+		return fmt.Errorf("file %s already exists, operation aborted", cliConfOutput)
+	}
+
+	cliConf, srvConf, err := config.Generate(host)
+	if err != nil {
+		return fmt.Errorf("failed to generate config: %s", err)
+	}
+	if len(srvConf.TunnelListens) == 0 {
+		return fmt.Errorf("no tunnelListens in server config")
+	}
+	port := 57175
+	srvConf.TunnelListens[0].Listen = fmt.Sprintf("0.0.0.0:%d", port)
+	bs, err := json.MarshalIndent(srvConf, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal server config: %s", err)
+	}
+	err = os.WriteFile(srvConfOutput, bs, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write server config: %s", err)
+	}
+	fmt.Printf("generated server config file: %s\n", srvConfOutput)
+
+	if len(cliConf.TunnelClients) == 0 {
+		return fmt.Errorf("no tunnelClients in client config")
+	}
+	cliConf.TunnelClients[0].Address = fmt.Sprintf("%s:%d", host, port)
+	cliConf.SOCKSListen = "127.0.0.1:1080"
+	cliConf.HTTPListen = "127.0.0.1:8080"
+	cliConf.Rules = []string{
+		"ip-cidr,127.0.0.1/8,direct",
+		"ip-cidr,192.168.0.0/16,direct",
+		"ip-cidr,172.16.0.0/12,direct",
+		"ip-cidr,10.0.0.0/8,direct",
+		"domain,localhost,direct",
+		"final,proxy",
+	}
+	bs, err = json.MarshalIndent(cliConf, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal client config: %s", err)
+	}
+	err = os.WriteFile(cliConfOutput, bs, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write client config: %s", err)
+	}
+	fmt.Printf("generated client config file: %s\n", cliConfOutput)
+	return nil
 }
 
 func main() {
@@ -70,8 +125,8 @@ func main() {
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.BoolVar(&flags.genConfig, "genconf", false, "generate configuration")
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
-	flag.StringVar(&flags.srvConfFile, "srvconf", "config.json", "file name of server config, used with option -genconf")
-	flag.StringVar(&flags.cliConfFile, "cliconf", "client.json", "file name of client config, used with option -genconf")
+	flag.StringVar(&flags.srvConfFile, "srvconf", "config.json", "server configuration file, used with option -genconf")
+	flag.StringVar(&flags.cliConfFile, "cliconf", "client.json", "client configuration file, used with option -genconf")
 	flag.Parse()
 
 	if flags.version {
@@ -89,7 +144,7 @@ func main() {
 			}
 			ip = i
 		}
-		if err := config.Generate(ip, flags.srvConfFile, flags.cliConfFile); err != nil {
+		if err := genConfig(ip, flags.cliConfFile, flags.srvConfFile); err != nil {
 			fmt.Println(err)
 			return
 		}

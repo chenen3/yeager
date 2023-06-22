@@ -17,7 +17,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	srvConf, cliConf, err := config.Pair("127.0.0.1")
+	cliConf, srvConf, err := config.Generate("127.0.0.1")
 	if err != nil {
 		panic(err)
 	}
