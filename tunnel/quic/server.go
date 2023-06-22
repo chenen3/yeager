@@ -22,7 +22,7 @@ const idleTimeout = 5 * time.Minute
 // TunnelServer is a QUIC tunnel server, its zero value is ready to use
 type TunnelServer struct {
 	mu  sync.Mutex
-	lis quic.Listener
+	lis *quic.Listener
 }
 
 // Serve will return a non-nil error unless Close is called.

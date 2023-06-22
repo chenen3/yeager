@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -26,6 +25,8 @@ type TunnelClient struct {
 
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	tlsConf.NextProtos = []string{"quic"}
+	host, _, _ := net.SplitHostPort(addr)
+	tlsConf.ServerName = host
 	c := &TunnelClient{
 		addr:   addr,
 		conf:   tlsConf,
@@ -67,7 +68,7 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 		return conn, nil
 	}
 
-	newconn, err := quic.DialAddrContext(ctx, c.addr, c.conf, &quic.Config{
+	newconn, err := quic.DialAddr(ctx, c.addr, c.conf, &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
 		MaxIdleTimeout:       idleTimeout,
 	})
@@ -87,36 +88,15 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 	return newconn, nil
 }
 
-// openStream opens a new stream, reconnect if necessary.
-func (c *TunnelClient) openStream(ctx context.Context, key string) (quic.Stream, error) {
-	conn, err := c.getConn(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	stream, err := conn.OpenStream()
-	if err == nil {
-		return stream, nil
-	}
-
-	if ne, ok := err.(net.Error); ok && ne.Temporary() {
-		// reaching the peer's stream limit
-		return nil, ne
-	}
-	log.Printf("streaming error: %s, reconnecting...", err)
-	conn.CloseWithError(0, "")
-	rc, re := c.getConn(ctx, key)
-	if re != nil {
-		return nil, re
-	}
-	return rc.OpenStream()
-}
-
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	stream, err := c.openStream(ctx, dst)
+	conn, err := c.getConn(ctx, dst)
+	if err != nil {
+		return nil, errors.New("quic dial: " + err.Error())
+	}
+	stream, err := conn.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
-
 	sw := wrapStream(stream)
 	if err := tunnel.WriteHeader(sw, dst); err != nil {
 		sw.Close()
