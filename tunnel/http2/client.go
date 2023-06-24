@@ -16,19 +16,19 @@ import (
 )
 
 type TunnelClient struct {
-	addr     string
-	tlsConf  *tls.Config
-	mu       sync.Mutex
-	clients  map[string]*http.Client
-	connStat map[string]int
+	addr    string
+	tlsConf *tls.Config
+	mu      sync.Mutex
+	clients map[string]*http.Client
+	reqStat map[string]int // numbers of requests on specified dst
 }
 
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	return &TunnelClient{
-		addr:     addr,
-		tlsConf:  tlsConf,
-		clients:  make(map[string]*http.Client),
-		connStat: make(map[string]int),
+		addr:    addr,
+		tlsConf: tlsConf,
+		clients: make(map[string]*http.Client),
+		reqStat: make(map[string]int),
 	}
 }
 
@@ -39,16 +39,16 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 // all requests will be transmitted on the same connection.
 // When encountering the head-of-line blocking problem of TCP,
 // all requests will be affected. Therefore using multiple clients
-func (c *TunnelClient) getClient(dst string) (client *http.Client, close func()) {
+func (c *TunnelClient) getClient(dst string) (client *http.Client, untrack func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.connStat[dst]++
-	close = func() {
+	c.reqStat[dst]++
+	untrack = func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		c.connStat[dst]--
-		if c.connStat[dst] == 0 {
-			delete(c.connStat, dst)
+		c.reqStat[dst]--
+		if c.reqStat[dst] == 0 {
+			delete(c.reqStat, dst)
 			delete(c.clients, dst)
 			debug.Printf("remove h2 client: %s", dst)
 		}
@@ -56,7 +56,7 @@ func (c *TunnelClient) getClient(dst string) (client *http.Client, close func())
 
 	client, ok := c.clients[dst]
 	if ok {
-		return client, close
+		return client, untrack
 	}
 
 	transport := &http2.Transport{
@@ -70,7 +70,7 @@ func (c *TunnelClient) getClient(dst string) (client *http.Client, close func())
 	}
 	client = &http.Client{Transport: transport}
 	c.clients[dst] = client
-	return client, close
+	return client, untrack
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -85,16 +85,16 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
-	client, closeClient := c.getClient(dst)
+	client, untrack := c.getClient(dst)
 	resp, err := client.Do(req)
 	if err != nil {
 		pw.Close()
-		closeClient()
+		untrack()
 		return nil, errors.New("http2 request: " + err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
 		pw.Close()
-		closeClient()
+		untrack()
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
@@ -103,7 +103,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	rwc := &rwc{
 		rc:      resp.Body,
 		wc:      pw,
-		onclose: closeClient,
+		onclose: untrack,
 	}
 	return rwc, nil
 }
