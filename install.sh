@@ -40,14 +40,8 @@ systemctl enable yeager
 systemctl start yeager
 
 # use BBR congestion control
-if ! lsmod | grep -q "bbr"; then
-	echo "enable BBR congestion control..."
-	echo net.core.default_qdisc=fq >> /etc/sysctl.conf
-	echo net.ipv4.tcp_congestion_control=bbr >> /etc/sysctl.conf
-	# increase the maximum buffer size for quic-go
-	echo net.core.rmem_max=2500000 >> /etc/sysctl.conf
-	sysctl -p
-fi
+sudo sysctl -w net.core.default_qdisc=fq
+sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 
 echo "\nA few steps to do:"
 echo "1. allows TCP port 57175"
