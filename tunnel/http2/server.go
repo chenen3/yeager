@@ -69,9 +69,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
-		// If this is not done,
-		// the client will wait for the request to complete
-		// and cannot delay writing to the request body.
+		// the client waits for the response header
 		f.Flush()
 	}
 

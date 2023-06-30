@@ -39,7 +39,7 @@ systemctl daemon-reload
 systemctl enable yeager
 systemctl start yeager
 
-# use BBR congestion control
+# enable BBR congestion control
 sudo sysctl -w net.core.default_qdisc=fq
 sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 

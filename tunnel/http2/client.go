@@ -86,6 +86,8 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
 	client, untrack := c.getClient(dst)
+	// the client return Responses from servers once
+	// the response headers have been received
 	resp, err := client.Do(req)
 	if err != nil {
 		pw.Close()
