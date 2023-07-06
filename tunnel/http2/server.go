@@ -73,8 +73,8 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	err = ynet.Relay(&readwriter{r.Body, &flushWriter{w}}, remote)
-	if err != nil {
+	local := &readwriter{r.Body, &flushWriter{w}}
+	if err = ynet.Relay(local, remote); err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return
 		}

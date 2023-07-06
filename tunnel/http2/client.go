@@ -32,14 +32,14 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	}
 }
 
-// getClient returns a http2 getClient for dst, create one if not exists.
+// h2Client returns a http2 client for dst, create one if not exists.
 //
 // Since all requests are forwarded to the same tunnel server address,
 // if we only use one http2 client, according to the multiplexing feature,
 // all requests will be transmitted on the same connection.
 // When encountering the head-of-line blocking problem of TCP,
 // all requests will be affected. Therefore using multiple clients
-func (c *TunnelClient) getClient(dst string) (client *http.Client, untrack func()) {
+func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.reqStat[dst]++
@@ -59,7 +59,7 @@ func (c *TunnelClient) getClient(dst string) (client *http.Client, untrack func(
 		return client, untrack
 	}
 
-	transport := &http2.Transport{
+	t := &http2.Transport{
 		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
@@ -68,7 +68,7 @@ func (c *TunnelClient) getClient(dst string) (client *http.Client, untrack func(
 			return tls.DialWithDialer(d, "tcp", addr, c.tlsConf)
 		},
 	}
-	client = &http.Client{Transport: transport}
+	client = &http.Client{Transport: t}
 	c.clients[dst] = client
 	return client, untrack
 }
@@ -85,7 +85,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
-	client, untrack := c.getClient(dst)
+	client, untrack := c.h2Client(dst)
 	// the client return Responses from servers once
 	// the response headers have been received
 	resp, err := client.Do(req)
@@ -102,7 +102,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, errors.New(resp.Status)
 	}
 
-	rwc := &rwc{
+	rwc := &readWriteCloser{
 		rc:      resp.Body,
 		wc:      pw,
 		onclose: untrack,
@@ -125,28 +125,28 @@ func (c *TunnelClient) ConnNum() int {
 	return len(c.clients)
 }
 
-type rwc struct {
+type readWriteCloser struct {
 	rc      io.ReadCloser
 	wc      io.WriteCloser
 	onclose func()
 }
 
-func (r *rwc) Read(p []byte) (n int, err error) {
-	return r.rc.Read(p)
+func (rwc *readWriteCloser) Read(p []byte) (n int, err error) {
+	return rwc.rc.Read(p)
 }
 
-func (r *rwc) Write(p []byte) (n int, err error) {
-	return r.wc.Write(p)
+func (rwc *readWriteCloser) Write(p []byte) (n int, err error) {
+	return rwc.wc.Write(p)
 }
 
-func (r *rwc) Close() error {
-	if r.onclose != nil {
-		r.onclose()
+func (rwc *readWriteCloser) Close() error {
+	if rwc.onclose != nil {
+		rwc.onclose()
 	}
-	we := r.wc.Close()
+	we := rwc.wc.Close()
 	// drain the response body
-	io.Copy(io.Discard, r.rc)
-	re := r.rc.Close()
+	io.Copy(io.Discard, rwc.rc)
+	re := rwc.rc.Close()
 	if we != nil {
 		return we
 	}
