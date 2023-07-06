@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/quic-go/quic-go v0.36.0
 	golang.org/x/net v0.10.0
-	google.golang.org/grpc v1.52.3
+	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1
 )
 
