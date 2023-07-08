@@ -97,7 +97,6 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	if resp.StatusCode != http.StatusOK {
 		pw.Close()
 		untrack()
-		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
 	}
@@ -144,8 +143,6 @@ func (rwc *readWriteCloser) Close() error {
 		rwc.onclose()
 	}
 	we := rwc.wc.Close()
-	// drain the response body
-	io.Copy(io.Discard, rwc.rc)
 	re := rwc.rc.Close()
 	if we != nil {
 		return we
