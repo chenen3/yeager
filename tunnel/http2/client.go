@@ -98,7 +98,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		pw.Close()
 		untrack()
 		resp.Body.Close()
-		return nil, errors.New(resp.Status)
+		return nil, errors.New(resp.Status + ": " + resp.Header.Get("error"))
 	}
 
 	rwc := &readWriteCloser{

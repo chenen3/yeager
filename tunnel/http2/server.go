@@ -61,8 +61,8 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 	dst := r.Header.Get("dst")
 	remote, err := net.Dial("tcp", dst)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Print(err)
+		w.Header().Add("error", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	defer remote.Close()

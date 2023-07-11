@@ -23,8 +23,8 @@ var bufPool = sync.Pool{
 	},
 }
 
-// Copy adapted from io.Copy, using buffer pool to copy data from src to dst.
-func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
+// copy adapted from io.Copy, using buffer pool to copy data from src to dst.
+func copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	b := bufPool.Get().(*[]byte)
 	for {
 		nr, er := src.Read(*b)
@@ -62,11 +62,11 @@ func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 func Relay(a, b io.ReadWriter) error {
 	c := make(chan error, 2)
 	go func() {
-		_, err := Copy(a, b)
+		_, err := copy(a, b)
 		c <- err
 	}()
 	go func() {
-		_, err := Copy(b, a)
+		_, err := copy(b, a)
 		c <- err
 	}()
 	return <-c
