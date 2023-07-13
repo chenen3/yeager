@@ -44,11 +44,11 @@ type Config struct {
 	Debug bool `json:"debug,omitempty"`
 }
 
-func mergeLines(s []string) string {
+func mergeLine(s []string) string {
 	return strings.Join(s, "\n")
 }
 
-func splitLines(s string) []string {
+func splitLine(s string) []string {
 	return strings.Split(strings.TrimSpace(s), "\n")
 }
 
@@ -65,7 +65,7 @@ type TunnelListen struct {
 
 func (tl *TunnelListen) GetCertPEM() ([]byte, error) {
 	if tl.CertPEM != nil {
-		return []byte(mergeLines(tl.CertPEM)), nil
+		return []byte(mergeLine(tl.CertPEM)), nil
 	}
 	if tl.CertFile != "" {
 		return os.ReadFile(tl.CertFile)
@@ -75,7 +75,7 @@ func (tl *TunnelListen) GetCertPEM() ([]byte, error) {
 
 func (tl *TunnelListen) GetKeyPEM() ([]byte, error) {
 	if tl.KeyPEM != nil {
-		return []byte(mergeLines(tl.KeyPEM)), nil
+		return []byte(mergeLine(tl.KeyPEM)), nil
 	}
 	if tl.KeyFile != "" {
 		return os.ReadFile(tl.KeyFile)
@@ -85,7 +85,7 @@ func (tl *TunnelListen) GetKeyPEM() ([]byte, error) {
 
 func (tl *TunnelListen) GetCAPEM() ([]byte, error) {
 	if tl.CAPEM != nil {
-		return []byte(mergeLines(tl.CAPEM)), nil
+		return []byte(mergeLine(tl.CAPEM)), nil
 	}
 	if tl.CAFile != "" {
 		return os.ReadFile(tl.CAFile)
@@ -111,7 +111,7 @@ type TunnelClient struct {
 
 func (tc *TunnelClient) GetCertPEM() ([]byte, error) {
 	if tc.CertPEM != nil {
-		return []byte(mergeLines(tc.CertPEM)), nil
+		return []byte(mergeLine(tc.CertPEM)), nil
 	}
 	if tc.CertFile != "" {
 		return os.ReadFile(tc.CertFile)
@@ -121,7 +121,7 @@ func (tc *TunnelClient) GetCertPEM() ([]byte, error) {
 
 func (tc *TunnelClient) GetKeyPEM() ([]byte, error) {
 	if tc.KeyPEM != nil {
-		return []byte(mergeLines(tc.KeyPEM)), nil
+		return []byte(mergeLine(tc.KeyPEM)), nil
 	}
 	if tc.KeyFile != "" {
 		return os.ReadFile(tc.KeyFile)
@@ -131,7 +131,7 @@ func (tc *TunnelClient) GetKeyPEM() ([]byte, error) {
 
 func (tc *TunnelClient) GetCAPEM() ([]byte, error) {
 	if tc.CAPEM != nil {
-		return []byte(mergeLines(tc.CAPEM)), nil
+		return []byte(mergeLine(tc.CAPEM)), nil
 	}
 	if tc.CAFile != "" {
 		return os.ReadFile(tc.CAFile)
@@ -164,9 +164,9 @@ func Generate(host string) (cli, srv Config, err error) {
 			{
 				Listen:  fmt.Sprintf("0.0.0.0:%d", tunnelPort),
 				Type:    TunHTTP2,
-				CAPEM:   splitLines(string(cert.RootCert)),
-				CertPEM: splitLines(string(cert.ServerCert)),
-				KeyPEM:  splitLines(string(cert.ServerKey)),
+				CAPEM:   splitLine(string(cert.RootCert)),
+				CertPEM: splitLine(string(cert.ServerCert)),
+				KeyPEM:  splitLine(string(cert.ServerKey)),
 			},
 		},
 	}
@@ -187,9 +187,9 @@ func Generate(host string) (cli, srv Config, err error) {
 				Name:    "proxy",
 				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
 				Type:    TunHTTP2,
-				CAPEM:   splitLines(string(cert.RootCert)),
-				CertPEM: splitLines(string(cert.ClientCert)),
-				KeyPEM:  splitLines(string(cert.ClientKey)),
+				CAPEM:   splitLine(string(cert.RootCert)),
+				CertPEM: splitLine(string(cert.ClientCert)),
+				KeyPEM:  splitLine(string(cert.ClientKey)),
 			},
 		},
 		Rules: []string{"final,proxy"},

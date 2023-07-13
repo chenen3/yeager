@@ -85,7 +85,7 @@ func TestConfig(t *testing.T) {
 				CertFile:          "/path/to/client-cert.pem",
 				KeyFile:           "/path/to/client-key.pem",
 				CAFile:            "/path/to/ca-cert.pem",
-				CAPEM:             splitLines(testCAPEM),
+				CAPEM:             splitLine(testCAPEM),
 				MaxStreamsPerConn: 10,
 			},
 		},
