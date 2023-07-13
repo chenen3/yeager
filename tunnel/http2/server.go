@@ -61,7 +61,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 	dst := r.Header.Get("dst")
 	remote, err := net.Dial("tcp", dst)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusServiceUnavailable)
 		log.Print(err)
 		return
 	}
