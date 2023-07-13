@@ -61,6 +61,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 	dst := r.Header.Get("dst")
 	remote, err := net.Dial("tcp", dst)
 	if err != nil {
+		w.Header().Add("error", err.Error())
 		w.WriteHeader(http.StatusServiceUnavailable)
 		log.Print(err)
 		return
@@ -73,16 +74,10 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	err = ynet.Relay(&readwriter{r.Body, &flushWriter{w}}, remote)
-	if err != nil {
-		if errors.Is(err, net.ErrClosed) {
-			return
-		}
-		if se, ok := err.(http2.StreamError); ok && se.Code == http2.ErrCodeCancel {
-			return
-		}
-		log.Printf("relay %s: %s", dst, err)
-	}
+	go ynet.Copy(remote, r.Body)
+	// do not write response body in other goroutine, because calling
+	// http2.responseWriter.Flush() after Handler finished may panic
+	ynet.Copy(&flushWriter{w}, remote)
 }
 
 func (s *TunnelServer) Close() error {
