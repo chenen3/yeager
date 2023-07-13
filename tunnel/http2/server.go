@@ -74,7 +74,10 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	go ynet.Copy(remote, r.Body)
+	go func() {
+		ynet.Copy(remote, r.Body)
+		remote.Close()
+	}()
 	// do not write response body in other goroutine, because calling
 	// http2.responseWriter.Flush() after Handler finished may panic
 	ynet.Copy(&flushWriter{w}, remote)
