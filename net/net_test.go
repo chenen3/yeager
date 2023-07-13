@@ -16,7 +16,7 @@ func TestCopyBufferPool(t *testing.T) {
 	s := []byte{1, 2, 3}
 	r := bytes.NewReader(s)
 	var buf bytes.Buffer
-	if _, err := copy(&buf, r); err != nil {
+	if _, err := Copy(&buf, r); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(buf.Bytes(), s) {
@@ -72,12 +72,12 @@ func BenchmarkCopyBufferPool(b *testing.B) {
 	b.ResetTimer()
 	done := make(chan struct{})
 	go func() {
-		copy(io.Discard, conn)
+		Copy(io.Discard, conn)
 		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
 		r := &readerOnly{bytes.NewReader(bs)}
-		copy(conn, r)
+		Copy(conn, r)
 	}
 	b.StopTimer()
 	conn.(*net.TCPConn).CloseWrite()
@@ -97,7 +97,7 @@ func BenchmarkBufSize16KB(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := bytes.NewReader(testSrc)
-		copy(io.Discard, r)
+		Copy(io.Discard, r)
 	}
 }
 
@@ -111,7 +111,7 @@ func BenchmarkBufSize32KB(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := bytes.NewReader(testSrc)
-		copy(io.Discard, r)
+		Copy(io.Discard, r)
 	}
 }
 
