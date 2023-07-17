@@ -18,8 +18,7 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 1. deploy
     ```sh
     wget https://raw.githubusercontent.com/chenen3/yeager/master/install.sh
-    # root permission required
-    bash install.sh
+    sudo bash install.sh
     ```
 
 2. update firewall, allow TCP port 57175
