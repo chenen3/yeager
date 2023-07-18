@@ -1,4 +1,4 @@
-# yeager
+# Yeager
 
 A proxy that helps speed up the internet connection.
 
@@ -20,8 +20,9 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
     wget https://raw.githubusercontent.com/chenen3/yeager/master/install.sh
     sudo bash install.sh
     ```
+2. the script will generate a client config file at `/usr/local/etc/yeager/client.json`
 
-2. update firewall, allow TCP port 57175
+3. update the firewall, allow TCP port 57175
 
 ## As local client
 
@@ -35,7 +36,8 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 
 2. Configure
 
-    Copy `/usr/local/etc/yeager/client.json` from remote to local machine, place at `/usr/local/etc/yeager/config.json`
+    Remember the client config file generated before? Copy it to the local 
+    machine as `/usr/local/etc/yeager/config.json`
 
 3. Run service
 
@@ -53,17 +55,16 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
     - setting HTTP and HTTPS proxy to localhost:8080
     - setting SOCKS proxy to localhost:1080
 
-So far, most need should be met, good luck.
+So far, most needs should be met, good luck.
 
 (For more details, see below...)
 
 ## Routing rule
-
-Routing rule specifies where the incomming traffic be sent to. It supports two forms:
+The routing rule specifies where the incoming traffic is sent to. It supports two forms:
 - `type,value,policy`
 - `final,policy`
 
-The proxy policy is specified by config, also yeager comes with two built-in proxy policy:
+The proxy policy is specified by config, also Yeager comes with two built-in proxy policies:
 
 - `direct` means connecting directly, not through a tunnel server
 - `reject` means connection rejected
@@ -71,8 +72,8 @@ The proxy policy is specified by config, also yeager comes with two built-in pro
 For example:
 
 - `ip-cidr,127.0.0.1/8,direct` access directly if IP matches
-- `domain,www.apple.com,direct` access directly if domain name matches
-- `domain-suffix,apple.com,direct`access directly if root domain name matches
+- `domain,www.apple.com,direct` access directly if the domain name matches
+- `domain-suffix,apple.com,direct`access directly if the root domain name matches
 - `domain-keyword,apple,direct` access directly if keyword matches
 - `geosite,cn,direct` access directly if the domain name is located in CN.
     > **Note** 
@@ -106,7 +107,7 @@ brew untap chenen3/yeager
 ## Docker
 In case you prefer Docker over binary installation, here is how to do it.
 
-As remote server:
+As a remote server:
 
 ```sh
 docker run --rm \
@@ -121,7 +122,7 @@ docker run -d --restart=always --name yeager \
     ghcr.io/chenen3/yeager
 ```
 
-As local client:
+As a local client:
 
 ```sh
 # copy `/usr/local/etc/yeager/client.json` from remote 
