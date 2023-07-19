@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-type readerOnly struct {
-	io.Reader
-}
-
 func TestCopyBufferPool(t *testing.T) {
 	s := []byte{1, 2, 3}
 	r := bytes.NewReader(s)
@@ -24,7 +20,15 @@ func TestCopyBufferPool(t *testing.T) {
 	}
 }
 
-func BenchmarkIOCopy(b *testing.B) {
+type readerOnly struct {
+	io.Reader
+}
+
+type writerOnly struct {
+	io.Writer
+}
+
+func BenchmarkCopyBuffer(b *testing.B) {
 	e, err := StartEchoServer()
 	if err != nil {
 		b.Fatal(err)
@@ -40,14 +44,19 @@ func BenchmarkIOCopy(b *testing.B) {
 	b.ResetTimer()
 	done := make(chan struct{})
 	go func() {
-		io.Copy(io.Discard, conn)
+		buf := bufPool.Get().(*[]byte)
+		io.CopyBuffer(io.Discard, conn, *buf)
+		bufPool.Put(buf)
 		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
-		// readerOnly hides the bytes.Reader's WriteTo from io.Copy,
-		// so that io.Copy will use buffer for copying.
-		r := &readerOnly{bytes.NewReader(bs)}
-		io.Copy(conn, r)
+		// use wrapper to hide the bytes.Reader.WriteTo from io.CopyBuffer
+		r := readerOnly{bytes.NewReader(bs)}
+		// Use wrapper to hide net.TCPConn.ReadFrom from io.CopyBuffer.
+		w := writerOnly{conn}
+		buf := bufPool.Get().(*[]byte)
+		io.CopyBuffer(w, r, *buf)
+		bufPool.Put(buf)
 	}
 	b.StopTimer()
 	conn.(*net.TCPConn).CloseWrite()
@@ -55,14 +64,15 @@ func BenchmarkIOCopy(b *testing.B) {
 	conn.Close()
 }
 
-func BenchmarkCopyBufferPool(b *testing.B) {
+// check if the adapted Copy performs better than the original io.CopyBuffer
+func BenchmarkCopyAdapted(b *testing.B) {
 	e, err := StartEchoServer()
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer e.Close()
 
-	// benchmark testing copyBufferPool with network connection is more realistic
+	// testing with network connection is closer to the actual scenario
 	conn, err := net.Dial("tcp", e.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
@@ -76,8 +86,7 @@ func BenchmarkCopyBufferPool(b *testing.B) {
 		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
-		r := &readerOnly{bytes.NewReader(bs)}
-		Copy(conn, r)
+		Copy(conn, bytes.NewReader(bs))
 	}
 	b.StopTimer()
 	conn.(*net.TCPConn).CloseWrite()
