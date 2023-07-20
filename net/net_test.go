@@ -64,7 +64,6 @@ func BenchmarkCopyBuffer(b *testing.B) {
 	conn.Close()
 }
 
-// check if the adapted Copy performs better than the original io.CopyBuffer
 func BenchmarkCopyAdapted(b *testing.B) {
 	e, err := StartEchoServer()
 	if err != nil {

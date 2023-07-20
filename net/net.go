@@ -74,67 +74,6 @@ func Relay(a, b io.ReadWriter) error {
 	return <-c
 }
 
-/*
-type result struct {
-	N   int64
-	Err error
-}
-
-// oneWayRelay exists just so that profiling show the name of the goroutine
-func oneWayRelay(dst io.WriteCloser, src io.Reader, ch chan<- result) {
-	n, err := Copy(dst, src)
-	ch <- result{n, err}
-	// unblock Read on dst
-	dst.Close()
-}
-
-// Deprecated
-// Relay copies data in both directions between local and remote,
-// blocks until completes, returns the number of bytes
-// sent to remote and received from remote.
-func Relay(local, remote io.ReadWriteCloser) (sent int64, received int64, err error) {
-	sendCh := make(chan result)
-	recvCh := make(chan result)
-	go oneWayRelay(remote, local, sendCh)
-	go oneWayRelay(local, remote, recvCh)
-	send := <-sendCh
-	recv := <-recvCh
-	if send.Err != nil && !closedOrCanceled(send.Err) {
-		err = fmt.Errorf("send: %s", send.Err)
-	}
-	if err != nil && recv.Err != nil && !closedOrCanceled(recv.Err) {
-		err = fmt.Errorf("recv: %s", recv.Err)
-	}
-	return send.N, recv.N, err
-}
-
-// check for closed or canceled error cause by dst.Close() in oneWayRelay
-func closedOrCanceled(err error) bool {
-	if errors.Is(err, net.ErrClosed) {
-		return true
-	}
-	if errors.Is(err, new(quic.StreamError)) {
-		i, _ := err.(*quic.StreamError)
-		return i.ErrorCode == StreamNoError
-	}
-	s, ok := status.FromError(err)
-	return ok && s != nil && s.Code() == codes.Canceled
-}
-
-// ReadableBytes converts the number of bytes into a more readable format.
-// For example, given n=1024, returns "1.0KB"
-func ReadableBytes(n int64) string {
-	switch {
-	case n < 1024:
-		return strconv.FormatInt(n, 10) + "B"
-	case 1024 <= n && n < 1024*1024:
-		return strconv.FormatFloat(float64(n)/1024, 'f', 1, 64) + "KB"
-	default:
-		return strconv.FormatFloat(float64(n)/(1024*1024), 'f', 1, 64) + "MB"
-	}
-}
-*/
-
 // EchoServer accepts connection and writes back anything it reads from the connection.
 type EchoServer struct {
 	Listener net.Listener
