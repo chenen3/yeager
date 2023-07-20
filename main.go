@@ -69,11 +69,11 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate config: %s", err)
 	}
-	if len(srvConf.TunnelListens) == 0 {
+	if len(srvConf.Listen) == 0 {
 		return fmt.Errorf("no tunnelListens in server config")
 	}
 	port := 57175
-	srvConf.TunnelListens[0].Listen = fmt.Sprintf("0.0.0.0:%d", port)
+	srvConf.Listen[0].Address = fmt.Sprintf("0.0.0.0:%d", port)
 	bs, err := json.MarshalIndent(srvConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)
@@ -84,12 +84,12 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	}
 	fmt.Printf("generated server config file: %s\n", srvConfOutput)
 
-	if len(cliConf.TunnelClients) == 0 {
+	if len(cliConf.Proxy) == 0 {
 		return fmt.Errorf("no tunnelClients in client config")
 	}
-	cliConf.TunnelClients[0].Address = fmt.Sprintf("%s:%d", host, port)
-	cliConf.SOCKSListen = "127.0.0.1:1080"
-	cliConf.HTTPListen = "127.0.0.1:8080"
+	cliConf.Proxy[0].Address = fmt.Sprintf("%s:%d", host, port)
+	cliConf.ListenSOCKS = "127.0.0.1:1080"
+	cliConf.ListenHTTP = "127.0.0.1:8080"
 	cliConf.Rules = []string{
 		"ip-cidr,127.0.0.1/8,direct",
 		"ip-cidr,192.168.0.0/16,direct",
@@ -165,7 +165,7 @@ func main() {
 		log.Printf("load config: %s", err)
 		return
 	}
-	if len(conf.TunnelClients) == 0 && len(conf.TunnelListens) == 0 {
+	if len(conf.Proxy) == 0 && len(conf.Listen) == 0 {
 		log.Printf("bad config: no tunnel client nor server")
 		return
 	}

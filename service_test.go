@@ -32,8 +32,8 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	httpListen = cliConf.HTTPListen
-	socksListen = cliConf.SOCKSListen
+	httpListen = cliConf.ListenHTTP
+	socksListen = cliConf.ListenSOCKS
 	m.Run()
 }
 

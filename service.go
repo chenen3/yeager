@@ -27,8 +27,8 @@ var connStats = expvar.NewMap("connstats")
 func StartServices(conf config.Config) ([]io.Closer, error) {
 	var closers []io.Closer
 	var tunneler *Tunneler
-	if len(conf.TunnelClients) > 0 {
-		t, err := NewTunneler(conf.Rules, conf.TunnelClients)
+	if len(conf.Proxy) > 0 {
+		t, err := NewTunneler(conf.Rules, conf.Proxy)
 		if err != nil {
 			return nil, fmt.Errorf("new tunneler: %s", err)
 		}
@@ -36,8 +36,8 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		closers = append(closers, tunneler)
 	}
 
-	if conf.HTTPListen != "" {
-		lis, err := net.Listen("tcp", conf.HTTPListen)
+	if conf.ListenHTTP != "" {
+		lis, err := net.Listen("tcp", conf.ListenHTTP)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +46,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}
 		hs := newHTTPProxyServer()
 		go func() {
-			log.Printf("http proxy listening %s", conf.HTTPListen)
+			log.Printf("http proxy listening %s", conf.ListenHTTP)
 			if err := hs.Serve(lis, tunneler); err != nil {
 				log.Printf("failed to serve http proxy: %s", err)
 			}
@@ -57,8 +57,8 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}))
 	}
 
-	if conf.SOCKSListen != "" {
-		lis, err := net.Listen("tcp", conf.SOCKSListen)
+	if conf.ListenSOCKS != "" {
+		lis, err := net.Listen("tcp", conf.ListenSOCKS)
 		if err != nil {
 			return nil, err
 		}
@@ -67,7 +67,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}
 		ss := newSOCKServer()
 		go func() {
-			log.Printf("socks proxy listening %s", conf.SOCKSListen)
+			log.Printf("socks proxy listening %s", conf.ListenSOCKS)
 			if err := ss.Serve(lis, tunneler); err != nil {
 				log.Printf("failed to serve socks proxy: %s", err)
 			}
@@ -78,7 +78,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}))
 	}
 
-	for _, tl := range conf.TunnelListens {
+	for _, tl := range conf.Listen {
 		tl := tl
 		certPEM, err := tl.GetCertPEM()
 		if err != nil {
@@ -97,37 +97,37 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			return nil, err
 		}
 
-		switch tl.Type {
-		case config.TunGRPC:
-			lis, err := net.Listen("tcp", tl.Listen)
+		switch tl.Proto {
+		case config.ProtoGRPC:
+			lis, err := net.Listen("tcp", tl.Address)
 			if err != nil {
 				return nil, err
 			}
 			var s grpc.TunnelServer
 			go func() {
 				if err := s.Serve(lis, tlsConf); err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Type, err)
+					log.Printf("%s tunnel serve: %s", tl.Proto, err)
 				}
 			}()
 			closers = append(closers, &s)
-		case config.TunQUIC:
+		case config.ProtoQUIC:
 			var s quic.TunnelServer
 			go func() {
-				if err := s.Serve(tl.Listen, tlsConf); err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Type, err)
+				if err := s.Serve(tl.Address, tlsConf); err != nil {
+					log.Printf("%s tunnel serve: %s", tl.Proto, err)
 				}
 			}()
 			closers = append(closers, &s)
-		case config.TunHTTP2:
+		case config.ProtoHTTP2:
 			var s http2.TunnelServer
 			go func() {
-				if err := s.Serve(tl.Listen, tlsConf); err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Type, err)
+				if err := s.Serve(tl.Address, tlsConf); err != nil {
+					log.Printf("%s tunnel serve: %s", tl.Proto, err)
 				}
 			}()
 			closers = append(closers, &s)
 		}
-		log.Printf("%s tunnel listening %s", tl.Type, tl.Listen)
+		log.Printf("%s tunnel listening %s", tl.Proto, tl.Address)
 	}
 	return closers, nil
 }
@@ -185,30 +185,30 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			return nil, fmt.Errorf("make tls conf: %s", err)
 		}
 
-		switch tc.Type {
-		case config.TunGRPC:
+		switch tc.Proto {
+		case config.ProtoGRPC:
 			client := grpc.NewTunnelClient(tc.Address, tlsConf)
 			dialers[name] = client
 			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-		case config.TunQUIC:
+		case config.ProtoQUIC:
 			client := quic.NewTunnelClient(tc.Address, tlsConf)
 			dialers[name] = client
 			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-		case config.TunHTTP2:
+		case config.ProtoHTTP2:
 			client := http2.NewTunnelClient(tc.Address, tlsConf)
 			dialers[name] = client
 			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		default:
-			log.Printf("ignore unsupported %s tunnel: %s", tc.Type, tc.Name)
+			log.Printf("ignore unsupported %s tunnel: %s", tc.Proto, tc.Name)
 			continue
 		}
-		log.Printf("%s targeting %s tunnel %s", tc.Name, tc.Type, tc.Address)
+		log.Printf("%s targeting %s tunnel %s", tc.Name, tc.Proto, tc.Address)
 	}
 	t.dialers = dialers
 	return &t, nil

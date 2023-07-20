@@ -11,35 +11,25 @@ import (
 	"github.com/chenen3/yeager/cert"
 )
 
-// tunnel type
 const (
-	TunGRPC  = "grpc"
-	TunQUIC  = "quic"
-	TunHTTP2 = "http2"
+	ProtoGRPC  = "grpc"
+	ProtoQUIC  = "quic"
+	ProtoHTTP2 = "http2"
 )
 
 // Load loads configuration from the given bytes
 func Load(bs []byte) (Config, error) {
 	var c Config
-	if err := json.Unmarshal(bs, &c); err != nil {
-		return c, err
-	}
-	// backward compatible
-	for i := range c.TunnelClients {
-		tc := &c.TunnelClients[i]
-		if tc.Name == "" && tc.Policy != "" {
-			tc.Name = tc.Policy
-		}
-	}
-	return c, nil
+	err := json.Unmarshal(bs, &c)
+	return c, err
 }
 
 type Config struct {
-	SOCKSListen   string         `json:"socksListen,omitempty"`
-	HTTPListen    string         `json:"httpListen,omitempty"`
-	TunnelListens []TunnelListen `json:"tunnelListens,omitempty"`
-	TunnelClients []TunnelClient `json:"tunnelClients,omitempty"`
-	Rules         []string       `json:"rules,omitempty"`
+	ListenSOCKS string         `json:"listenSOCKS,omitempty"`
+	ListenHTTP  string         `json:"listenHTTP,omitempty"`
+	Listen      []TunnelServer `json:"listen,omitempty"`
+	Proxy       []TunnelClient `json:"proxy,omitempty"`
+	Rules       []string       `json:"rules,omitempty"`
 	// enable debug logging, start HTTP server for profiling
 	Debug bool `json:"debug,omitempty"`
 }
@@ -52,9 +42,9 @@ func splitLine(s string) []string {
 	return strings.Split(strings.TrimSpace(s), "\n")
 }
 
-type TunnelListen struct {
-	Type     string   `json:"type"`
-	Listen   string   `json:"listen"`
+type TunnelServer struct {
+	Proto    string   `json:"proto"`
+	Address  string   `json:"address"`
 	CertFile string   `json:"certFile,omitempty"`
 	CertPEM  []string `json:"certPEM,omitempty"`
 	KeyFile  string   `json:"keyFile,omitempty"`
@@ -63,80 +53,39 @@ type TunnelListen struct {
 	CAPEM    []string `json:"caPEM,omitempty"`
 }
 
-func (tl *TunnelListen) GetCertPEM() ([]byte, error) {
-	if tl.CertPEM != nil {
-		return []byte(mergeLine(tl.CertPEM)), nil
+func (t TunnelServer) GetCertPEM() ([]byte, error) {
+	if t.CertPEM != nil {
+		return []byte(mergeLine(t.CertPEM)), nil
 	}
-	if tl.CertFile != "" {
-		return os.ReadFile(tl.CertFile)
-	}
-	return nil, errors.New("no PEM data nor file")
-}
-
-func (tl *TunnelListen) GetKeyPEM() ([]byte, error) {
-	if tl.KeyPEM != nil {
-		return []byte(mergeLine(tl.KeyPEM)), nil
-	}
-	if tl.KeyFile != "" {
-		return os.ReadFile(tl.KeyFile)
+	if t.CertFile != "" {
+		return os.ReadFile(t.CertFile)
 	}
 	return nil, errors.New("no PEM data nor file")
 }
 
-func (tl *TunnelListen) GetCAPEM() ([]byte, error) {
-	if tl.CAPEM != nil {
-		return []byte(mergeLine(tl.CAPEM)), nil
+func (t TunnelServer) GetKeyPEM() ([]byte, error) {
+	if t.KeyPEM != nil {
+		return []byte(mergeLine(t.KeyPEM)), nil
 	}
-	if tl.CAFile != "" {
-		return os.ReadFile(tl.CAFile)
+	if t.KeyFile != "" {
+		return os.ReadFile(t.KeyFile)
+	}
+	return nil, errors.New("no PEM data nor file")
+}
+
+func (t TunnelServer) GetCAPEM() ([]byte, error) {
+	if t.CAPEM != nil {
+		return []byte(mergeLine(t.CAPEM)), nil
+	}
+	if t.CAFile != "" {
+		return os.ReadFile(t.CAFile)
 	}
 	return nil, errors.New("no PEM data nor file")
 }
 
 type TunnelClient struct {
 	Name string `json:"name"`
-	// deprecated, use Name instead
-	Policy   string   `json:"policy,omitempty"`
-	Type     string   `json:"type"`
-	Address  string   `json:"address"` // target server address
-	CertFile string   `json:"certFile,omitempty"`
-	CertPEM  []string `json:"certPEM,omitempty"`
-	KeyFile  string   `json:"keyFile,omitempty"`
-	KeyPEM   []string `json:"keyPEM,omitempty"`
-	CAFile   string   `json:"caFile,omitempty"`
-	CAPEM    []string `json:"caPEM,omitempty"`
-
-	MaxStreamsPerConn int `json:"maxStreamsPerConn,omitempty"`
-}
-
-func (tc *TunnelClient) GetCertPEM() ([]byte, error) {
-	if tc.CertPEM != nil {
-		return []byte(mergeLine(tc.CertPEM)), nil
-	}
-	if tc.CertFile != "" {
-		return os.ReadFile(tc.CertFile)
-	}
-	return nil, errors.New("no PEM data nor file")
-}
-
-func (tc *TunnelClient) GetKeyPEM() ([]byte, error) {
-	if tc.KeyPEM != nil {
-		return []byte(mergeLine(tc.KeyPEM)), nil
-	}
-	if tc.KeyFile != "" {
-		return os.ReadFile(tc.KeyFile)
-	}
-	return nil, errors.New("no PEM data nor file")
-}
-
-func (tc *TunnelClient) GetCAPEM() ([]byte, error) {
-	if tc.CAPEM != nil {
-		return []byte(mergeLine(tc.CAPEM)), nil
-	}
-	if tc.CAFile != "" {
-		return os.ReadFile(tc.CAFile)
-	}
-	return nil, errors.New("no PEM data nor file")
+	TunnelServer
 }
 
 func allocPort() (int, error) {
@@ -160,10 +109,10 @@ func Generate(host string) (cli, srv Config, err error) {
 	}
 
 	srv = Config{
-		TunnelListens: []TunnelListen{
+		Listen: []TunnelServer{
 			{
-				Listen:  fmt.Sprintf("0.0.0.0:%d", tunnelPort),
-				Type:    TunHTTP2,
+				Address: fmt.Sprintf("0.0.0.0:%d", tunnelPort),
+				Proto:   ProtoHTTP2,
 				CAPEM:   splitLine(string(cert.RootCert)),
 				CertPEM: splitLine(string(cert.ServerCert)),
 				KeyPEM:  splitLine(string(cert.ServerKey)),
@@ -180,17 +129,18 @@ func Generate(host string) (cli, srv Config, err error) {
 		return
 	}
 	cli = Config{
-		SOCKSListen: fmt.Sprintf("127.0.0.1:%d", socksProxyPort),
-		HTTPListen:  fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
-		TunnelClients: []TunnelClient{
+		ListenSOCKS: fmt.Sprintf("127.0.0.1:%d", socksProxyPort),
+		ListenHTTP:  fmt.Sprintf("127.0.0.1:%d", httpProxyPort),
+		Proxy: []TunnelClient{
 			{
-				Name:    "proxy",
-				Address: fmt.Sprintf("%s:%d", host, tunnelPort),
-				Type:    TunHTTP2,
-				CAPEM:   splitLine(string(cert.RootCert)),
-				CertPEM: splitLine(string(cert.ClientCert)),
-				KeyPEM:  splitLine(string(cert.ClientKey)),
-			},
+				Name: "proxy",
+				TunnelServer: TunnelServer{
+					Address: fmt.Sprintf("%s:%d", host, tunnelPort),
+					Proto:   ProtoHTTP2,
+					CAPEM:   splitLine(string(cert.RootCert)),
+					CertPEM: splitLine(string(cert.ClientCert)),
+					KeyPEM:  splitLine(string(cert.ClientKey)),
+				}},
 		},
 		Rules: []string{"final,proxy"},
 	}

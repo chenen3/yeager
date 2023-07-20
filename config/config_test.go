@@ -7,21 +7,21 @@ import (
 
 var rawConf = `
 {
-	"socksListen": "127.0.0.1:1081",
-	"httpListen": "127.0.0.1:8081",
-	"tunnelListens": [
+	"listenSOCKS": "127.0.0.1:1081",
+	"listenHTTP": "127.0.0.1:8081",
+	"listen": [
 		{
-			"type": "grpc",
-			"listen": "127.0.0.1:10812",
+			"proto": "grpc",
+			"address": "127.0.0.1:10812",
 			"certFile": "/path/to/server-cert.pem",
 			"keyFile": "/path/to/server-key.pem",
 			"caFile": "/path/to/ca-cert.pem"
 		}
 	],
-	"tunnelClients": [
+	"proxy": [
 		{
 			"name": "proxy",
-			"type": "grpc",
+			"proto": "grpc",
 			"address": "127.0.0.1:9000",
 			"certFile": "/path/to/client-cert.pem",
 			"keyFile": "/path/to/client-key.pem",
@@ -38,8 +38,7 @@ var rawConf = `
 				"eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+",
 				"9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl",
 				"-----END CERTIFICATE-----"
-			],
-			"maxStreamsPerConn": 10
+			]
 		}
 	],
 	"rules": [
@@ -66,27 +65,28 @@ eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+
 
 func TestConfig(t *testing.T) {
 	want := Config{
-		SOCKSListen: "127.0.0.1:1081",
-		HTTPListen:  "127.0.0.1:8081",
-		TunnelListens: []TunnelListen{
+		ListenSOCKS: "127.0.0.1:1081",
+		ListenHTTP:  "127.0.0.1:8081",
+		Listen: []TunnelServer{
 			{
-				Type:     "grpc",
-				Listen:   "127.0.0.1:10812",
+				Proto:    "grpc",
+				Address:  "127.0.0.1:10812",
 				CertFile: "/path/to/server-cert.pem",
 				KeyFile:  "/path/to/server-key.pem",
 				CAFile:   "/path/to/ca-cert.pem",
 			},
 		},
-		TunnelClients: []TunnelClient{
+		Proxy: []TunnelClient{
 			{
-				Name:              "proxy",
-				Type:              "grpc",
-				Address:           "127.0.0.1:9000",
-				CertFile:          "/path/to/client-cert.pem",
-				KeyFile:           "/path/to/client-key.pem",
-				CAFile:            "/path/to/ca-cert.pem",
-				CAPEM:             splitLine(testCAPEM),
-				MaxStreamsPerConn: 10,
+				Name: "proxy",
+				TunnelServer: TunnelServer{
+					Proto:    "grpc",
+					Address:  "127.0.0.1:9000",
+					CertFile: "/path/to/client-cert.pem",
+					KeyFile:  "/path/to/client-key.pem",
+					CAFile:   "/path/to/ca-cert.pem",
+					CAPEM:    splitLine(testCAPEM),
+				},
 			},
 		},
 		Rules: []string{"final,proxy"},
