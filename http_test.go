@@ -22,7 +22,7 @@ func TestHttpProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	s := newHTTPProxyServer()
+	s := newHTTPProxy()
 	defer s.Close()
 	go func() {
 		close(ready)
@@ -68,7 +68,7 @@ func TestHttpsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := newHTTPProxyServer()
+	s := newHTTPProxy()
 	defer s.Close()
 	ready := make(chan struct{})
 	go func() {
@@ -103,13 +103,13 @@ func TestHttpsProxy(t *testing.T) {
 
 func TestCloseHttpProxy(t *testing.T) {
 	// test no-op Close
-	s := newHTTPProxyServer()
+	s := newHTTPProxy()
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 
 	// test if Serve can exit properly when Close called
-	s = newHTTPProxyServer()
+	s = newHTTPProxy()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

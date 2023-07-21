@@ -18,9 +18,21 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 1. deploy
     ```sh
     wget https://raw.githubusercontent.com/chenen3/yeager/master/install.sh
-    sudo bash install.sh
+    # will require root permission to install as a service
+    bash install.sh
     ```
-2. the script will generate a client config file at `/usr/local/etc/yeager/client.json`
+
+    or do it manually:
+    ```sh
+    wget https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
+    tar -xzvf yeager-linux-amd64.tar.gz
+    mkdir -p /usr/local/etc/yeager
+    ./yeager -genconf -srvconf /usr/local/etc/yeager/config.json \
+        -cliconf /usr/local/etc/yeager/client.json
+    ./yeager -config /usr/local/etc/yeager/config.json
+    ```
+    
+2. the client config file has been generated: `/usr/local/etc/yeager/client.json`
 
 3. update the firewall, allow TCP port 57175
 

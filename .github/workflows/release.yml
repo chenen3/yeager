@@ -20,15 +20,15 @@ jobs:
           ldflags="-X main.version=${{ github.ref_name }}"
 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
-          tar -czf yeager-linux-amd64.tar.gz yeager README.md
+          tar -czf yeager-linux-amd64.tar.gz yeager README.md LICENSE
           shasum -a 256 yeager-linux-amd64.tar.gz >> shasums.txt
 
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
-          tar -czf yeager-macos-amd64.tar.gz yeager README.md
+          tar -czf yeager-macos-amd64.tar.gz yeager README.md LICENSE
           shasum -a 256 yeager-macos-amd64.tar.gz >> shasums.txt
 
           CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="${ldflags}" -o yeager .
-          tar -czf yeager-freebsd-amd64.tar.gz yeager README.md
+          tar -czf yeager-freebsd-amd64.tar.gz yeager README.md LICENSE
           shasum -a 256 yeager-freebsd-amd64.tar.gz >> shasums.txt
           
           mac_bin_sha=$(shasum -a 256 yeager-macos-amd64.tar.gz |awk '{print $1}')

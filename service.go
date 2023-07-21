@@ -44,7 +44,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
-		hs := newHTTPProxyServer()
+		hs := newHTTPProxy()
 		go func() {
 			log.Printf("http proxy listening %s", conf.ListenHTTP)
 			if err := hs.Serve(lis, tunneler); err != nil {

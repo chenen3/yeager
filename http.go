@@ -20,15 +20,15 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
-type httpProxyServer struct {
+type httpProxy struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
 	done       chan struct{}
 }
 
-func newHTTPProxyServer() *httpProxyServer {
-	s := &httpProxyServer{
+func newHTTPProxy() *httpProxy {
+	s := &httpProxy{
 		activeConn: make(map[net.Conn]struct{}),
 		done:       make(chan struct{}),
 	}
@@ -37,7 +37,7 @@ func newHTTPProxyServer() *httpProxyServer {
 
 // Serve serves connection accepted by lis,
 // blocks until an unexpected error is encounttered or Close is called
-func (s *httpProxyServer) Serve(lis net.Listener, d tunnel.Dialer) error {
+func (s *httpProxy) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -58,7 +58,7 @@ func (s *httpProxyServer) Serve(lis net.Listener, d tunnel.Dialer) error {
 	}
 }
 
-func (s *httpProxyServer) handleConn(conn net.Conn, d tunnel.Dialer) {
+func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -95,7 +95,7 @@ func (s *httpProxyServer) handleConn(conn net.Conn, d tunnel.Dialer) {
 	debug.Printf("done %s, timed %0.0fs", dst, time.Since(start).Seconds())
 }
 
-func (s *httpProxyServer) trackConn(c net.Conn, add bool) {
+func (s *httpProxy) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if add {
@@ -106,14 +106,14 @@ func (s *httpProxyServer) trackConn(c net.Conn, add bool) {
 }
 
 // ConnNum returns the number of active connections
-func (s *httpProxyServer) ConnNum() int {
+func (s *httpProxy) ConnNum() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.activeConn)
 }
 
 // Close close listener and all active connections
-func (s *httpProxyServer) Close() error {
+func (s *httpProxy) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done != nil {
