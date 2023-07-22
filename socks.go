@@ -1,4 +1,4 @@
-package socks
+package main
 
 import (
 	"context"
@@ -17,15 +17,15 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
-type Server struct {
+type socksServer struct {
 	lis        net.Listener
 	mu         sync.Mutex
 	activeConn map[net.Conn]struct{}
 	done       chan struct{}
 }
 
-func NewServer() *Server {
-	s := &Server{
+func newSOCKServer() *socksServer {
+	s := &socksServer{
 		activeConn: make(map[net.Conn]struct{}),
 		done:       make(chan struct{}),
 	}
@@ -34,7 +34,7 @@ func NewServer() *Server {
 
 // Serve serves connection accepted by lis,
 // blocking until the server closes or encounters an unexpected error
-func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
+func (s *socksServer) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -55,12 +55,12 @@ func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	}
 }
 
-func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
+func (s *socksServer) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
 	conn.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
-	dst, err := handshake(conn)
+	dst, err := socksHandshake(conn)
 	if err != nil {
 		log.Printf("handshake: %s", err)
 		return
@@ -78,14 +78,14 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	start := time.Now()
 	err = ynet.Relay(conn, remote)
-	if err != nil {
+	if err != nil && !errors.Is(err, net.ErrClosed) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
 	debug.Printf("done %s, timed %0.0fs", dst, time.Since(start).Seconds())
 }
 
-func (s *Server) trackConn(c net.Conn, add bool) {
+func (s *socksServer) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if add {
@@ -96,13 +96,13 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 }
 
 // ConnNum returns the number of active connections
-func (s *Server) ConnNum() int {
+func (s *socksServer) ConnNum() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.activeConn)
 }
 
-func (s *Server) Close() error {
+func (s *socksServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done != nil {
@@ -134,7 +134,7 @@ const (
 )
 
 // Refer to https://datatracker.ietf.org/doc/html/rfc1928
-func handshake(rw io.ReadWriter) (addr string, err error) {
+func socksHandshake(rw io.ReadWriter) (addr string, err error) {
 	buf := make([]byte, maxAddrLen)
 	// read VER, NMETHODS, METHODS
 	if _, err = io.ReadFull(rw, buf[:2]); err != nil {

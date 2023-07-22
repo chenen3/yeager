@@ -1,4 +1,4 @@
-package httpproxy
+package main
 
 import (
 	"context"
@@ -18,7 +18,7 @@ func (d direct) DialContext(ctx context.Context, addr string) (io.ReadWriteClose
 	return dialer.DialContext(ctx, "tcp", addr)
 }
 
-func TestHttpProxy(t *testing.T) {
+func TestSocksProxy(t *testing.T) {
 	want := "ok"
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, want)
@@ -30,7 +30,7 @@ func TestHttpProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	s := NewServer()
+	s := newSOCKServer()
 	defer s.Close()
 	go func() {
 		close(ready)
@@ -39,24 +39,29 @@ func TestHttpProxy(t *testing.T) {
 		}
 	}()
 
-	proxyUrl, _ := url.Parse("http://" + lis.Addr().String())
+	u, err := url.Parse("socks5://" + lis.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
 	client := &http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyUrl),
-			DialContext: (&net.Dialer{
-				Timeout: 5 * time.Second,
-			}).DialContext,
+			Proxy: http.ProxyURL(u),
 		},
+		Timeout: time.Second,
 	}
 	<-ready
 	// the proxy server may not started yet
 	time.Sleep(time.Millisecond)
-	res, err := client.Get(httpSrv.URL)
+	resp, err := client.Get(httpSrv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
-	got, err := io.ReadAll(res.Body)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Errorf("bad status: %s", resp.Status)
+	}
+	got, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,59 +70,15 @@ func TestHttpProxy(t *testing.T) {
 	}
 }
 
-func TestHttpsProxy(t *testing.T) {
-	want := "ok"
-	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, want)
-	}))
-	defer httpsSrv.Close()
-
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := NewServer()
-	defer s.Close()
-	ready := make(chan struct{})
-	go func() {
-		close(ready)
-		if e := s.Serve(lis, direct{}); e != nil {
-			t.Log(e)
-		}
-	}()
-
-	proxyUrl, _ := url.Parse("http://" + lis.Addr().String())
-	client := httpsSrv.Client()
-	tr := client.Transport.(*http.Transport)
-	tr = tr.Clone()
-	tr.Proxy = http.ProxyURL(proxyUrl)
-	client.Transport = tr
-	<-ready
-	// the proxy server may not started yet
-	time.Sleep(time.Millisecond)
-	res, err := client.Get(httpsSrv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	got, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != want {
-		t.Fatalf("got %s, want %s", got, want)
-	}
-}
-
-func TestServer_Close(t *testing.T) {
+func TestCloseSocksServer(t *testing.T) {
 	// test no-op Close
-	s := NewServer()
+	s := newSOCKServer()
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 
 	// test if Serve can exit properly when Close called
-	s = NewServer()
+	s = newSOCKServer()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

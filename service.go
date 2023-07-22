@@ -13,9 +13,7 @@ import (
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/debug"
-	"github.com/chenen3/yeager/httpproxy"
 	"github.com/chenen3/yeager/rule"
-	"github.com/chenen3/yeager/socks"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/http2"
@@ -46,7 +44,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
-		hs := httpproxy.NewServer()
+		hs := newHTTPProxyServer()
 		go func() {
 			log.Printf("http proxy listening %s", conf.HTTPListen)
 			if err := hs.Serve(lis, tunneler); err != nil {
@@ -67,7 +65,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		if tunneler == nil {
 			return nil, fmt.Errorf("tunnel client required")
 		}
-		ss := socks.NewServer()
+		ss := newSOCKServer()
 		go func() {
 			log.Printf("socks proxy listening %s", conf.SOCKSListen)
 			if err := ss.Serve(lis, tunneler); err != nil {

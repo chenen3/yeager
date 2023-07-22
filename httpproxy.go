@@ -1,11 +1,12 @@
-// This package implements HTTP proxy server.
+// Here implements HTTP proxy server.
 // Refer to https://en.wikipedia.org/wiki/HTTP_tunnel
 // Any data sent to the proxy server will be forwarded, unmodified, to the remote host
-package httpproxy
+package main
 
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -19,15 +20,15 @@ import (
 	"github.com/chenen3/yeager/tunnel"
 )
 
-type Server struct {
+type httpProxyServer struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
 	done       chan struct{}
 }
 
-func NewServer() *Server {
-	s := &Server{
+func newHTTPProxyServer() *httpProxyServer {
+	s := &httpProxyServer{
 		activeConn: make(map[net.Conn]struct{}),
 		done:       make(chan struct{}),
 	}
@@ -36,7 +37,7 @@ func NewServer() *Server {
 
 // Serve serves connection accepted by lis,
 // blocks until an unexpected error is encounttered or Close is called
-func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
+func (s *httpProxyServer) Serve(lis net.Listener, d tunnel.Dialer) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -57,7 +58,7 @@ func (s *Server) Serve(lis net.Listener, d tunnel.Dialer) error {
 	}
 }
 
-func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
+func (s *httpProxyServer) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -87,14 +88,14 @@ func (s *Server) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	start := time.Now()
 	err = ynet.Relay(conn, remote)
-	if err != nil {
+	if err != nil && !errors.Is(err, net.ErrClosed) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
 	debug.Printf("done %s, timed %0.0fs", dst, time.Since(start).Seconds())
 }
 
-func (s *Server) trackConn(c net.Conn, add bool) {
+func (s *httpProxyServer) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if add {
@@ -105,14 +106,14 @@ func (s *Server) trackConn(c net.Conn, add bool) {
 }
 
 // ConnNum returns the number of active connections
-func (s *Server) ConnNum() int {
+func (s *httpProxyServer) ConnNum() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.activeConn)
 }
 
 // Close close listener and all active connections
-func (s *Server) Close() error {
+func (s *httpProxyServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done != nil {
