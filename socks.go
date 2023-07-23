@@ -174,7 +174,7 @@ func socksHandshake(rw io.ReadWriter) (addr string, err error) {
 	return addr, nil
 }
 
-// ReadAddr read SOCKS address from r
+// read SOCKS address from r
 // bytes order:
 //
 //	ATYP BND.ADDR BND.PORT

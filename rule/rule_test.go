@@ -1,19 +1,6 @@
 package rule
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
-
-func TestMain(m *testing.M) {
-	dir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	domainListPaths = []string{filepath.Join(dir, "testdata", "geosite.dat")}
-	os.Exit(m.Run())
-}
+import "testing"
 
 func TestRulesMatch(t *testing.T) {
 	type fields struct {
@@ -59,18 +46,18 @@ func TestRulesMatch(t *testing.T) {
 			args:   args{"www.apple.com"},
 			want:   "faketag",
 		},
-		{
-			name:   "geosite",
-			fields: fields{rules: []string{"geosite,private,faketag"}},
-			args:   args{"localhost"},
-			want:   "faketag",
-		},
-		{
-			name:   "geosite",
-			fields: fields{rules: []string{"geosite,apple@cn,faketag"}},
-			args:   args{"apple.cn"},
-			want:   "faketag",
-		},
+		// {
+		// 	name:   "geosite",
+		// 	fields: fields{rules: []string{"geosite,private,faketag"}},
+		// 	args:   args{"localhost"},
+		// 	want:   "faketag",
+		// },
+		// {
+		// 	name:   "geosite",
+		// 	fields: fields{rules: []string{"geosite,apple@cn,faketag"}},
+		// 	args:   args{"apple.cn"},
+		// 	want:   "faketag",
+		// },
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},

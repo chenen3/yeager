@@ -10,24 +10,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var domainListPaths = []string{"/usr/local/etc/yeager/geosite.dat"}
+const geositeFile = "/usr/local/etc/yeager/geosite.dat"
 
 func loadGeoSite() (*pb.GeoSiteList, error) {
-	var data []byte
-	var err error
-	for _, p := range domainListPaths {
-		data, err = os.ReadFile(p)
-		if err == nil {
-			break
-		}
-	}
+	data, err := os.ReadFile(geositeFile)
 	if err != nil {
 		return nil, err
 	}
-
 	var geoSiteList pb.GeoSiteList
-	err = proto.Unmarshal(data, &geoSiteList)
-	if err != nil {
+	if err = proto.Unmarshal(data, &geoSiteList); err != nil {
 		return nil, err
 	}
 
