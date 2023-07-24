@@ -16,7 +16,6 @@ import (
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/debug"
-	"github.com/chenen3/yeager/rule"
 )
 
 var version string // set by build -ldflags
@@ -160,8 +159,8 @@ func main() {
 		log.Print(err)
 		return
 	}
-	conf, err := config.Load(bs)
-	if err != nil {
+	var conf config.Config
+	if err = json.Unmarshal(bs, &conf); err != nil {
 		log.Printf("load config: %s", err)
 		return
 	}
@@ -184,7 +183,6 @@ func main() {
 		CloseAll(closers)
 		return
 	}
-	rule.Cleanup()
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)

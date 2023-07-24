@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -16,13 +15,6 @@ const (
 	ProtoQUIC  = "quic"
 	ProtoHTTP2 = "http2"
 )
-
-// Load loads configuration from the given bytes
-func Load(bs []byte) (Config, error) {
-	var c Config
-	err := json.Unmarshal(bs, &c)
-	return c, err
-}
 
 type Config struct {
 	ListenSOCKS string         `json:"listenSOCKS,omitempty"`

@@ -92,19 +92,3 @@ func TestRulesMatch(t *testing.T) {
 		})
 	}
 }
-
-// 曾考虑引入LRU缓存降低路由耗时，但基准测试表明，示例路由匹配时间约30微秒。
-// 对于动辄几十毫秒的网络延迟时间来说，缓存效果并不明显，为避免过早优化，不作缓存。
-func BenchmarkRulesMatch(b *testing.B) {
-	r, err := Parse([]string{
-		"geosite,cn,tag1",
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		r.Match("fake.com")
-	}
-}

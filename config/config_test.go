@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -92,9 +93,8 @@ func TestConfig(t *testing.T) {
 		Rules: []string{"final,proxy"},
 		Debug: true,
 	}
-
-	got, err := Load([]byte(rawConf))
-	if err != nil {
+	var got Config
+	if err := json.Unmarshal([]byte(rawConf), &got); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(want, got) {

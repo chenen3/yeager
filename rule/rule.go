@@ -3,6 +3,7 @@ package rule
 import (
 	"errors"
 	"net"
+	"runtime/debug"
 	"strings"
 )
 
@@ -132,6 +133,11 @@ func Parse(rules []string) (Rules, error) {
 		}
 		parsed[i] = ru
 	}
+	// parsing geosite.dat can be memory intensive
+	if geoSites != nil {
+		geoSites = nil
+		debug.FreeOSMemory()
+	}
 	return parsed, nil
 }
 
@@ -140,6 +146,9 @@ func (rs Rules) Match(host string) (policy string, err error) {
 	if err != nil {
 		return "", err
 	}
+
+	// did consider using cache to speed up the matching,
+	// but here is not the performance bottleneck
 	for _, r := range rs {
 		// do not dive deep if the rule type is not match
 		switch r.rtype {
