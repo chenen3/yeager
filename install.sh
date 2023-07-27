@@ -40,8 +40,8 @@ systemctl enable yeager
 systemctl start yeager
 
 # enable BBR congestion control
-sudo sysctl -w net.core.default_qdisc=fq
-sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+sysctl -w net.core.default_qdisc=fq
+sysctl -w net.ipv4.tcp_congestion_control=bbr
 
 echo "\nA few steps to do:"
 echo "1. allows TCP port 57175"
