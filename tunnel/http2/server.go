@@ -12,16 +12,18 @@ import (
 	"time"
 
 	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/obfs"
 	"golang.org/x/net/http2"
 )
 
 type TunnelServer struct {
-	mu  sync.Mutex
-	lis net.Listener
+	mu   sync.Mutex
+	lis  net.Listener
+	obfs bool
 }
 
 // Serve blocks until closed, or error occurs.
-func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
+func (s *TunnelServer) Serve(address string, tlsConf *tls.Config, obfs bool) error {
 	tlsConf.NextProtos = []string{http2.NextProtoTLS}
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -30,6 +32,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 
 	s.mu.Lock()
 	s.lis = lis
+	s.obfs = obfs
 	s.mu.Unlock()
 	h2s := &http2.Server{IdleTimeout: 5 * time.Minute}
 	for {
@@ -52,12 +55,12 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 		}
 
 		go h2s.ServeConn(tlsConn, &http2.ServeConnOpts{
-			Handler: http.HandlerFunc(serveHTTP),
+			Handler: s,
 		})
 	}
 }
 
-func serveHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *TunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dst := r.Header.Get("dst")
 	remote, err := net.Dial("tcp", dst)
 	if err != nil {
@@ -74,13 +77,19 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
+	var reader io.Reader = r.Body
+	var writer io.Writer = &flushWriter{w}
+	if s.obfs {
+		reader = obfs.Reader(reader)
+		writer = obfs.Writer(writer)
+	}
 	go func() {
-		ynet.Copy(remote, r.Body)
-		remote.Close()
+		defer remote.Close()
+		ynet.Copy(remote, reader)
 	}()
 	// do not write response body in other goroutine, because calling
 	// http2.responseWriter.Flush() after Handler finished may panic
-	ynet.Copy(&flushWriter{w}, remote)
+	ynet.Copy(writer, remote)
 }
 
 func (s *TunnelServer) Close() error {
@@ -99,17 +108,4 @@ func (w *flushWriter) Write(b []byte) (int, error) {
 		f.Flush()
 	}
 	return n, err
-}
-
-type readwriter struct {
-	r io.Reader
-	w io.Writer
-}
-
-func (rw *readwriter) Read(p []byte) (int, error) {
-	return rw.r.Read(p)
-}
-
-func (rw *readwriter) Write(p []byte) (int, error) {
-	return rw.w.Write(p)
 }

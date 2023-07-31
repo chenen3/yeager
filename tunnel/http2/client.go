@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/debug"
+	"github.com/chenen3/yeager/obfs"
 	"golang.org/x/net/http2"
 )
 
@@ -21,12 +22,14 @@ type TunnelClient struct {
 	mu      sync.Mutex
 	clients map[string]*http.Client
 	reqStat map[string]int // numbers of requests on specified dst
+	obfs    bool
 }
 
-func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
+func NewTunnelClient(addr string, tlsConf *tls.Config, obfs bool) *TunnelClient {
 	return &TunnelClient{
 		addr:    addr,
 		tlsConf: tlsConf,
+		obfs:    obfs,
 		clients: make(map[string]*http.Client),
 		reqStat: make(map[string]int),
 	}
@@ -102,9 +105,17 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	}
 
 	rwc := &readWriteCloser{
-		rc:      resp.Body,
-		wc:      pw,
-		onclose: untrack,
+		r: resp.Body,
+		w: pw,
+		onClose: func() {
+			pw.Close()
+			untrack()
+			resp.Body.Close()
+		},
+	}
+	if c.obfs {
+		rwc.r = obfs.Reader(rwc.r)
+		rwc.w = obfs.Writer(rwc.w)
 	}
 	return rwc, nil
 }
@@ -125,27 +136,22 @@ func (c *TunnelClient) ConnNum() int {
 }
 
 type readWriteCloser struct {
-	rc      io.ReadCloser
-	wc      io.WriteCloser
-	onclose func()
+	r       io.Reader
+	w       io.Writer
+	onClose func()
 }
 
 func (rwc *readWriteCloser) Read(p []byte) (n int, err error) {
-	return rwc.rc.Read(p)
+	return rwc.r.Read(p)
 }
 
 func (rwc *readWriteCloser) Write(p []byte) (n int, err error) {
-	return rwc.wc.Write(p)
+	return rwc.w.Write(p)
 }
 
 func (rwc *readWriteCloser) Close() error {
-	if rwc.onclose != nil {
-		rwc.onclose()
+	if rwc.onClose != nil {
+		rwc.onClose()
 	}
-	we := rwc.wc.Close()
-	re := rwc.rc.Close()
-	if we != nil {
-		return we
-	}
-	return re
+	return nil
 }

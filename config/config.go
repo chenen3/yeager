@@ -43,6 +43,7 @@ type TunnelServer struct {
 	KeyPEM   []string `json:"keyPEM,omitempty"`
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
+	Obfs     bool     `json:"obfs,omitempty"`
 }
 
 func (t TunnelServer) GetCertPEM() ([]byte, error) {
