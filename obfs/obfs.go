@@ -2,74 +2,96 @@ package obfs
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"io"
 )
 
-const keyLen = 8
+const keyLen = 32
+const streamBufferSize = 512
 
-type reader struct {
-	io.Reader
-	key []byte
-}
+// TODO: how about accepting user specified password?
 
 // Reader wraps an io.Reader that deobfuscates the data read from it,
-// by XORing with a key from peer.
+// by XORing with the key from peer.
 func Reader(r io.Reader) io.Reader {
-	return &reader{Reader: r}
+	return &reader{reader: r}
+}
+
+type reader struct {
+	reader io.Reader
+	keys   []byte
+	off    int
 }
 
 func (r *reader) Read(p []byte) (n int, err error) {
-	if r.Reader == nil {
+	if r.reader == nil {
 		return 0, errors.New("obfs: underlying Reader is nil")
 	}
 
-	if len(r.key) == 0 {
+	if len(r.keys) == 0 {
 		key := make([]byte, keyLen)
-		if _, err = io.ReadFull(r.Reader, key); err != nil {
+		if _, err = io.ReadFull(r.reader, key); err != nil {
 			return 0, err
 		}
-		r.key = key
+		// for batch XOR
+		r.keys = make([]byte, streamBufferSize)
+		for i := 0; i < len(r.keys); {
+			nc := copy(r.keys[i:], key)
+			i += nc
+		}
 	}
-	n, err = r.Reader.Read(p)
+	n, err = r.reader.Read(p)
 	if err != nil {
 		return n, err
 	}
-	for i := 0; i < n; i++ {
-		p[i] ^= r.key[i%keyLen]
+	p = p[:n]
+	for len(p) > 0 {
+		nx := subtle.XORBytes(p, p, r.keys[r.off:])
+		p = p[nx:]
+		r.off = (r.off + nx) % len(r.keys)
 	}
 	return n, nil
-}
-
-type writer struct {
-	io.Writer
-	key []byte
 }
 
 // Writer wraps an io.Writer that obfuscates the data written to it,
 // by XORing with a random key.
 func Writer(w io.Writer) io.Writer {
-	return &writer{Writer: w}
+	return &writer{writer: w}
 }
 
-func (w *writer) Write(p []byte) (n int, err error) {
-	if w.Writer == nil {
+type writer struct {
+	writer io.Writer
+	keys   []byte
+	off    int
+}
+
+func (w *writer) Write(src []byte) (int, error) {
+	if w.writer == nil {
 		return 0, errors.New("obfs: underlying Writer is nil")
 	}
 
-	if len(w.key) == 0 {
+	if len(w.keys) == 0 {
 		key := make([]byte, keyLen)
-		if _, err = rand.Read(key); err != nil {
+		if _, err := rand.Read(key); err != nil {
 			return 0, err
 		}
-		if _, err = w.Writer.Write(key); err != nil {
+		if _, err := w.writer.Write(key); err != nil {
 			return 0, err
 		}
-		w.key = key
+		// for batch XOR
+		w.keys = make([]byte, streamBufferSize)
+		for i := 0; i < len(w.keys); {
+			nc := copy(w.keys[i:], key)
+			i += nc
+		}
 	}
-	xor := make([]byte, len(p))
-	for i := 0; i < len(p); i++ {
-		xor[i] = p[i] ^ w.key[i%keyLen]
+
+	dst := make([]byte, len(src))
+	for i := 0; i < len(src); {
+		nx := subtle.XORBytes(dst[i:], src[i:], w.keys[w.off:])
+		i += nx
+		w.off = (w.off + nx) % len(w.keys)
 	}
-	return w.Writer.Write(xor)
+	return w.writer.Write(dst)
 }
