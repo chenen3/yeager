@@ -86,7 +86,7 @@ func TestH2Tunnel(t *testing.T) {
 	}
 }
 
-func TestH2WithCipher(t *testing.T) {
+func TestH2WithObfs(t *testing.T) {
 	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)
