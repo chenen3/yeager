@@ -49,6 +49,10 @@ func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()
 		c.reqStat[dst]--
 		if c.reqStat[dst] == 0 {
 			delete(c.reqStat, dst)
+			if cli, ok := c.clients[dst]; ok {
+				// release the connection before leaving
+				cli.CloseIdleConnections()
+			}
 			delete(c.clients, dst)
 			debug.Printf("remove h2 client: %s", dst)
 		}
@@ -90,21 +94,25 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	// the response headers have been received
 	resp, err := client.Do(req)
 	if err != nil {
-		pw.Close()
+		req.Body.Close()
 		untrack()
 		return nil, errors.New("http2 request: " + err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
-		pw.Close()
-		untrack()
+		req.Body.Close()
 		resp.Body.Close()
+		untrack()
 		return nil, errors.New(resp.Status)
 	}
 
 	rwc := &readWriteCloser{
-		rc:      resp.Body,
-		wc:      pw,
-		onclose: untrack,
+		r: resp.Body,
+		w: pw,
+		onClose: func() {
+			req.Body.Close()
+			resp.Body.Close()
+			untrack()
+		},
 	}
 	return rwc, nil
 }
@@ -125,27 +133,22 @@ func (c *TunnelClient) ConnNum() int {
 }
 
 type readWriteCloser struct {
-	rc      io.ReadCloser
-	wc      io.WriteCloser
-	onclose func()
+	r       io.Reader
+	w       io.Writer
+	onClose func()
 }
 
 func (rwc *readWriteCloser) Read(p []byte) (n int, err error) {
-	return rwc.rc.Read(p)
+	return rwc.r.Read(p)
 }
 
 func (rwc *readWriteCloser) Write(p []byte) (n int, err error) {
-	return rwc.wc.Write(p)
+	return rwc.w.Write(p)
 }
 
 func (rwc *readWriteCloser) Close() error {
-	if rwc.onclose != nil {
-		rwc.onclose()
+	if rwc.onClose != nil {
+		rwc.onClose()
 	}
-	we := rwc.wc.Close()
-	re := rwc.rc.Close()
-	if we != nil {
-		return we
-	}
-	return re
+	return nil
 }
