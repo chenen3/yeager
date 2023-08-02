@@ -26,7 +26,7 @@ type reader struct {
 
 func (r *reader) Read(p []byte) (n int, err error) {
 	if r.reader == nil {
-		return 0, errors.New("obfs: underlying Reader is nil")
+		return 0, errors.New("obfs: underlying reader is nil")
 	}
 
 	if len(r.keys) == 0 {
@@ -68,7 +68,7 @@ type writer struct {
 
 func (w *writer) Write(src []byte) (int, error) {
 	if w.writer == nil {
-		return 0, errors.New("obfs: underlying Writer is nil")
+		return 0, errors.New("obfs: underlying writer is nil")
 	}
 
 	if len(w.keys) == 0 {
