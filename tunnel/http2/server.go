@@ -70,7 +70,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
-		// the client waits for the response header
+		// client is waiting for this response header
 		f.Flush()
 	}
 

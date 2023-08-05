@@ -7,11 +7,9 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	"golang.org/x/net/http2"
 )
 
@@ -50,11 +48,11 @@ func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()
 		if c.reqStat[dst] == 0 {
 			delete(c.reqStat, dst)
 			if cli, ok := c.clients[dst]; ok {
-				// release the connection before leaving
+				// must close the connection before leaving,
+				// otherwise it will run out of memory
 				cli.CloseIdleConnections()
 			}
 			delete(c.clients, dst)
-			debug.Printf("remove h2 client: %s", dst)
 		}
 	}
 
@@ -79,12 +77,9 @@ func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	pr, pw := io.Pipe()
-	req := &http.Request{
-		Method:        "CONNECT",
-		URL:           &url.URL{Scheme: "https", Host: c.addr},
-		Header:        make(http.Header),
-		Body:          pr,
-		ContentLength: -1,
+	req, err := http.NewRequest(http.MethodConnect, "https://"+c.addr, pr)
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
