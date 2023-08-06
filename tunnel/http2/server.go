@@ -15,6 +15,8 @@ import (
 	"golang.org/x/net/http2"
 )
 
+const idleTimeout = 5 * time.Minute
+
 type TunnelServer struct {
 	mu  sync.Mutex
 	lis net.Listener
@@ -31,7 +33,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
-	h2s := &http2.Server{IdleTimeout: 5 * time.Minute}
+	h2s := &http2.Server{IdleTimeout: idleTimeout}
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -59,21 +61,24 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 
 func serveHTTP(w http.ResponseWriter, r *http.Request) {
 	dst := r.Header.Get("dst")
+	if dst == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if f, ok := w.(http.Flusher); ok {
+		// client is waiting for this response header,
+		// send it as soon as possible
+		f.Flush()
+	}
+
 	remote, err := net.Dial("tcp", dst)
 	if err != nil {
-		w.Header().Add("error", err.Error())
-		w.WriteHeader(http.StatusServiceUnavailable)
 		log.Print(err)
 		return
 	}
 	defer remote.Close()
-
-	w.WriteHeader(http.StatusOK)
-	if f, ok := w.(http.Flusher); ok {
-		// client is waiting for this response header
-		f.Flush()
-	}
-
 	go func() {
 		ynet.Copy(remote, r.Body)
 		remote.Close()

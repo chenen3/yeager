@@ -19,6 +19,8 @@ type TunnelClient struct {
 	mu      sync.Mutex
 	clients map[string]*http.Client
 	reqStat map[string]int // numbers of requests on specified dst
+	idleCli []*http.Client
+	idleAt  []time.Time // conresponding to idleClients
 }
 
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
@@ -48,9 +50,8 @@ func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()
 		if c.reqStat[dst] == 0 {
 			delete(c.reqStat, dst)
 			if cli, ok := c.clients[dst]; ok {
-				// must close the connection before leaving,
-				// otherwise it will run out of memory
-				cli.CloseIdleConnections()
+				c.idleCli = append(c.idleCli, cli)
+				c.idleAt = append(c.idleAt, time.Now())
 			}
 			delete(c.clients, dst)
 		}
@@ -61,13 +62,37 @@ func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()
 		return client, untrack
 	}
 
+	if len(c.idleCli) > 0 {
+		i := -1
+		for j := range c.idleCli {
+			if time.Since(c.idleAt[j]) < idleTimeout {
+				i = j
+				break
+			}
+			// must close the connection before leaving,
+			// otherwise it will run out of memory
+			c.idleCli[j].CloseIdleConnections()
+		}
+		if i >= 0 {
+			client = c.idleCli[i]
+			// clients before index i, have been timeout
+			c.idleCli = c.idleCli[i+1:]
+			c.idleAt = c.idleAt[i+1:]
+			c.clients[dst] = client
+			return client, untrack
+		}
+		c.idleCli = nil
+		c.idleAt = nil
+	}
+
 	t := &http2.Transport{
-		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+		TLSClientConfig: c.tlsConf,
+		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}
-			return tls.DialWithDialer(d, "tcp", addr, c.tlsConf)
+			return tls.DialWithDialer(d, "tcp", addr, cfg)
 		},
 	}
 	client = &http.Client{Transport: t}
@@ -118,13 +143,16 @@ func (c *TunnelClient) Close() error {
 	for _, client := range c.clients {
 		client.CloseIdleConnections()
 	}
+	for _, client := range c.idleCli {
+		client.CloseIdleConnections()
+	}
 	return nil
 }
 
 func (c *TunnelClient) ConnNum() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return len(c.clients)
+	return len(c.clients) + len(c.idleCli)
 }
 
 type readWriteCloser struct {
