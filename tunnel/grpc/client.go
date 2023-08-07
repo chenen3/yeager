@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
@@ -18,76 +17,106 @@ import (
 )
 
 type TunnelClient struct {
-	addr   string
-	conf   *tls.Config
-	mu     sync.RWMutex // guards conns
-	conns  map[string]*grpc.ClientConn
-	ticker *time.Ticker
+	addr      string
+	cfg       *tls.Config
+	mu        sync.Mutex
+	conns     map[string]*grpc.ClientConn
+	stats     map[string]int     // the number of streams on ClientConn
+	pending   []*grpc.ClientConn // named pending to distinguish it from the idle mechanism of grpc
+	pendingAt []time.Time
 }
 
-func NewTunnelClient(addr string, conf *tls.Config) *TunnelClient {
-	c := &TunnelClient{
-		addr:   addr,
-		conf:   conf,
-		ticker: time.NewTicker(time.Minute),
-		conns:  make(map[string]*grpc.ClientConn),
+func NewTunnelClient(addr string, cfg *tls.Config) *TunnelClient {
+	return &TunnelClient{
+		addr:  addr,
+		cfg:   cfg,
+		conns: make(map[string]*grpc.ClientConn),
+		stats: make(map[string]int),
 	}
-	go c.sweep()
-	return c
 }
 
-func (c *TunnelClient) sweep() {
-	for range c.ticker.C {
-		c.mu.Lock()
-		for key, conn := range c.conns {
-			// grpc-go does not implement idle timeout on the client side,
-			// when the server connection idle timeout and sends GO_AWAY,
-			// ClientConn will reconnect and idle.
-			if conn.GetState() == connectivity.Idle {
-				conn.Close()
-				delete(c.conns, key)
-				debug.Printf("clear idle conn %s", key)
-			}
+func canTakeRequest(cc *grpc.ClientConn) bool {
+	s := cc.GetState()
+	return s == connectivity.Connecting || s == connectivity.Ready
+	// ClientConn closes all connections when becoming idle due to WithIdleTimeout option,
+	// so cannot take request.
+}
+
+func (c *TunnelClient) putConn(key string, cc *grpc.ClientConn) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stats[key]--
+	if c.stats[key] == 0 {
+		delete(c.conns, key)
+		delete(c.stats, key)
+		c.pending = append(c.pending, cc)
+		c.pendingAt = append(c.pendingAt, time.Now())
+	}
+}
+
+// getConn tends to use existing client connections, dialing new ones if necessary.
+func (c *TunnelClient) getConn(ctx context.Context, key string) (*grpc.ClientConn, error) {
+	c.mu.Lock()
+	if cc, ok := c.conns[key]; ok {
+		if canTakeRequest(cc) {
+			c.stats[key]++
+			c.mu.Unlock()
+			return cc, nil
 		}
-		c.mu.Unlock()
+		cc.Close()
+		delete(c.conns, key)
 	}
+
+	if len(c.pending) > 0 {
+		for i, cc := range c.pending {
+			if time.Since(c.pendingAt[i]) < idleTimeout && canTakeRequest(cc) {
+				c.conns[key] = cc
+				c.stats[key]++
+				c.pending = c.pending[i+1:]
+				c.pendingAt = c.pendingAt[i+1:]
+				c.mu.Unlock()
+				return cc, nil
+			}
+			cc.Close()
+		}
+		c.pending = nil
+		c.pendingAt = nil
+	}
+	c.mu.Unlock()
+
+	return c.addConn(ctx, key)
 }
 
-func (c *TunnelClient) getConn(ctx context.Context, dst string) (*grpc.ClientConn, error) {
-	c.mu.RLock()
-	conn, ok := c.conns[dst]
-	c.mu.RUnlock()
-	if ok && conn.GetState() != connectivity.Shutdown {
-		return conn, nil
-	}
-
+func (c *TunnelClient) addConn(ctx context.Context, key string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(c.conf)),
+		grpc.WithTransportCredentials(credentials.NewTLS(c.cfg)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
-				Multiplier: 1.6,
+				Multiplier: 1.5,
 				Jitter:     0.2,
-				MaxDelay:   20 * time.Second,
+				MaxDelay:   5 * time.Second,
 			},
 			MinConnectTimeout: 5 * time.Second,
 		}),
 		// blocking dial facilitates clear logic while creating stream
 		grpc.WithBlock(),
 	}
-	newconn, err := grpc.DialContext(ctx, c.addr, opts...)
+	conn, err := grpc.DialContext(ctx, c.addr, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c, ok := c.conns[dst]; ok && c.GetState() != connectivity.Shutdown {
-		newconn.Close()
-		return c, nil
+	if old, ok := c.conns[key]; ok {
+		conn.Close()
+		c.stats[key]++
+		return old, nil
 	}
-	c.conns[dst] = newconn
-	return newconn, nil
+	c.conns[key] = conn
+	c.stats[key]++
+	return conn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -95,42 +124,41 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
-
 	client := pb.NewTunnelClient(conn)
 	// the context controls the lifecycle of stream
-	streamCtx, cancel := context.WithCancel(context.Background())
-	stream, err := client.Stream(streamCtx)
+	sctx, cancel := context.WithCancel(context.Background())
+	stream, err := client.Stream(sctx)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("create grpc stream: %s", err)
 	}
 
-	sw := wrapClientStream(stream, cancel)
-	if err := tunnel.WriteHeader(sw, dst); err != nil {
-		sw.Close()
+	rwc := wrapClientStream(stream, func() {
+		cancel()
+		c.putConn(dst, conn)
+	})
+	if err := tunnel.WriteHeader(rwc, dst); err != nil {
+		rwc.Close()
 		return nil, err
 	}
-	return sw, nil
+	return rwc, nil
 }
 
 func (c *TunnelClient) ConnNum() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return len(c.conns)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.conns) + len(c.pending)
 }
 
 func (c *TunnelClient) Close() error {
-	if c.ticker != nil {
-		c.ticker.Stop()
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, conn := range c.conns {
-		if conn != nil {
-			conn.Close()
-		}
+	for _, cc := range c.conns {
+		cc.Close()
 	}
-	c.conns = nil
+	for _, cc := range c.pending {
+		cc.Close()
+	}
 	return nil
 }
 
@@ -143,17 +171,18 @@ type clientStreamWrapper struct {
 	off     int
 }
 
+// return an stream wrapper that implements io.ReadWriteCloser
 func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
 	return &clientStreamWrapper{stream: stream, onClose: onClose}
 }
 
 func (sw *clientStreamWrapper) Read(b []byte) (n int, err error) {
 	if sw.off >= len(sw.buf) {
-		data, err := sw.stream.Recv()
+		d, err := sw.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
-		sw.buf = data.Data
+		sw.buf = d.Data
 		sw.off = 0
 	}
 	n = copy(b, sw.buf[sw.off:])

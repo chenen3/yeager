@@ -20,6 +20,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const idleTimeout = 10 * time.Minute
+
 // TunnelServer is a GRPC tunnel server, its zero value is ready to use
 type TunnelServer struct {
 	pb.UnimplementedTunnelServer
@@ -32,7 +34,7 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: 15 * time.Second,
+			MaxConnectionIdle: idleTimeout,
 		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
