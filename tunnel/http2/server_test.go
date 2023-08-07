@@ -85,3 +85,54 @@ func TestH2Tunnel(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
+
+func BenchmarkThroughput(b *testing.B) {
+	echo, err := ynet.StartEchoServer()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer echo.Close()
+
+	ts, tc, err := startTunnel()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer ts.Close()
+	defer tc.Close()
+	// the tunnel server may not started yet
+	time.Sleep(time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	const n = 1000
+	up := make([]byte, n)
+	for i := 0; i < n; i++ {
+		up[i] = byte(i)
+	}
+	down := make([]byte, n)
+	start := time.Now()
+	b.ResetTimer()
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < b.N; i++ {
+			rwc.Write(up)
+		}
+		close(done)
+	}()
+	for i := 0; i < b.N; i++ {
+		rwc.Read(down)
+	}
+	b.StopTimer()
+	elapsed := time.Since(start)
+
+	megabits := 8 * n * b.N / 1e6
+	b.ReportMetric(float64(megabits)/elapsed.Seconds(), "mbps")
+
+	rwc.Close()
+	<-done
+}
