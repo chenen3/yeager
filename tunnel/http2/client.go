@@ -18,9 +18,9 @@ type TunnelClient struct {
 	tlsConf *tls.Config
 	mu      sync.Mutex
 	clients map[string]*http.Client
-	reqStat map[string]int // numbers of requests on specified dst
-	idleCli []*http.Client
-	idleAt  []time.Time // conresponding to idleClients
+	stats   map[string]int // number of requests on http client
+	idle    []*http.Client // clients not processing requests
+	idleAt  []time.Time    //
 }
 
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
@@ -28,63 +28,67 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 		addr:    addr,
 		tlsConf: tlsConf,
 		clients: make(map[string]*http.Client),
-		reqStat: make(map[string]int),
+		stats:   make(map[string]int),
 	}
 }
 
-// h2Client returns a http2 client for dst, create one if not exists.
-//
-// Since all requests are forwarded to the same tunnel server address,
-// if we only use one http2 client, according to the multiplexing feature,
-// all requests will be transmitted on the same connection.
-// When encountering the head-of-line blocking problem of TCP,
-// all requests will be affected. Therefore using multiple clients
-func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()) {
+func (c *TunnelClient) putClient(key string, hc *http.Client) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.reqStat[dst]++
-	untrack = func() {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.reqStat[dst]--
-		if c.reqStat[dst] == 0 {
-			delete(c.reqStat, dst)
-			if cli, ok := c.clients[dst]; ok {
-				c.idleCli = append(c.idleCli, cli)
-				c.idleAt = append(c.idleAt, time.Now())
-			}
-			delete(c.clients, dst)
+	c.stats[key]--
+	if c.stats[key] == 0 {
+		if cli, ok := c.clients[key]; ok {
+			c.idle = append(c.idle, cli)
+			c.idleAt = append(c.idleAt, time.Now())
 		}
+		delete(c.clients, key)
+		delete(c.stats, key)
 	}
+}
 
-	client, ok := c.clients[dst]
+// getConn tends to use existing client connections, create one if not exists.
+//
+// Since all requests are forwarded to the same tunnel server address,
+// if a single global http2 client is used,
+// it will cause too many streams on one connection,
+// which is quite unfavorable when the network is unstable.
+func (c *TunnelClient) getClient(key string) *http.Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stats[key]++
+
+	client, ok := c.clients[key]
 	if ok {
-		return client, untrack
+		return client
 	}
 
-	if len(c.idleCli) > 0 {
+	if len(c.idle) > 0 {
 		i := -1
-		for j := range c.idleCli {
+		for j := range c.idle {
 			if time.Since(c.idleAt[j]) < idleTimeout {
 				i = j
 				break
 			}
 			// must close the connection before leaving,
 			// otherwise it will run out of memory
-			c.idleCli[j].CloseIdleConnections()
+			c.idle[j].CloseIdleConnections()
 		}
 		if i >= 0 {
-			client = c.idleCli[i]
+			client = c.idle[i]
 			// clients before index i, have been timeout
-			c.idleCli = c.idleCli[i+1:]
+			c.idle = c.idle[i+1:]
 			c.idleAt = c.idleAt[i+1:]
-			c.clients[dst] = client
-			return client, untrack
+			c.clients[key] = client
+			return client
 		}
-		c.idleCli = nil
+		c.idle = nil
 		c.idleAt = nil
 	}
 
+	return c.addClientLocked(key)
+}
+
+func (c *TunnelClient) addClientLocked(key string) *http.Client {
 	t := &http2.Transport{
 		TLSClientConfig: c.tlsConf,
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -95,9 +99,9 @@ func (c *TunnelClient) h2Client(dst string) (client *http.Client, untrack func()
 			return tls.DialWithDialer(d, "tcp", addr, cfg)
 		},
 	}
-	client = &http.Client{Transport: t}
-	c.clients[dst] = client
-	return client, untrack
+	client := &http.Client{Transport: t}
+	c.clients[key] = client
+	return client
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -109,19 +113,19 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	req.Header.Add("dst", dst)
 	req.Header.Set("User-Agent", "Chrome/76.0.3809.100")
 
-	client, untrack := c.h2Client(dst)
+	client := c.getClient(dst)
 	// the client return Responses from servers once
 	// the response headers have been received
 	resp, err := client.Do(req)
 	if err != nil {
 		req.Body.Close()
-		untrack()
+		c.putClient(dst, client)
 		return nil, errors.New("http2 request: " + err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
 		req.Body.Close()
 		resp.Body.Close()
-		untrack()
+		c.putClient(dst, client)
 		return nil, errors.New(resp.Status)
 	}
 
@@ -131,7 +135,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		onClose: func() {
 			req.Body.Close()
 			resp.Body.Close()
-			untrack()
+			c.putClient(dst, client)
 		},
 	}
 	return rwc, nil
@@ -143,7 +147,7 @@ func (c *TunnelClient) Close() error {
 	for _, client := range c.clients {
 		client.CloseIdleConnections()
 	}
-	for _, client := range c.idleCli {
+	for _, client := range c.idle {
 		client.CloseIdleConnections()
 	}
 	return nil
@@ -152,7 +156,7 @@ func (c *TunnelClient) Close() error {
 func (c *TunnelClient) ConnNum() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return len(c.clients) + len(c.idleCli)
+	return len(c.clients) + len(c.idle)
 }
 
 type readWriteCloser struct {

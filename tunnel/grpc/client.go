@@ -21,7 +21,7 @@ type TunnelClient struct {
 	cfg       *tls.Config
 	mu        sync.Mutex
 	conns     map[string]*grpc.ClientConn
-	stats     map[string]int     // the number of streams on ClientConn
+	stats     map[string]int     // number of streams on ClientConn
 	pending   []*grpc.ClientConn // named pending to distinguish it from the idle mechanism of grpc
 	pendingAt []time.Time
 }
