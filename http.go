@@ -6,7 +6,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -88,7 +87,7 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	start := time.Now()
 	err = ynet.Relay(conn, remote)
-	if err != nil && !errors.Is(err, net.ErrClosed) {
+	if err != nil && !canIgnore(err) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}

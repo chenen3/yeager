@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,11 +79,16 @@ func (s *socksServer) handleConn(conn net.Conn, d tunnel.Dialer) {
 
 	start := time.Now()
 	err = ynet.Relay(conn, remote)
-	if err != nil && !errors.Is(err, net.ErrClosed) {
+	if err != nil && !canIgnore(err) {
 		log.Printf("relay %s: %s", dst, err)
 		return
 	}
 	debug.Printf("done %s, timed %0.0fs", dst, time.Since(start).Seconds())
+}
+
+func canIgnore(err error) bool {
+	return errors.Is(err, net.ErrClosed) ||
+		strings.Contains(err.Error(), "connection reset by peer")
 }
 
 func (s *socksServer) trackConn(c net.Conn, add bool) {
