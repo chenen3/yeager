@@ -170,35 +170,34 @@ type clientStreamWrapper struct {
 	buf     []byte
 }
 
-// return an stream wrapper that implements io.ReadWriteCloser
+// wraps client stream and implements io.ReadWriteCloser
 func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
 	return &clientStreamWrapper{stream: stream, onClose: onClose}
 }
 
-func (sw *clientStreamWrapper) Read(b []byte) (n int, err error) {
-	if len(sw.buf) == 0 {
-		d, err := sw.stream.Recv()
+func (cs *clientStreamWrapper) Read(b []byte) (n int, err error) {
+	if len(cs.buf) == 0 {
+		m, err := cs.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
-		sw.buf = d.Data
+		cs.buf = m.Data
 	}
-	n = copy(b, sw.buf)
-	sw.buf = sw.buf[n:]
+	n = copy(b, cs.buf)
+	cs.buf = cs.buf[n:]
 	return n, nil
 }
 
-func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
-	err = sw.stream.Send(&pb.Message{Data: b})
-	if err != nil {
+func (cs *clientStreamWrapper) Write(b []byte) (n int, err error) {
+	if err = cs.stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}
 	return len(b), nil
 }
 
-func (sw *clientStreamWrapper) Close() error {
-	if sw.onClose != nil {
-		sw.onClose()
+func (cs *clientStreamWrapper) Close() error {
+	if cs.onClose != nil {
+		cs.onClose()
 	}
 	return nil
 }
