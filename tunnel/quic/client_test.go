@@ -3,6 +3,7 @@ package quic
 import (
 	"bytes"
 	"context"
+	"io"
 	"log"
 	"net"
 	"testing"
@@ -97,6 +98,7 @@ func BenchmarkThroughput(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer rwc.Close()
 
 	const n = 1000
 	up := make([]byte, n)
@@ -106,22 +108,17 @@ func BenchmarkThroughput(b *testing.B) {
 	down := make([]byte, n)
 	start := time.Now()
 	b.ResetTimer()
-	done := make(chan struct{})
 	go func() {
 		for i := 0; i < b.N; i++ {
 			rwc.Write(up)
 		}
-		close(done)
 	}()
 	for i := 0; i < b.N; i++ {
-		rwc.Read(down)
+		io.ReadFull(rwc, down)
 	}
 	b.StopTimer()
 	elapsed := time.Since(start)
 
 	megabits := 8 * n * b.N / 1e6
 	b.ReportMetric(float64(megabits)/elapsed.Seconds(), "mbps")
-
-	rwc.Close()
-	<-done
 }
