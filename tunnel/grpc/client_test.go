@@ -71,7 +71,7 @@ func TestTunnel(t *testing.T) {
 	if _, err := rwc.Write(want); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rwc.Read(got); err != nil {
+	if _, err := io.ReadFull(rwc, got); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(got, want) {

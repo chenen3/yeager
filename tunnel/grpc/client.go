@@ -168,7 +168,6 @@ type clientStreamWrapper struct {
 	stream  pb.Tunnel_StreamClient
 	onClose func()
 	buf     []byte
-	off     int
 }
 
 // return an stream wrapper that implements io.ReadWriteCloser
@@ -177,21 +176,20 @@ func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStre
 }
 
 func (sw *clientStreamWrapper) Read(b []byte) (n int, err error) {
-	if sw.off >= len(sw.buf) {
+	if len(sw.buf) == 0 {
 		d, err := sw.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
 		sw.buf = d.Data
-		sw.off = 0
 	}
-	n = copy(b, sw.buf[sw.off:])
-	sw.off += n
+	n = copy(b, sw.buf)
+	sw.buf = sw.buf[n:]
 	return n, nil
 }
 
 func (sw *clientStreamWrapper) Write(b []byte) (n int, err error) {
-	err = sw.stream.Send(&pb.Data{Data: b})
+	err = sw.stream.Send(&pb.Message{Data: b})
 	if err != nil {
 		return 0, err
 	}

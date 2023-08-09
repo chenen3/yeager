@@ -39,8 +39,8 @@ func (c *tunnelClient) Stream(ctx context.Context, opts ...grpc.CallOption) (Tun
 }
 
 type Tunnel_StreamClient interface {
-	Send(*Data) error
-	Recv() (*Data, error)
+	Send(*Message) error
+	Recv() (*Message, error)
 	grpc.ClientStream
 }
 
@@ -48,12 +48,12 @@ type tunnelStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *tunnelStreamClient) Send(m *Data) error {
+func (x *tunnelStreamClient) Send(m *Message) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *tunnelStreamClient) Recv() (*Data, error) {
-	m := new(Data)
+func (x *tunnelStreamClient) Recv() (*Message, error) {
+	m := new(Message)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func _Tunnel_Stream_Handler(srv interface{}, stream grpc.ServerStream) error {
 }
 
 type Tunnel_StreamServer interface {
-	Send(*Data) error
-	Recv() (*Data, error)
+	Send(*Message) error
+	Recv() (*Message, error)
 	grpc.ServerStream
 }
 
@@ -102,12 +102,12 @@ type tunnelStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *tunnelStreamServer) Send(m *Data) error {
+func (x *tunnelStreamServer) Send(m *Message) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *tunnelStreamServer) Recv() (*Data, error) {
-	m := new(Data)
+func (x *tunnelStreamServer) Recv() (*Message, error) {
+	m := new(Message)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}

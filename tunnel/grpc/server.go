@@ -90,7 +90,6 @@ var _ io.ReadWriter = (*serverStreamWrapper)(nil)
 type serverStreamWrapper struct {
 	stream pb.Tunnel_StreamServer
 	buf    []byte
-	off    int
 }
 
 // wrap stream as io.ReadWriter
@@ -99,21 +98,20 @@ func wrapServerStream(stream pb.Tunnel_StreamServer) *serverStreamWrapper {
 }
 
 func (s *serverStreamWrapper) Read(b []byte) (n int, err error) {
-	if s.off >= len(s.buf) {
+	if len(s.buf) == 0 {
 		data, err := s.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
 		s.buf = data.Data
-		s.off = 0
 	}
-	n = copy(b, s.buf[s.off:])
-	s.off += n
+	n = copy(b, s.buf)
+	s.buf = s.buf[n:]
 	return n, nil
 }
 
 func (s *serverStreamWrapper) Write(b []byte) (n int, err error) {
-	err = s.stream.Send(&pb.Data{Data: b})
+	err = s.stream.Send(&pb.Message{Data: b})
 	if err != nil {
 		return 0, err
 	}
