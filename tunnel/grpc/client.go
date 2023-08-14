@@ -14,80 +14,44 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 type TunnelClient struct {
-	addr      string
-	cfg       *tls.Config
-	mu        sync.Mutex
-	conns     map[string]*grpc.ClientConn
-	stats     map[string]int     // number of streams on ClientConn
-	pending   []*grpc.ClientConn // named pending to distinguish it from the idle mechanism of grpc
-	pendingAt []time.Time
+	addr  string
+	cfg   *tls.Config
+	mu    sync.Mutex
+	conns []*grpc.ClientConn
 }
 
 func NewTunnelClient(addr string, cfg *tls.Config) *TunnelClient {
 	return &TunnelClient{
-		addr:  addr,
-		cfg:   cfg,
-		conns: make(map[string]*grpc.ClientConn),
-		stats: make(map[string]int),
+		addr: addr,
+		cfg:  cfg,
 	}
 }
 
 func canTakeRequest(cc *grpc.ClientConn) bool {
 	s := cc.GetState()
-	return s == connectivity.Connecting || s == connectivity.Ready
-	// ClientConn closes all connections when becoming idle due to WithIdleTimeout option,
-	// so cannot take request.
+	return s != connectivity.Shutdown && s != connectivity.TransientFailure
 }
 
-func (c *TunnelClient) putConn(key string, cc *grpc.ClientConn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.stats[key]--
-	if c.stats[key] == 0 {
-		delete(c.conns, key)
-		delete(c.stats, key)
-		c.pending = append(c.pending, cc)
-		c.pendingAt = append(c.pendingAt, time.Now())
-	}
-}
+const keepaliveInterval = 15 * time.Second
 
 // getConn tends to use existing client connections, dialing new ones if necessary.
-func (c *TunnelClient) getConn(ctx context.Context, key string) (*grpc.ClientConn, error) {
+// To make the tunnel harder to detect, use as few connections as possible.
+func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	c.mu.Lock()
-	if cc, ok := c.conns[key]; ok {
+	for i, cc := range c.conns {
 		if canTakeRequest(cc) {
-			c.stats[key]++
+			c.conns = c.conns[i:]
 			c.mu.Unlock()
 			return cc, nil
 		}
 		cc.Close()
-		delete(c.conns, key)
-	}
-
-	if len(c.pending) > 0 {
-		for i, cc := range c.pending {
-			if time.Since(c.pendingAt[i]) < idleTimeout && canTakeRequest(cc) {
-				c.conns[key] = cc
-				c.stats[key]++
-				c.pending = c.pending[i+1:]
-				c.pendingAt = c.pendingAt[i+1:]
-				c.mu.Unlock()
-				return cc, nil
-			}
-			cc.Close()
-		}
-		c.pending = nil
-		c.pendingAt = nil
 	}
 	c.mu.Unlock()
 
-	return c.addConn(ctx, key)
-}
-
-func (c *TunnelClient) addConn(ctx context.Context, key string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(c.cfg)),
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -99,8 +63,12 @@ func (c *TunnelClient) addConn(ctx context.Context, key string) (*grpc.ClientCon
 			},
 			MinConnectTimeout: 5 * time.Second,
 		}),
-		// blocking dial facilitates clear logic while creating stream
-		grpc.WithBlock(),
+		grpc.WithBlock(), // blocking dial facilitates clear logic while creating stream
+		grpc.WithIdleTimeout(idleTimeout),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    keepaliveInterval,
+			Timeout: 2 * time.Second,
+		}),
 	}
 	conn, err := grpc.DialContext(ctx, c.addr, opts...)
 	if err != nil {
@@ -108,19 +76,13 @@ func (c *TunnelClient) addConn(ctx context.Context, key string) (*grpc.ClientCon
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if old, ok := c.conns[key]; ok {
-		conn.Close()
-		c.stats[key]++
-		return old, nil
-	}
-	c.conns[key] = conn
-	c.stats[key]++
+	c.conns = append(c.conns, conn)
+	c.mu.Unlock()
 	return conn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(ctx, dst)
+	conn, err := c.getConn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
@@ -130,13 +92,11 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	stream, err := client.Stream(sctx)
 	if err != nil {
 		cancel()
+		conn.Close()
 		return nil, fmt.Errorf("create grpc stream: %s", err)
 	}
 
-	rwc := wrapClientStream(stream, func() {
-		cancel()
-		c.putConn(dst, conn)
-	})
+	rwc := wrapClientStream(stream, cancel)
 	if err := tunnel.WriteHeader(rwc, dst); err != nil {
 		rwc.Close()
 		return nil, err
@@ -147,16 +107,13 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 func (c *TunnelClient) ConnNum() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return len(c.conns) + len(c.pending)
+	return len(c.conns)
 }
 
 func (c *TunnelClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, cc := range c.conns {
-		cc.Close()
-	}
-	for _, cc := range c.pending {
 		cc.Close()
 	}
 	return nil

@@ -59,9 +59,9 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	}
 }
 
+// works like HTTPS proxy server
 func serveHTTP(w http.ResponseWriter, r *http.Request) {
-	dst := r.Header.Get("dst")
-	if dst == "" {
+	if r.Host == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -73,7 +73,7 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	remote, err := net.Dial("tcp", dst)
+	remote, err := net.Dial("tcp", r.Host)
 	if err != nil {
 		log.Print(err)
 		return
@@ -91,7 +91,10 @@ func serveHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *TunnelServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.lis.Close()
+	if s.lis != nil {
+		return s.lis.Close()
+	}
+	return nil
 }
 
 type flushWriter struct {

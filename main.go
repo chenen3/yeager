@@ -77,8 +77,7 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)
 	}
-	err = os.WriteFile(srvConfOutput, bs, 0644)
-	if err != nil {
+	if err = os.WriteFile(srvConfOutput, bs, 0644); err != nil {
 		return fmt.Errorf("failed to write server config: %s", err)
 	}
 	fmt.Printf("generated server config file: %s\n", srvConfOutput)

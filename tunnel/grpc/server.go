@@ -36,6 +36,9 @@ func (s *TunnelServer) Serve(lis net.Listener, tlsConf *tls.Config) error {
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: idleTimeout,
 		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime: keepaliveInterval,
+		}),
 	)
 	pb.RegisterTunnelServer(grpcServer, s)
 	s.mu.Lock()
