@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 )
 
 type TunnelClient struct {
@@ -81,27 +81,25 @@ func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
+const targetKey = "target"
+
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	conn, err := c.getConn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("connect grpc: %s", err)
 	}
 	client := pb.NewTunnelClient(conn)
-	// the context controls the lifecycle of stream
+
+	// this context controls the lifetime of the stream, do not use short-lived contexts
 	sctx, cancel := context.WithCancel(context.Background())
+	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, dst))
 	stream, err := client.Stream(sctx)
 	if err != nil {
 		cancel()
 		conn.Close()
 		return nil, fmt.Errorf("create grpc stream: %s", err)
 	}
-
-	rwc := wrapClientStream(stream, cancel)
-	if err := tunnel.WriteHeader(rwc, dst); err != nil {
-		rwc.Close()
-		return nil, err
-	}
-	return rwc, nil
+	return wrapClientStream(stream, cancel), nil
 }
 
 func (c *TunnelClient) ConnNum() int {

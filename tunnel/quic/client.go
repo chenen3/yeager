@@ -1,5 +1,8 @@
 package quic
 
+// TODO: Considering the usage scenario of this project,
+// UDP transmission is a bad choice, deprecate this package
+
 import (
 	"context"
 	"crypto/tls"
@@ -98,6 +101,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
 	sw := wrapStream(stream)
+	// FIXME: very obvious behavior, make it easy to detect
 	if err := tunnel.WriteHeader(sw, dst); err != nil {
 		sw.Close()
 		return nil, err

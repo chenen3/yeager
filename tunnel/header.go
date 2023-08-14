@@ -61,6 +61,7 @@ func parseAddr(hostport string) (*addr, error) {
 	return a, nil
 }
 
+// Deprecated: very obvious behavior, make it easy to detect
 func WriteHeader(w io.Writer, hostport string) error {
 	addr, err := parseAddr(hostport)
 	if err != nil {
@@ -99,6 +100,7 @@ func WriteHeader(w io.Writer, hostport string) error {
 	return err
 }
 
+// Deprecated: very obvious behavior, make it easy to detect
 func ReadHeader(r io.Reader) (hostport string, err error) {
 	/*
 		客户端请求格式，仿照socks5协议(以字节为单位):
@@ -146,6 +148,7 @@ func ReadHeader(r io.Reader) (hostport string, err error) {
 	return hostport, nil
 }
 
+// Deprecated
 func TimeReadHeader(r io.Reader, timeout time.Duration) (addr string, err error) {
 	type result struct {
 		addr string

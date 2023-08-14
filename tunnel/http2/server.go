@@ -15,7 +15,7 @@ import (
 	"golang.org/x/net/http2"
 )
 
-const idleTimeout = 5 * time.Minute
+const idleTimeout = 10 * time.Minute
 
 type TunnelServer struct {
 	mu  sync.Mutex

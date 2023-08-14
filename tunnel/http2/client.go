@@ -40,8 +40,6 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	return tc
 }
 
-const ua = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
@@ -52,7 +50,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		Host:          dst,
 		ContentLength: -1,
 	}
-	req.Header.Set("User-Agent", ua)
+	req.Header.Set("User-Agent", "Chrome/115.0.0.0")
 
 	// the client return Responses from servers once
 	// the response headers have been received

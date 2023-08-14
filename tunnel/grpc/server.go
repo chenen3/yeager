@@ -3,7 +3,6 @@ package grpc
 import (
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,12 +10,12 @@ import (
 	"time"
 
 	ynet "github.com/chenen3/yeager/net"
-	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -51,20 +50,19 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	if stream.Context().Err() != nil {
 		return stream.Context().Err()
 	}
-
-	sw := wrapServerStream(stream)
-	dst, err := tunnel.TimeReadHeader(sw, ynet.HandshakeTimeout)
-	if err != nil {
-		return fmt.Errorf("read header: %s", err)
+	v := metadata.ValueFromIncomingContext(stream.Context(), targetKey)
+	if len(v) == 0 {
+		return errors.New("empty target")
 	}
+	target := v[0]
 
-	remote, err := net.DialTimeout("tcp", dst, ynet.DialTimeout)
+	remote, err := net.DialTimeout("tcp", target, ynet.DialTimeout)
 	if err != nil {
 		return err
 	}
 	defer remote.Close()
 
-	err = ynet.Relay(sw, remote)
+	err = ynet.Relay(wrapServerStream(stream), remote)
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return nil
@@ -72,7 +70,7 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 		if s, ok := status.FromError(err); ok && s.Code() == codes.Canceled {
 			return nil
 		}
-		log.Printf("relay %s: %s", dst, err)
+		log.Printf("relay %s: %s", target, err)
 	}
 	return nil
 }
