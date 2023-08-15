@@ -3,6 +3,7 @@ package http2
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net"
@@ -26,7 +27,7 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	}
 	// To make the tunnel harder to detect, use as few connections as possible.
 	tc.client = &http.Client{Transport: &http2.Transport{
-		TLSClientConfig: tlsConf,
+		// TLSClientConfig: tlsConf,
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
@@ -40,17 +41,22 @@ func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	return tc
 }
 
+// DialContext acts like a HTTPS proxy client
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
-		Method:        http.MethodConnect,
+		Method: http.MethodConnect,
+		// For client requests, the URL's Host specifies the server to connect to,
+		// while the Request's Host field optionally specifies the Host header value to send in the HTTP request.
 		URL:           &url.URL{Scheme: "https", Host: c.addr},
+		Host:          dst,
 		Header:        make(http.Header),
 		Body:          pr,
-		Host:          dst,
 		ContentLength: -1,
 	}
 	req.Header.Set("User-Agent", "Chrome/115.0.0.0")
+	auth := "mike" + ":" + "nicenoddles"
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
 
 	// the client return Responses from servers once
 	// the response headers have been received
