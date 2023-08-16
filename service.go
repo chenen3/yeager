@@ -127,7 +127,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			}()
 			closers = append(closers, &s)
 		}
-		log.Printf("%s tunnel listening %s", tl.Proto, tl.Address)
+		log.Printf("listening %s %s", tl.Proto, tl.Address)
 	}
 	return closers, nil
 }

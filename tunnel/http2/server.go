@@ -22,8 +22,8 @@ type TunnelServer struct {
 }
 
 // Serve blocks until closed, or error occurs.
-func (s *TunnelServer) Serve(address string, tlsConf *tls.Config, username, password string) error {
-	tlsConf.NextProtos = []string{http2.NextProtoTLS}
+func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password string) error {
+	cfg.NextProtos = []string{http2.NextProtoTLS}
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config, username, pass
 			return err
 		}
 
-		tlsConn := tls.Server(conn, tlsConf)
+		tlsConn := tls.Server(conn, cfg)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err = tlsConn.HandshakeContext(ctx)
 		cancel()

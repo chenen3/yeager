@@ -39,7 +39,8 @@ func canTakeRequest(cc *grpc.ClientConn) bool {
 const keepaliveInterval = 15 * time.Second
 
 // getConn tends to use existing client connections, dialing new ones if necessary.
-// To make the tunnel harder to detect, use as few connections as possible.
+// To mitigate the website fingerprinting via multiplexing in HTTP/2,
+// fewer connections will be better.
 func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	c.mu.Lock()
 	for i, cc := range c.conns {
