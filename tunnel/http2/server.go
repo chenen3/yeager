@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,15 +16,13 @@ import (
 	"golang.org/x/net/http2"
 )
 
-const idleTimeout = 10 * time.Minute
-
 type TunnelServer struct {
 	mu  sync.Mutex
 	lis net.Listener
 }
 
 // Serve blocks until closed, or error occurs.
-func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
+func (s *TunnelServer) Serve(address string, tlsConf *tls.Config, username, password string) error {
 	tlsConf.NextProtos = []string{http2.NextProtoTLS}
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -33,7 +32,11 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
-	h2s := &http2.Server{IdleTimeout: idleTimeout}
+	h2s := &http2.Server{IdleTimeout: 10 * time.Minute}
+	var h handler
+	if username != "" && password != "" {
+		h.auth = basicAuth(username, password)
+	}
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -54,16 +57,32 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 		}
 
 		go h2s.ServeConn(tlsConn, &http2.ServeConnOpts{
-			Handler: http.HandlerFunc(serveHTTP),
+			Handler: h,
 		})
 	}
 }
 
+type handler struct {
+	auth string
+}
+
 // works like HTTPS proxy server
-func serveHTTP(w http.ResponseWriter, r *http.Request) {
+func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Host == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+	if h.auth != "" {
+		pa := r.Header.Get("Proxy-Authorization")
+		if pa == "" {
+			// do not rely 407, which implys a proxy server
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if s := strings.Split(pa, " "); len(s)%2 != 0 || s[0] != "Basic" || s[1] != h.auth {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

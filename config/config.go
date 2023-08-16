@@ -35,8 +35,13 @@ func splitLine(s string) []string {
 }
 
 type TunnelServer struct {
-	Proto    string   `json:"proto"`
-	Address  string   `json:"address"`
+	Proto   string `json:"proto"`
+	Address string `json:"address"`
+
+	// not required when using mutual TLS
+	Username string `json:"username"`
+	Password string `json:"password"`
+
 	CertFile string   `json:"certFile,omitempty"`
 	CertPEM  []string `json:"certPEM,omitempty"`
 	KeyFile  string   `json:"keyFile,omitempty"`

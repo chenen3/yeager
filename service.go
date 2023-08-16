@@ -121,7 +121,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		case config.ProtoHTTP2:
 			var s http2.TunnelServer
 			go func() {
-				if err := s.Serve(tl.Address, tlsConf); err != nil {
+				if err := s.Serve(tl.Address, tlsConf, tl.Username, tl.Password); err != nil {
 					log.Printf("%s tunnel serve: %s", tl.Proto, err)
 				}
 			}()
@@ -167,20 +167,21 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 			return nil, fmt.Errorf("duplicated tunnel name: %s", name)
 		}
 
+		hasAuth := tc.Username != "" && tc.Password != ""
 		certPEM, err := tc.GetCertPEM()
-		if err != nil {
+		if err != nil && !hasAuth {
 			return nil, fmt.Errorf("read certificate: %s", err)
 		}
 		keyPEM, err := tc.GetKeyPEM()
-		if err != nil {
+		if err != nil && !hasAuth {
 			return nil, fmt.Errorf("read key: %s", err)
 		}
 		caPEM, err := tc.GetCAPEM()
-		if err != nil {
+		if err != nil && !hasAuth {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
 		tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
-		if err != nil {
+		if err != nil && !hasAuth {
 			log.Printf("certPEM: %s", certPEM)
 			return nil, fmt.Errorf("make tls conf: %s", err)
 		}
@@ -199,7 +200,7 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				return client.ConnNum()
 			}))
 		case config.ProtoHTTP2:
-			client := http2.NewTunnelClient(tc.Address, tlsConf)
+			client := http2.NewTunnelClient(tc.Address, tlsConf, tc.Username, tc.Password)
 			dialers[name] = client
 			connStats.Set(tc.Name, expvar.Func(func() any {
 				return client.ConnNum()
