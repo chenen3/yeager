@@ -11,33 +11,71 @@ import (
 	"net/url"
 	"time"
 
+	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
 )
 
 type TunnelClient struct {
 	addr     string
-	tlsConf  *tls.Config
 	client   *http.Client
 	username string
 	password string
 }
 
-func NewTunnelClient(addr string, tlsConf *tls.Config, username, password string) *TunnelClient {
+func makeUtlsConfig(t *tls.Config) *utls.Config {
+	u := &utls.Config{
+		ServerName: t.ServerName,
+		MinVersion: t.MinVersion,
+		RootCAs:    t.RootCAs,
+		// ClientSessionCache: if using only one http2 connection, then the cache may not needed
+	}
+	for _, cert := range t.Certificates {
+		ucert := utls.Certificate{
+			Certificate:                 cert.Certificate,
+			PrivateKey:                  cert.PrivateKey,
+			OCSPStaple:                  cert.OCSPStaple,
+			SignedCertificateTimestamps: cert.SignedCertificateTimestamps,
+			Leaf:                        cert.Leaf,
+		}
+		for _, sign := range cert.SupportedSignatureAlgorithms {
+			ucert.SupportedSignatureAlgorithms = append(ucert.SupportedSignatureAlgorithms, utls.SignatureScheme(sign))
+		}
+		u.Certificates = append(u.Certificates, ucert)
+	}
+	return u
+}
+
+func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *TunnelClient {
 	tc := &TunnelClient{
 		addr:     addr,
-		tlsConf:  tlsConf,
 		username: username,
 		password: password,
 	}
-	// To make the tunnel harder to detect, use as few connections as possible.
+
+	roller, err := utls.NewRoller()
+	if err != nil {
+		panic(err)
+	}
+
+	// mitigate website fingerprinting via multiplexing of HTTP/2 ,
+	// the fewer connections the better, so a single client is used here
 	tc.client = &http.Client{Transport: &http2.Transport{
-		TLSClientConfig: tlsConf,
-		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+		TLSClientConfig: cfg,
+		DialTLSContext: func(ctx context.Context, network, addr string, tlsCfg *tls.Config) (net.Conn, error) {
+			// utls Roller does not accept IP address as server name
+			if net.ParseIP(tlsCfg.ServerName) == nil {
+				return roller.Dial(network, addr, tlsCfg.ServerName)
+			}
+
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}
-			return tls.DialWithDialer(d, "tcp", addr, cfg)
+			conn, err := d.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			return utls.UClient(conn, makeUtlsConfig(tlsCfg), utls.HelloRandomized), nil
 		},
 		ReadIdleTimeout: 15 * time.Second,
 		PingTimeout:     2 * time.Second,

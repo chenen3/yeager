@@ -166,7 +166,7 @@ func MakeServerTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	}
 
 	conf := &tls.Config{
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{cert},
 		ClientCAs:    pool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
@@ -187,7 +187,7 @@ func MakeClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	}
 
 	conf := &tls.Config{
-		MinVersion:         tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS12,
 		ClientSessionCache: tls.NewLRUClientSessionCache(64),
 		Certificates:       []tls.Certificate{cert},
 		RootCAs:            pool,
