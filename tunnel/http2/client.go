@@ -83,11 +83,6 @@ func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *T
 	return tc
 }
 
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
-}
-
 // DialContext acts like a HTTPS proxy client
 func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
 	pr, pw := io.Pipe()
@@ -104,7 +99,8 @@ func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadW
 	}
 	req.Header.Set("User-Agent", "Chrome/115.0.0.0")
 	if c.username != "" && c.password != "" {
-		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(c.username, c.password))
+		req.Header.Set("Proxy-Authorization",
+			"Basic "+base64.StdEncoding.EncodeToString([]byte(c.username+":"+c.password)))
 	}
 
 	// the client return Responses from servers once

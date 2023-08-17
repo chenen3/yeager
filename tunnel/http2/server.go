@@ -2,7 +2,9 @@ package http2
 
 import (
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"io"
 	"log"
@@ -35,7 +37,10 @@ func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password
 	h2s := &http2.Server{IdleTimeout: 10 * time.Minute}
 	var h handler
 	if username != "" && password != "" {
-		h.auth = basicAuth(username, password)
+		auth := username + ":" + password
+		buf := make([]byte, base64.StdEncoding.EncodedLen(len(auth)))
+		base64.StdEncoding.Encode(buf, []byte(auth))
+		h.auth = buf
 	}
 	for {
 		conn, err := lis.Accept()
@@ -63,7 +68,7 @@ func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password
 }
 
 type handler struct {
-	auth string
+	auth []byte
 }
 
 // works like HTTPS proxy server
@@ -72,14 +77,12 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if h.auth != "" {
+	if len(h.auth) != 0 {
 		pa := r.Header.Get("Proxy-Authorization")
-		if pa == "" {
+		const prefix = "Basic "
+		if len(pa) <= len(prefix) || !strings.EqualFold(pa[:len(prefix)], prefix) ||
+			subtle.ConstantTimeCompare([]byte(pa[len(prefix):]), h.auth) != 1 {
 			// do not rely 407, which implys a proxy server
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if s := strings.Split(pa, " "); len(s)%2 != 0 || s[0] != "Basic" || s[1] != h.auth {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
