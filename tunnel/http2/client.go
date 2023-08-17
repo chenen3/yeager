@@ -45,6 +45,7 @@ func makeUtlsConfig(t *tls.Config) *utls.Config {
 	return u
 }
 
+// NewTunnelClient creates a client to issue CONNECT requests and tunnel traffic via HTTPS proxy.
 func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *TunnelClient {
 	tc := &TunnelClient{
 		addr:     addr,
@@ -83,7 +84,6 @@ func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *T
 	return tc
 }
 
-// DialContext acts like a HTTPS proxy client
 func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
@@ -107,24 +107,13 @@ func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadW
 	// the response headers have been received
 	resp, err := c.client.Do(req)
 	if err != nil {
-		req.Body.Close()
 		return nil, errors.New("http2 request: " + err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
-		req.Body.Close()
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
 	}
-
-	rwc := &readWriteCloser{
-		r: resp.Body,
-		w: pw,
-		onClose: func() {
-			req.Body.Close()
-			resp.Body.Close()
-		},
-	}
-	return rwc, nil
+	return &readWriteCloser{rc: resp.Body, wc: pw}, nil
 }
 
 func (c *TunnelClient) Close() error {
@@ -137,22 +126,23 @@ func (c *TunnelClient) ConnNum() int {
 }
 
 type readWriteCloser struct {
-	r       io.Reader
-	w       io.Writer
-	onClose func()
+	rc io.ReadCloser
+	wc *io.PipeWriter
 }
 
 func (rwc *readWriteCloser) Read(p []byte) (n int, err error) {
-	return rwc.r.Read(p)
+	return rwc.rc.Read(p)
 }
 
 func (rwc *readWriteCloser) Write(p []byte) (n int, err error) {
-	return rwc.w.Write(p)
+	return rwc.wc.Write(p)
 }
 
 func (rwc *readWriteCloser) Close() error {
-	if rwc.onClose != nil {
-		rwc.onClose()
+	werr := rwc.wc.Close()
+	rerr := rwc.rc.Close()
+	if werr != nil {
+		return werr
 	}
-	return nil
+	return rerr
 }
