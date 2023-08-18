@@ -31,13 +31,13 @@ func init() {
 
 var example = `
 Example:
-  yeager -config /usr/local/etc/yeager/config.json
+  yeager -config config.json
     	run service
 
   yeager -version
     	print version number
 
-  yeager -genconf [-ip 1.2.3.4] [-cliconf client.json] [-srvconf config.json]
+  yeager -genconf [-ip 127.0.0.1] [-client client.json] [-server config.json]
     	generate a pair of configuration for server and client
 `
 

@@ -14,8 +14,8 @@ wget https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd
 tar -xzvf yeager-linux-amd64.tar.gz
 cp yeager /usr/local/bin/yeager
 mkdir -p /usr/local/etc/yeager
-/usr/local/bin/yeager -genconf -srvconf /usr/local/etc/yeager/config.json \
-	-cliconf /usr/local/etc/yeager/client.json
+/usr/local/bin/yeager -genconf -server /usr/local/etc/yeager/config.json \
+	-client /usr/local/etc/yeager/client.json
 
 # run service
 cat >> /etc/systemd/system/yeager.service << EOF
