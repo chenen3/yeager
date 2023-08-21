@@ -113,7 +113,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadW
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
 	}
-	return &readWriteCloser{rc: resp.Body, wc: pw}, nil
+	return &stream{rc: resp.Body, wc: pw}, nil
 }
 
 func (c *TunnelClient) Close() error {
@@ -125,22 +125,22 @@ func (c *TunnelClient) ConnNum() int {
 	return -1
 }
 
-type readWriteCloser struct {
+type stream struct {
 	rc io.ReadCloser
 	wc *io.PipeWriter
 }
 
-func (rwc *readWriteCloser) Read(p []byte) (n int, err error) {
-	return rwc.rc.Read(p)
+func (s *stream) Read(p []byte) (n int, err error) {
+	return s.rc.Read(p)
 }
 
-func (rwc *readWriteCloser) Write(p []byte) (n int, err error) {
-	return rwc.wc.Write(p)
+func (s *stream) Write(p []byte) (n int, err error) {
+	return s.wc.Write(p)
 }
 
-func (rwc *readWriteCloser) Close() error {
-	werr := rwc.wc.Close()
-	rerr := rwc.rc.Close()
+func (s *stream) Close() error {
+	werr := s.wc.Close()
+	rerr := s.rc.Close()
 	if werr != nil {
 		return werr
 	}
