@@ -1,8 +1,5 @@
 package quic
 
-// TODO: Considering the usage scenario of this project,
-// UDP transmission is a bad choice, deprecate this package
-
 import (
 	"context"
 	"crypto/tls"
@@ -12,45 +9,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
-	"github.com/chenen3/yeager/tunnel"
 	"github.com/quic-go/quic-go"
 )
 
 type TunnelClient struct {
-	addr   string
-	conf   *tls.Config
-	mu     sync.RWMutex // guards conns
-	conns  map[string]quic.Connection
-	ticker *time.Ticker
+	addr  string
+	conf  *tls.Config
+	mu    sync.Mutex
+	conns []quic.Connection
 }
 
 func NewTunnelClient(addr string, tlsConf *tls.Config) *TunnelClient {
 	tlsConf.NextProtos = []string{"quic"}
 	host, _, _ := net.SplitHostPort(addr)
 	tlsConf.ServerName = host
-	c := &TunnelClient{
-		addr:   addr,
-		conf:   tlsConf,
-		ticker: time.NewTicker(time.Minute),
-		conns:  make(map[string]quic.Connection),
-	}
-	go c.sweep()
-	return c
-}
-
-// sweep periodically clears connections closed due to idle timeout
-func (c *TunnelClient) sweep() {
-	for range c.ticker.C {
-		c.mu.Lock()
-		for key, conn := range c.conns {
-			if isClosed(conn) {
-				delete(c.conns, key)
-				debug.Printf("clear idle conn %s", key)
-			}
-		}
-		c.mu.Unlock()
+	return &TunnelClient{
+		addr: addr,
+		conf: tlsConf,
 	}
 }
 
@@ -63,32 +39,33 @@ func isClosed(conn quic.Connection) bool {
 	}
 }
 
+// TODO: if the number of outgoing streams exceeds MaxIncomingStreams,
+// issue new connection (see previous implementation)
 func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection, error) {
-	c.mu.RLock()
-	conn, ok := c.conns[key]
-	c.mu.RUnlock()
-	if ok && !isClosed(conn) {
-		return conn, nil
+	c.mu.Lock()
+	for i, conn := range c.conns {
+		if !isClosed(conn) {
+			c.conns = c.conns[i:]
+			c.mu.Unlock()
+			return conn, nil
+		}
 	}
+	c.mu.Unlock()
 
-	newconn, err := quic.DialAddr(ctx, c.addr, c.conf, &quic.Config{
+	conn, err := quic.DialAddr(ctx, c.addr, c.conf, &quic.Config{
 		HandshakeIdleTimeout: ynet.HandshakeTimeout,
 		MaxIdleTimeout:       idleTimeout,
+		KeepAlivePeriod:      15 * time.Second,
+		EnableDatagrams:      true,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if cc, ok := c.conns[key]; ok && !isClosed(cc) {
-		// other goroutine has set up new connection
-		newconn.CloseWithError(0, "")
-		return cc, nil
-	}
-
-	c.conns[key] = newconn
-	return newconn, nil
+	c.conns = append(c.conns, conn)
+	c.mu.Unlock()
+	return conn, nil
 }
 
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
@@ -100,35 +77,29 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
-	sw := wrapStream(stream)
-	// FIXME: very obvious behavior, make it easy to detect
-	if err := tunnel.WriteHeader(sw, dst); err != nil {
-		sw.Close()
+	m := metadata{Hostport: dst}
+	if _, err := m.WriteTo(stream); err != nil {
 		return nil, err
 	}
-	return sw, nil
+	return wrapStream(stream), nil
 }
 
 func (c *TunnelClient) ConnNum() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return len(c.conns)
 }
 
 func (c *TunnelClient) Close() error {
-	if c.ticker != nil {
-		c.ticker.Stop()
-	}
-	var err error
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	var err error
 	for _, conn := range c.conns {
 		e := conn.CloseWithError(0, "")
 		if e != nil && err == nil {
 			err = e
 		}
 	}
-	c.conns = nil
 	return err
 }
 
@@ -136,7 +107,7 @@ type streamWrapper struct {
 	quic.Stream
 }
 
-// wrap the stream with modified method Close
+// wrap the stream with modified Close method
 func wrapStream(stream quic.Stream) *streamWrapper {
 	return &streamWrapper{
 		Stream: stream,
@@ -147,4 +118,39 @@ func (s *streamWrapper) Close() error {
 	// stop receiving on this stream since quic.Stream.Close() does not handle this
 	s.CancelRead(0)
 	return s.Stream.Close()
+}
+
+type metadata struct {
+	Hostport string
+}
+
+// [length, payload...]
+func (m *metadata) Bytes() []byte {
+	size := len(m.Hostport)
+	bs := make([]byte, 0, size+1)
+	bs = append(bs, byte(size))
+	bs = append(bs, []byte(m.Hostport)...)
+	return bs
+}
+
+func (m *metadata) WriteTo(w io.Writer) (int64, error) {
+	n, err := w.Write(m.Bytes())
+	return int64(n), err
+}
+
+func (m *metadata) ReadFrom(r io.Reader) (int64, error) {
+	var b [1]byte
+	ns, err := io.ReadFull(r, b[:])
+	if err != nil {
+		return int64(ns), err
+	}
+
+	size := int(b[0])
+	bs := make([]byte, size)
+	n, err := io.ReadFull(r, bs)
+	if err != nil {
+		return int64(n), err
+	}
+	m.Hostport = string(bs)
+	return int64(ns + n), nil
 }

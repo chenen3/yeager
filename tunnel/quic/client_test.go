@@ -46,6 +46,7 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 }
 
 func TestTunnel(t *testing.T) {
+	log.Printf("len: %d", len("127.0.0.1:443"))
 	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)
@@ -78,6 +79,9 @@ func TestTunnel(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
+
+// metadata WriteTo 818 B/op 27 allocs/op
+//tunnel WriteHeader 811 B/op	      27 allocs/op
 
 func BenchmarkThroughput(b *testing.B) {
 	echo, err := ynet.StartEchoServer()

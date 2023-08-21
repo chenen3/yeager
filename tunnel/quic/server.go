@@ -10,7 +10,6 @@ import (
 	"time"
 
 	ynet "github.com/chenen3/yeager/net"
-	"github.com/chenen3/yeager/tunnel"
 	"github.com/quic-go/quic-go"
 )
 
@@ -31,7 +30,10 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 		return errors.New("TLS config required")
 	}
 	tlsConf.NextProtos = append(tlsConf.NextProtos, "quic")
-	conf := &quic.Config{MaxIdleTimeout: idleTimeout}
+	conf := &quic.Config{
+		MaxIdleTimeout:  idleTimeout,
+		EnableDatagrams: true,
+	}
 	lis, err := quic.ListenAddr(address, tlsConf, conf)
 	if err != nil {
 		return err
@@ -73,15 +75,20 @@ func handleConn(conn quic.Connection) {
 
 func handleStream(stream quic.Stream) {
 	defer stream.Close()
-	stream.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
-	dst, err := tunnel.ReadHeader(stream)
-	if err != nil {
-		log.Printf("read header: %s", err)
+	stream.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var m metadata
+	if _, err := m.ReadFrom(stream); err != nil {
+		log.Println(err)
 		return
 	}
+	if m.Hostport == "" {
+		log.Println("empty target")
+		return
+	}
+	target := m.Hostport
 	stream.SetReadDeadline(time.Time{})
 
-	remote, err := net.DialTimeout("tcp", dst, ynet.DialTimeout)
+	remote, err := net.DialTimeout("tcp", target, ynet.DialTimeout)
 	if err != nil {
 		log.Print(err)
 		return
@@ -93,7 +100,7 @@ func handleStream(stream quic.Stream) {
 		if e, ok := err.(*quic.ApplicationError); ok && e.ErrorCode == 0 {
 			return
 		}
-		log.Printf("relay %s: %s", dst, err)
+		log.Printf("relay %s: %s", target, err)
 	}
 }
 
