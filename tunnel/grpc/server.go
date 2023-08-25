@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/forward"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -56,13 +56,13 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	target := v[0]
 
-	remote, err := net.DialTimeout("tcp", target, ynet.DialTimeout)
+	remote, err := net.DialTimeout("tcp", target, 5*time.Second)
 	if err != nil {
 		return err
 	}
 	defer remote.Close()
 
-	err = ynet.Relay(wrapServerStream(stream), remote)
+	err = forward.Dual(toReadWriter(stream), remote)
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return nil
@@ -86,15 +86,13 @@ func (s *TunnelServer) Close() error {
 	return nil
 }
 
-var _ io.ReadWriter = (*serverStreamWrapper)(nil)
-
 type serverStreamWrapper struct {
 	stream pb.Tunnel_StreamServer
 	buf    []byte
 }
 
-// wraps server stream as io.ReadWriter
-func wrapServerStream(stream pb.Tunnel_StreamServer) *serverStreamWrapper {
+// convert server stream to io.ReadWriter
+func toReadWriter(stream pb.Tunnel_StreamServer) io.ReadWriter {
 	return &serverStreamWrapper{stream: stream}
 }
 

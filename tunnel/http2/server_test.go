@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/cert"
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/echo"
 )
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {
@@ -45,11 +45,8 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 }
 
 func TestH2Tunnel(t *testing.T) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer echo.Close()
+	e := echo.NewServer()
+	defer e.Close()
 	ts, tc, err := startTunnel()
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +56,7 @@ func TestH2Tunnel(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	rwc, err := tc.DialContext(ctx, e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,11 +80,8 @@ func TestH2Tunnel(t *testing.T) {
 }
 
 func TestAuth(t *testing.T) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer echo.Close()
+	es := echo.NewServer()
+	defer es.Close()
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -120,7 +114,7 @@ func TestAuth(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,11 +138,8 @@ func TestAuth(t *testing.T) {
 }
 
 func TestBadAuth(t *testing.T) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer echo.Close()
+	es := echo.NewServer()
+	defer es.Close()
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -181,7 +172,7 @@ func TestBadAuth(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, err = tc.DialContext(ctx, echo.Listener.Addr().String())
+	_, err = tc.DialContext(ctx, es.Listener.Addr().String())
 	if err == nil {
 		t.Fatalf("expected error for mismatch auth")
 	}
@@ -189,18 +180,15 @@ func TestBadAuth(t *testing.T) {
 	tc2 := NewTunnelClient(lis.Addr().String(), cliTLSConf, "", "")
 	defer tc2.Close()
 	time.Sleep(time.Millisecond * 100)
-	_, err = tc2.DialContext(ctx, echo.Listener.Addr().String())
+	_, err = tc2.DialContext(ctx, es.Listener.Addr().String())
 	if err == nil {
 		t.Fatalf("expected error for empty auth")
 	}
 }
 
 func BenchmarkThroughput(b *testing.B) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer echo.Close()
+	es := echo.NewServer()
+	defer es.Close()
 
 	ts, tc, err := startTunnel()
 	if err != nil {
@@ -213,7 +201,7 @@ func BenchmarkThroughput(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}

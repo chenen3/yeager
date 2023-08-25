@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -14,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/forward"
 	"golang.org/x/net/http2"
 )
 
@@ -102,12 +101,11 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer remote.Close()
 	go func() {
-		ynet.Copy(remote, r.Body)
+		forward.Copy(remote, r.Body)
 		remote.Close()
 	}()
-	// do not write response body in other goroutine, because calling
-	// http2.responseWriter.Flush() after Handler finished may panic
-	ynet.Copy(&flushWriter{w}, remote)
+	// after Handler finished, calling http2.responseWriter.Flush() may panic
+	forward.Copy(&flushWriter{w}, remote)
 }
 
 func (s *TunnelServer) Close() error {
@@ -129,17 +127,4 @@ func (w *flushWriter) Write(b []byte) (int, error) {
 		f.Flush()
 	}
 	return n, err
-}
-
-type readwriter struct {
-	r io.Reader
-	w io.Writer
-}
-
-func (rw *readwriter) Read(p []byte) (int, error) {
-	return rw.r.Read(p)
-}
-
-func (rw *readwriter) Write(p []byte) (int, error) {
-	return rw.w.Write(p)
 }

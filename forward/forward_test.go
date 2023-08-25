@@ -1,4 +1,4 @@
-package net
+package forward
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 	"testing"
+
+	"github.com/chenen3/yeager/echo"
 )
 
 func TestCopyBufferPool(t *testing.T) {
@@ -29,10 +31,7 @@ type writerOnly struct {
 }
 
 func BenchmarkCopyBuffer(b *testing.B) {
-	e, err := StartEchoServer()
-	if err != nil {
-		b.Fatal(err)
-	}
+	e := echo.NewServer()
 	defer e.Close()
 
 	conn, err := net.Dial("tcp", e.Listener.Addr().String())
@@ -65,10 +64,7 @@ func BenchmarkCopyBuffer(b *testing.B) {
 }
 
 func BenchmarkCopyAdapted(b *testing.B) {
-	e, err := StartEchoServer()
-	if err != nil {
-		b.Fatal(err)
-	}
+	e := echo.NewServer()
 	defer e.Close()
 
 	// testing with network connection is closer to the actual scenario

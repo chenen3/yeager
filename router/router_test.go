@@ -1,8 +1,8 @@
-package rule
+package router
 
 import "testing"
 
-func TestRulesMatch(t *testing.T) {
+func TestRouter(t *testing.T) {
 	type fields struct {
 		rules []string
 	}
@@ -73,7 +73,7 @@ func TestRulesMatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := Parse(tt.fields.rules)
+			r, err := New(tt.fields.rules)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("want no error, got error: %v", err)

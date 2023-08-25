@@ -1,5 +1,4 @@
-package rule
-// TODO: rename the package to route
+package router
 
 import (
 	"errors"
@@ -8,14 +7,13 @@ import (
 	"strings"
 )
 
-// rule type
 const (
-	domain        = "domain"         // 域名
-	domainSuffix  = "domain-suffix"  // 根域名
-	domainKeyword = "domain-keyword" // 域名关键字
-	geoSite       = "geosite"        // 预定义域名集合
-	ipCIDR        = "ip-cidr"        // 无类别域间路由
-	final         = "final"          // 最终规则
+	domainRule        = "domain"         // 域名
+	domainSuffixRule  = "domain-suffix"  // 根域名
+	domainKeywordRule = "domain-keyword" // 域名关键字
+	geoSiteRule       = "geosite"        // 预定义域名集合
+	ipCIDRRule        = "ip-cidr"        // 无类别域间路由
+	finalRule         = "final"          // 最终规则
 
 	// size of geoip.dat was only 4MB, but now downloading from upstream
 	// it is 46MB. While yeager startup with it, the memory usage raise
@@ -24,10 +22,12 @@ const (
 	// ruleGeoIP = "geoip" // 预定义IP集合
 )
 
-// built-in proxy policy
+// built-in route
 const (
-	Direct = "direct"
-	Reject = "reject"
+	DirectRoute = "direct"
+	RejectRoute = "reject"
+
+	DefaultRoute = DirectRoute
 )
 
 type rule struct {
@@ -39,25 +39,25 @@ type rule struct {
 func newRule(kind string, value string, route string) (*rule, error) {
 	var m matcher
 	switch strings.ToLower(kind) {
-	case domain:
+	case domainRule:
 		m = domainMatcher(value)
-	case domainSuffix:
+	case domainSuffixRule:
 		m = domainSuffixMatcher(value)
-	case domainKeyword:
+	case domainKeywordRule:
 		m = domainKeywordMatcher(value)
-	case geoSite:
+	case geoSiteRule:
 		gm, err := newGeoSiteMatcher(value)
 		if err != nil {
 			return nil, err
 		}
 		m = gm
-	case ipCIDR:
+	case ipCIDRRule:
 		cm, err := newCIDRMatcher(value)
 		if err != nil {
 			return nil, err
 		}
 		m = cm
-	case final:
+	case finalRule:
 		m = finalMatcher{}
 	default:
 		return nil, errors.New("unsupported rule type: " + kind)
@@ -79,7 +79,7 @@ func parseRule(rule string) (*rule, error) {
 	switch len(parts) {
 	case 2:
 		rtype := parts[0]
-		if !strings.EqualFold(rtype, final) {
+		if !strings.EqualFold(rtype, finalRule) {
 			return nil, errors.New("invalid final rule: " + rule)
 		}
 		return newRule(rtype, "", parts[1])
@@ -116,9 +116,9 @@ func parseHost(s string) (host, error) {
 	return h, nil
 }
 
-type Rules []*rule
+type Router []*rule
 
-func Parse(rules []string) (Rules, error) {
+func New(rules []string) (Router, error) {
 	if len(rules) == 0 {
 		return nil, errors.New("empty rules")
 	}
@@ -129,7 +129,7 @@ func Parse(rules []string) (Rules, error) {
 		if err != nil {
 			return nil, err
 		}
-		if ru.kind == final && i != len(rules)-1 {
+		if ru.kind == finalRule && i != len(rules)-1 {
 			return nil, errors.New("final rule must be placed at last")
 		}
 		parsed[i] = ru
@@ -142,7 +142,7 @@ func Parse(rules []string) (Rules, error) {
 	return parsed, nil
 }
 
-func (rs Rules) Match(host string) (route string, err error) {
+func (r Router) Match(host string) (route string, err error) {
 	h, err := parseHost(host)
 	if err != nil {
 		return "", err
@@ -150,21 +150,21 @@ func (rs Rules) Match(host string) (route string, err error) {
 
 	// did consider using cache to speed up the matching,
 	// but here is not the performance bottleneck
-	for _, r := range rs {
+	for _, rule := range r {
 		// do not dive deep if the rule type is not match
-		switch r.kind {
-		case domain, domainSuffix, domainKeyword, geoSite:
+		switch rule.kind {
+		case domainRule, domainSuffixRule, domainKeywordRule, geoSiteRule:
 			if h.Domain == "" {
 				continue
 			}
-		case ipCIDR:
+		case ipCIDRRule:
 			if h.IP == nil {
 				continue
 			}
 		}
-		if r.Match(h) {
-			return r.route, nil
+		if rule.Match(h) {
+			return rule.route, nil
 		}
 	}
-	return Direct, nil
+	return DefaultRoute, nil
 }

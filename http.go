@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/forward"
 	"github.com/chenen3/yeager/tunnel"
 )
 
@@ -60,7 +60,7 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
-	conn.SetDeadline(time.Now().Add(ynet.HandshakeTimeout))
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	dst, httpReq, err := handshake(conn)
 	if err != nil {
 		slog.Error(err.Error())
@@ -68,7 +68,8 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	}
 	conn.SetDeadline(time.Time{})
 
-	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	remote, err := d.DialContext(ctx, dst)
 	if err != nil {
@@ -84,13 +85,12 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 		}
 	}
 
-	start := time.Now()
-	err = ynet.Relay(conn, remote)
+	err = forward.Dual(conn, remote)
 	if err != nil && !canIgnore(err) {
 		slog.Error(err.Error(), "addr", dst)
 		return
 	}
-	slog.Debug("done", "addr", dst, "timed", time.Since(start))
+	slog.Debug("forwarded "+dst, "timed", time.Since(start))
 }
 
 func (s *httpProxy) trackConn(c net.Conn, add bool) {

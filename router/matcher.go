@@ -1,4 +1,4 @@
-package rule
+package router
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/chenen3/yeager/rule/pb"
+	"github.com/chenen3/yeager/router/pb"
 	"google.golang.org/protobuf/proto"
 )
 

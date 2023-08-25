@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/cert"
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/echo"
 )
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {
@@ -44,11 +44,8 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 }
 
 func TestTunnel(t *testing.T) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer echo.Close()
+	e := echo.NewServer()
+	defer e.Close()
 
 	ts, tc, err := startTunnel()
 	if err != nil {
@@ -61,7 +58,7 @@ func TestTunnel(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	rwc, err := tc.DialContext(ctx, e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,10 +77,7 @@ func TestTunnel(t *testing.T) {
 }
 
 func BenchmarkThroughput(b *testing.B) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		b.Fatal(err)
-	}
+	echo := echo.NewServer()
 	defer echo.Close()
 
 	ts, tc, err := startTunnel()

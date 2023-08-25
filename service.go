@@ -12,7 +12,7 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/rule"
+	"github.com/chenen3/yeager/router"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/http2"
@@ -139,21 +139,21 @@ func CloseAll(closers []io.Closer) {
 	}
 }
 
-// Tunneler integrates tunnel dialers with rules
+// Tunneler integrates tunnel dialers with router
 type Tunneler struct {
 	dialers map[string]tunnel.Dialer
-	rules   rule.Rules
+	router  router.Router
 }
 
 // NewTunneler creates a new Tunneler for client side proxy
 func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, error) {
 	var t Tunneler
 	if len(rules) > 0 {
-		r, err := rule.Parse(rules)
+		r, err := router.New(rules)
 		if err != nil {
 			return nil, err
 		}
-		t.rules = r
+		t.router = r
 	}
 
 	dialers := make(map[string]tunnel.Dialer)
@@ -215,13 +215,13 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 
 // DialContext connects to host:port target directly or through a tunnel, determined by the routing
 func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadWriteCloser, err error) {
-	route := rule.Direct
-	if t.rules != nil {
+	route := router.DefaultRoute
+	if t.router != nil {
 		host, _, err := net.SplitHostPort(target)
 		if err != nil {
 			return nil, err
 		}
-		r, e := t.rules.Match(host)
+		r, e := t.router.Match(host)
 		if e != nil {
 			return nil, e
 		}
@@ -229,9 +229,9 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 	}
 
 	switch route {
-	case rule.Reject:
+	case router.RejectRoute:
 		return nil, errors.New("route rejected")
-	case rule.Direct:
+	case router.DirectRoute:
 		slog.Debug("connect " + target)
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", target)

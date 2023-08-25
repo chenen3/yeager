@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/forward"
 	"github.com/chenen3/yeager/tunnel"
 )
 
@@ -59,30 +59,30 @@ func (s *socksServer) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(ynet.HandshakeTimeout))
-	dst, err := socksHandshake(conn)
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	addr, err := socksHandshake(conn)
 	if err != nil {
 		slog.Error("handshake: " + err.Error())
 		return
 	}
 	conn.SetReadDeadline(time.Time{})
 
-	ctx, cancel := context.WithTimeout(context.Background(), ynet.DialTimeout)
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	remote, err := d.DialContext(ctx, dst)
+	remote, err := d.DialContext(ctx, addr)
 	if err != nil {
-		slog.Error(fmt.Sprintf("connect %s: %s", dst, err))
+		slog.Error(fmt.Sprintf("connect %s: %s", addr, err))
 		return
 	}
 	defer remote.Close()
 
-	start := time.Now()
-	err = ynet.Relay(conn, remote)
+	err = forward.Dual(conn, remote)
 	if err != nil && !canIgnore(err) {
-		slog.Error(err.Error(), "addr", dst)
+		slog.Error(err.Error(), "addr", addr)
 		return
 	}
-	slog.Debug("close "+dst, "timed", time.Since(start))
+	slog.Debug("forwarded "+addr, "timed", time.Since(start))
 }
 
 func canIgnore(err error) bool {

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/forward"
 	"github.com/quic-go/quic-go"
 )
 
@@ -88,14 +88,14 @@ func handleStream(stream quic.Stream) {
 	target := m.Hostport
 	stream.SetReadDeadline(time.Time{})
 
-	remote, err := net.DialTimeout("tcp", target, ynet.DialTimeout)
+	remote, err := net.DialTimeout("tcp", target, 5*time.Second)
 	if err != nil {
 		slog.Error(err.Error())
 		return
 	}
 	defer remote.Close()
 
-	err = ynet.Relay(stream, remote)
+	err = forward.Dual(stream, remote)
 	if err != nil {
 		if e, ok := err.(*quic.ApplicationError); ok && e.ErrorCode == 0 {
 			return

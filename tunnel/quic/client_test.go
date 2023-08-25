@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/cert"
-	ynet "github.com/chenen3/yeager/net"
+	"github.com/chenen3/yeager/echo"
 )
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {
@@ -46,11 +46,8 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 }
 
 func TestTunnel(t *testing.T) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer echo.Close()
+	es := echo.NewServer()
+	defer es.Close()
 	ts, tc, err := startTunnel()
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +57,7 @@ func TestTunnel(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,15 +76,9 @@ func TestTunnel(t *testing.T) {
 	}
 }
 
-// metadata WriteTo 818 B/op 27 allocs/op
-//tunnel WriteHeader 811 B/op	      27 allocs/op
-
 func BenchmarkThroughput(b *testing.B) {
-	echo, err := ynet.StartEchoServer()
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer echo.Close()
+	es := echo.NewServer()
+	defer es.Close()
 	ts, tc, err := startTunnel()
 	if err != nil {
 		b.Fatal(err)
@@ -97,7 +88,7 @@ func BenchmarkThroughput(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}

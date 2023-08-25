@@ -186,7 +186,7 @@ func main() {
 
 	if conf.Debug {
 		go func() {
-			err := http.ListenAndServe("localhost:6060", nil)
+			err = http.ListenAndServe("localhost:6060", nil)
 			if err != http.ErrServerClosed {
 				slog.Warn("start debug server", "err", err)
 			}

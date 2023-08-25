@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	ynet "github.com/chenen3/yeager/net"
 	"github.com/quic-go/quic-go"
 )
 
@@ -53,7 +52,7 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 	c.mu.Unlock()
 
 	conn, err := quic.DialAddr(ctx, c.addr, c.conf, &quic.Config{
-		HandshakeIdleTimeout: ynet.HandshakeTimeout,
+		HandshakeIdleTimeout: 5 * time.Second,
 		MaxIdleTimeout:       idleTimeout,
 		KeepAlivePeriod:      15 * time.Second,
 		EnableDatagrams:      true,
