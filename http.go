@@ -7,14 +7,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/debug"
 	ynet "github.com/chenen3/yeager/net"
 	"github.com/chenen3/yeager/tunnel"
 )
@@ -64,7 +63,7 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	conn.SetDeadline(time.Now().Add(ynet.HandshakeTimeout))
 	dst, httpReq, err := handshake(conn)
 	if err != nil {
-		log.Printf("handshake: %s", err)
+		slog.Error(err.Error())
 		return
 	}
 	conn.SetDeadline(time.Time{})
@@ -73,14 +72,14 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	defer cancel()
 	remote, err := d.DialContext(ctx, dst)
 	if err != nil {
-		log.Printf("dial %s: %s", dst, err)
+		slog.Error(fmt.Sprintf("connect %s: %s", dst, err))
 		return
 	}
 	defer remote.Close()
 
 	if httpReq != nil {
 		if err = httpReq.Write(remote); err != nil {
-			log.Print(err)
+			slog.Error(err.Error())
 			return
 		}
 	}
@@ -88,10 +87,10 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	start := time.Now()
 	err = ynet.Relay(conn, remote)
 	if err != nil && !canIgnore(err) {
-		log.Printf("relay %s: %s", dst, err)
+		slog.Error(err.Error(), "addr", dst)
 		return
 	}
-	debug.Printf("done %s, timed %0.0fs", dst, time.Since(start).Seconds())
+	slog.Debug("done", "addr", dst, "timed", time.Since(start))
 }
 
 func (s *httpProxy) trackConn(c net.Conn, add bool) {

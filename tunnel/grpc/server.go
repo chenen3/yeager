@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -70,7 +70,7 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 		if s, ok := status.FromError(err); ok && s.Code() == codes.Canceled {
 			return nil
 		}
-		log.Printf("relay %s: %s", target, err)
+		slog.Error(err.Error(), "addr", target)
 	}
 	return nil
 }

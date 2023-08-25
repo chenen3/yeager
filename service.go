@@ -6,13 +6,12 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/debug"
 	"github.com/chenen3/yeager/rule"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
@@ -46,9 +45,9 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}
 		hs := newHTTPProxy()
 		go func() {
-			log.Printf("http proxy listening %s", conf.ListenHTTP)
+			slog.Info("listening http " + conf.ListenHTTP)
 			if err := hs.Serve(lis, tunneler); err != nil {
-				log.Printf("failed to serve http proxy: %s", err)
+				slog.Error("failed to serve http proxy: " + err.Error())
 			}
 		}()
 		closers = append(closers, hs)
@@ -67,9 +66,9 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}
 		ss := newSOCKServer()
 		go func() {
-			log.Printf("socks proxy listening %s", conf.ListenSOCKS)
+			slog.Info("listening socks " + conf.ListenSOCKS)
 			if err := ss.Serve(lis, tunneler); err != nil {
-				log.Printf("failed to serve socks proxy: %s", err)
+				slog.Error("failed to serve socks proxy: " + err.Error())
 			}
 		}()
 		closers = append(closers, ss)
@@ -106,7 +105,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			var s grpc.TunnelServer
 			go func() {
 				if err := s.Serve(lis, tlsConf); err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Proto, err)
+					slog.Error("start tunnel: "+err.Error(), "proto", tl.Proto)
 				}
 			}()
 			closers = append(closers, &s)
@@ -114,7 +113,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			var s quic.TunnelServer
 			go func() {
 				if err := s.Serve(tl.Address, tlsConf); err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Proto, err)
+					slog.Error("start tunnel: "+err.Error(), "proto", tl.Proto)
 				}
 			}()
 			closers = append(closers, &s)
@@ -122,12 +121,12 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			var s http2.TunnelServer
 			go func() {
 				if err := s.Serve(tl.Address, tlsConf, tl.Username, tl.Password); err != nil {
-					log.Printf("%s tunnel serve: %s", tl.Proto, err)
+					slog.Error("start tunnel: "+err.Error(), "proto", tl.Proto)
 				}
 			}()
 			closers = append(closers, &s)
 		}
-		log.Printf("listening %s %s", tl.Proto, tl.Address)
+		slog.Info(fmt.Sprintf("listening %s %s", tl.Proto, tl.Address))
 	}
 	return closers, nil
 }
@@ -135,7 +134,7 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 func CloseAll(closers []io.Closer) {
 	for _, c := range closers {
 		if err := c.Close(); err != nil {
-			log.Printf("failed to close: %s", err)
+			slog.Error("failed to close: " + err.Error())
 		}
 	}
 }
@@ -182,7 +181,6 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 		}
 		tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
 		if err != nil && !hasAuth {
-			log.Printf("certPEM: %s", certPEM)
 			return nil, fmt.Errorf("make tls conf: %s", err)
 		}
 
@@ -206,10 +204,10 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 				return client.ConnNum()
 			}))
 		default:
-			log.Printf("ignore unsupported %s tunnel: %s", tc.Proto, tc.Name)
+			slog.Warn("ignore unsupported tunnel", "route", tc.Name, "proto", tc.Proto)
 			continue
 		}
-		log.Printf("%s targeting %s tunnel %s", tc.Name, tc.Proto, tc.Address)
+		slog.Info(fmt.Sprintf("route %s: %s %s", tc.Name, tc.Proto, tc.Address))
 	}
 	t.dialers = dialers
 	return &t, nil
@@ -217,32 +215,32 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 
 // DialContext connects to host:port target directly or through a tunnel, determined by the routing
 func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadWriteCloser, err error) {
-	policy := rule.Direct
+	route := rule.Direct
 	if t.rules != nil {
 		host, _, err := net.SplitHostPort(target)
 		if err != nil {
 			return nil, err
 		}
-		p, e := t.rules.Match(host)
+		r, e := t.rules.Match(host)
 		if e != nil {
 			return nil, e
 		}
-		policy = p
+		route = r
 	}
 
-	switch policy {
+	switch route {
 	case rule.Reject:
-		return nil, errors.New("rejected by rules")
+		return nil, errors.New("route rejected")
 	case rule.Direct:
-		debug.Printf("connect %s", target)
+		slog.Debug("connect " + target)
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", target)
 	default:
-		d, ok := t.dialers[policy]
+		d, ok := t.dialers[route]
 		if !ok {
-			return nil, fmt.Errorf("unknown proxy policy: %s", policy)
+			return nil, fmt.Errorf("unknown proxy policy: %s", route)
 		}
-		debug.Printf("connect %s via %s", target, policy)
+		slog.Debug(fmt.Sprintf("route %s to %s", target, route))
 		return d.DialContext(ctx, target)
 	}
 }

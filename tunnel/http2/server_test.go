@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -12,10 +12,6 @@ import (
 	"github.com/chenen3/yeager/cert"
 	ynet "github.com/chenen3/yeager/net"
 )
-
-func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-}
 
 func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -36,7 +32,7 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	ts := new(TunnelServer)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, "", ""); e != nil {
-			log.Print(e)
+			slog.Error(e.Error())
 		}
 	}()
 
@@ -110,7 +106,7 @@ func TestAuth(t *testing.T) {
 	ts := new(TunnelServer)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
-			log.Print(e)
+			slog.Error(e.Error())
 		}
 	}()
 	defer ts.Close()
@@ -171,7 +167,7 @@ func TestBadAuth(t *testing.T) {
 	ts := new(TunnelServer)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
-			log.Print(e)
+			slog.Error(e.Error())
 		}
 	}()
 	defer ts.Close()

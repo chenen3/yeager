@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -60,7 +60,7 @@ func handleConn(conn quic.Connection) {
 		stream, err := conn.AcceptStream(context.Background())
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
-				log.Printf("accept quic stream: %s", err)
+				slog.Error("accept quic stream: " + err.Error())
 			}
 			return
 		}
@@ -78,11 +78,11 @@ func handleStream(stream quic.Stream) {
 	stream.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var m metadata
 	if _, err := m.ReadFrom(stream); err != nil {
-		log.Println(err)
+		slog.Error(err.Error())
 		return
 	}
 	if m.Hostport == "" {
-		log.Println("empty target")
+		slog.Error("empty target")
 		return
 	}
 	target := m.Hostport
@@ -90,7 +90,7 @@ func handleStream(stream quic.Stream) {
 
 	remote, err := net.DialTimeout("tcp", target, ynet.DialTimeout)
 	if err != nil {
-		log.Print(err)
+		slog.Error(err.Error())
 		return
 	}
 	defer remote.Close()
@@ -100,7 +100,7 @@ func handleStream(stream quic.Stream) {
 		if e, ok := err.(*quic.ApplicationError); ok && e.ErrorCode == 0 {
 			return
 		}
-		log.Printf("relay %s: %s", target, err)
+		slog.Error(err.Error(), "addr", target)
 	}
 }
 

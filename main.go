@@ -6,27 +6,43 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/debug"
 )
 
 var version string // set by build -ldflags
 
+func replace(groups []string, a slog.Attr) slog.Attr {
+	// Remove the directory from the source's filename.
+	if a.Key == slog.SourceKey {
+		source := a.Value.Any().(*slog.Source)
+		source.File = filepath.Base(source.File)
+	}
+	return a
+}
+
 func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		fmt.Fprint(flag.CommandLine.Output(), example)
 	}
+
+	infoLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		AddSource:   true,
+		Level:       slog.LevelInfo,
+		ReplaceAttr: replace,
+	}))
+	slog.SetDefault(infoLogger)
 }
 
 var example = `
@@ -155,37 +171,46 @@ func main() {
 	}
 	bs, err := os.ReadFile(flags.configFile)
 	if err != nil {
-		log.Print(err)
+		slog.Error("read config: " + err.Error())
 		return
 	}
 	var conf config.Config
 	if err = json.Unmarshal(bs, &conf); err != nil {
-		log.Printf("load config: %s", err)
+		slog.Error("load config: " + err.Error())
 		return
 	}
 	if len(conf.Proxy) == 0 && len(conf.Listen) == 0 {
-		log.Printf("bad config: no tunnel client nor server")
+		slog.Error("bad config: no tunnel client nor server")
 		return
 	}
 
 	if conf.Debug {
-		debug.Enable()
 		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
+			err := http.ListenAndServe("localhost:6060", nil)
+			if err != http.ErrServerClosed {
+				slog.Warn("start debug server", "err", err)
+			}
 		}()
+		debugLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource:   true,
+			Level:       slog.LevelDebug,
+			ReplaceAttr: replace,
+		}))
+		slog.SetDefault(debugLogger)
 	}
 
-	log.Printf("yeager %s starting", version)
+	slog.Info("yeager starting", "version", version)
 	closers, err := StartServices(conf)
 	if err != nil {
-		log.Printf("start services: %s", err)
+		slog.Error("start services: " + err.Error())
 		CloseAll(closers)
 		return
 	}
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	log.Println("signal", <-ch)
+	sig := <-ch
+	slog.Info("signal " + sig.String())
 	CloseAll(closers)
-	log.Println("goodbye")
+	slog.Info("goodbye")
 }

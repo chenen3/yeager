@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -32,7 +32,7 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	ts := new(TunnelServer)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf); e != nil {
-			log.Print(e)
+			slog.Error(e.Error())
 		}
 	}()
 
@@ -46,7 +46,6 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 }
 
 func TestTunnel(t *testing.T) {
-	log.Printf("len: %d", len("127.0.0.1:443"))
 	echo, err := ynet.StartEchoServer()
 	if err != nil {
 		t.Fatal(err)

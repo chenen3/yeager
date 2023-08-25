@@ -1,4 +1,5 @@
 package rule
+// TODO: rename the package to route
 
 import (
 	"errors"
@@ -31,13 +32,13 @@ const (
 
 type rule struct {
 	matcher
-	rtype  string
-	policy string
+	kind  string
+	route string
 }
 
-func newRule(ruleType string, value string, policy string) (*rule, error) {
+func newRule(kind string, value string, route string) (*rule, error) {
 	var m matcher
-	switch strings.ToLower(ruleType) {
+	switch strings.ToLower(kind) {
 	case domain:
 		m = domainMatcher(value)
 	case domainSuffix:
@@ -59,20 +60,20 @@ func newRule(ruleType string, value string, policy string) (*rule, error) {
 	case final:
 		m = finalMatcher{}
 	default:
-		return nil, errors.New("unsupported rule type: " + ruleType)
+		return nil, errors.New("unsupported rule type: " + kind)
 	}
 
 	r := &rule{
-		rtype:   strings.ToLower(ruleType),
-		policy:  strings.ToLower(policy),
+		kind:    strings.ToLower(kind),
+		route:   strings.ToLower(route),
 		matcher: m,
 	}
 	return r, nil
 }
 
 // there are two form of rules:
-//   - ordinary rule: type,value,policy
-//   - final rule: FINAL,policy
+//   - ordinary rule: type,value,route
+//   - final rule: FINAL,route
 func parseRule(rule string) (*rule, error) {
 	parts := strings.Split(rule, ",")
 	switch len(parts) {
@@ -128,7 +129,7 @@ func Parse(rules []string) (Rules, error) {
 		if err != nil {
 			return nil, err
 		}
-		if ru.rtype == final && i != len(rules)-1 {
+		if ru.kind == final && i != len(rules)-1 {
 			return nil, errors.New("final rule must be placed at last")
 		}
 		parsed[i] = ru
@@ -141,7 +142,7 @@ func Parse(rules []string) (Rules, error) {
 	return parsed, nil
 }
 
-func (rs Rules) Match(host string) (policy string, err error) {
+func (rs Rules) Match(host string) (route string, err error) {
 	h, err := parseHost(host)
 	if err != nil {
 		return "", err
@@ -151,7 +152,7 @@ func (rs Rules) Match(host string) (policy string, err error) {
 	// but here is not the performance bottleneck
 	for _, r := range rs {
 		// do not dive deep if the rule type is not match
-		switch r.rtype {
+		switch r.kind {
 		case domain, domainSuffix, domainKeyword, geoSite:
 			if h.Domain == "" {
 				continue
@@ -162,7 +163,7 @@ func (rs Rules) Match(host string) (policy string, err error) {
 			}
 		}
 		if r.Match(h) {
-			return r.policy, nil
+			return r.route, nil
 		}
 	}
 	return Direct, nil

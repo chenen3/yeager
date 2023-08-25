@@ -3,7 +3,7 @@ package net
 import (
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -87,7 +87,7 @@ func (e *EchoServer) Serve() {
 		conn, err := e.Listener.Accept()
 		if err != nil {
 			if e != nil && !errors.Is(err, net.ErrClosed) {
-				log.Printf("failed to accept conn: %v", err)
+				slog.Error(err.Error())
 			}
 			return
 		}

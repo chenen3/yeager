@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -31,7 +31,7 @@ func startTunnel() (*TunnelServer, *TunnelClient, error) {
 	go func() {
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
-			log.Print(err)
+			slog.Error(err.Error())
 		}
 	}()
 

@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -56,7 +56,7 @@ func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password
 		err = tlsConn.HandshakeContext(ctx)
 		cancel()
 		if err != nil {
-			log.Printf("tls handshake: %s", err)
+			slog.Error("tls handshake: " + err.Error())
 			tlsConn.Close()
 			continue
 		}
@@ -97,7 +97,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	remote, err := net.Dial("tcp", r.Host)
 	if err != nil {
-		log.Print(err)
+		slog.Error(err.Error())
 		return
 	}
 	defer remote.Close()
