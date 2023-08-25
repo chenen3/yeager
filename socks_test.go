@@ -11,9 +11,7 @@ import (
 	"time"
 )
 
-type direct struct{}
-
-func (d direct) DialContext(ctx context.Context, addr string) (io.ReadWriteCloser, error) {
+func directConnect(ctx context.Context, addr string) (io.ReadWriteCloser, error) {
 	var dialer net.Dialer
 	return dialer.DialContext(ctx, "tcp", addr)
 }
@@ -34,7 +32,7 @@ func TestSocksProxy(t *testing.T) {
 	defer s.Close()
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, direct{}); e != nil {
+		if e := s.Serve(lis, directConnect); e != nil {
 			t.Log(e)
 		}
 	}()
@@ -93,7 +91,7 @@ func TestCloseSocksServer(t *testing.T) {
 		}
 	}()
 	close(ready)
-	if err := s.Serve(lis, direct{}); err != nil {
+	if err := s.Serve(lis, directConnect); err != nil {
 		t.Fatal(err)
 	}
 }

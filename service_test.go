@@ -2,38 +2,14 @@ package main
 
 import (
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/config"
 )
-
-func init() {
-	replace := func(groups []string, a slog.Attr) slog.Attr {
-		// the time key is unnecessary for testing
-		if a.Key == slog.TimeKey && len(groups) == 0 {
-			return slog.Attr{}
-		}
-		// Remove the directory from the source's filename.
-		if a.Key == slog.SourceKey {
-			source := a.Value.Any().(*slog.Source)
-			source.File = filepath.Base(source.File)
-		}
-		return a
-	}
-	debugLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		AddSource:   true,
-		Level:       slog.LevelDebug,
-		ReplaceAttr: replace,
-	}))
-	slog.SetDefault(debugLogger)
-}
 
 var (
 	httpListen  string

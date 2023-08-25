@@ -94,18 +94,18 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	remote, err := net.Dial("tcp", r.Host)
+	conn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
 	if err != nil {
 		slog.Error(err.Error())
 		return
 	}
-	defer remote.Close()
+	defer conn.Close()
 	go func() {
-		forward.Copy(remote, r.Body)
-		remote.Close()
+		forward.Copy(conn, r.Body)
+		conn.Close()
 	}()
 	// after Handler finished, calling http2.responseWriter.Flush() may panic
-	forward.Copy(&flushWriter{w}, remote)
+	forward.Copy(&flushWriter{w}, conn)
 }
 
 func (s *TunnelServer) Close() error {

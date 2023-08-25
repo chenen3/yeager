@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/forward"
-	"github.com/chenen3/yeager/tunnel"
 )
 
 type socksServer struct {
@@ -25,16 +24,15 @@ type socksServer struct {
 }
 
 func newSOCKServer() *socksServer {
-	s := &socksServer{
+	return &socksServer{
 		activeConn: make(map[net.Conn]struct{}),
 		done:       make(chan struct{}),
 	}
-	return s
 }
 
 // Serve serves connection accepted by lis,
 // blocking until the server closes or encounters an unexpected error
-func (s *socksServer) Serve(lis net.Listener, d tunnel.Dialer) error {
+func (s *socksServer) Serve(lis net.Listener, connect connectFunc) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -51,11 +49,13 @@ func (s *socksServer) Serve(lis net.Listener, d tunnel.Dialer) error {
 		}
 
 		s.trackConn(conn, true)
-		go s.handleConn(conn, d)
+		go s.handleConn(conn, connect)
 	}
 }
 
-func (s *socksServer) handleConn(conn net.Conn, d tunnel.Dialer) {
+type connectFunc func(ctx context.Context, addr string) (stream io.ReadWriteCloser, err error)
+
+func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -70,19 +70,19 @@ func (s *socksServer) handleConn(conn net.Conn, d tunnel.Dialer) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	remote, err := d.DialContext(ctx, addr)
+	stream, err := connect(ctx, addr)
 	if err != nil {
 		slog.Error(fmt.Sprintf("connect %s: %s", addr, err))
 		return
 	}
-	defer remote.Close()
+	defer stream.Close()
 
-	err = forward.Dual(conn, remote)
+	err = forward.Dual(conn, stream)
 	if err != nil && !canIgnore(err) {
 		slog.Error(err.Error(), "addr", addr)
 		return
 	}
-	slog.Debug("forwarded "+addr, "timed", time.Since(start))
+	slog.Debug("closed "+addr, "timed", time.Since(start))
 }
 
 func canIgnore(err error) bool {

@@ -56,13 +56,13 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	target := v[0]
 
-	remote, err := net.DialTimeout("tcp", target, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", target, 5*time.Second)
 	if err != nil {
 		return err
 	}
-	defer remote.Close()
+	defer conn.Close()
 
-	err = forward.Dual(toReadWriter(stream), remote)
+	err = forward.Dual(toReadWriter(stream), conn)
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return nil

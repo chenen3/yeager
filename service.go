@@ -25,28 +25,24 @@ var connStats = expvar.NewMap("connstats")
 // any started service will be return as io.Closer for future stopping
 func StartServices(conf config.Config) ([]io.Closer, error) {
 	var closers []io.Closer
-	var tunneler *Tunneler
-	if len(conf.Proxy) > 0 {
-		t, err := NewTunneler(conf.Rules, conf.Proxy)
-		if err != nil {
-			return nil, fmt.Errorf("new tunneler: %s", err)
-		}
-		tunneler = t
-		closers = append(closers, tunneler)
-	}
-
+	var connector *Connector
 	if conf.ListenHTTP != "" {
 		lis, err := net.Listen("tcp", conf.ListenHTTP)
 		if err != nil {
 			return nil, err
 		}
-		if tunneler == nil {
-			return nil, fmt.Errorf("tunnel client required")
+		if connector == nil {
+			c, err := NewConnector(conf.Rules, conf.Proxy)
+			if err != nil {
+				return nil, fmt.Errorf("init connector: %s", err)
+			}
+			connector = c
+			closers = append(closers, connector)
 		}
 		hs := newHTTPProxy()
 		go func() {
 			slog.Info("listening http " + conf.ListenHTTP)
-			if err := hs.Serve(lis, tunneler); err != nil {
+			if err := hs.Serve(lis, connector.Connect); err != nil {
 				slog.Error("failed to serve http proxy: " + err.Error())
 			}
 		}()
@@ -61,13 +57,18 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		if err != nil {
 			return nil, err
 		}
-		if tunneler == nil {
-			return nil, fmt.Errorf("tunnel client required")
+		if connector == nil {
+			c, err := NewConnector(conf.Rules, conf.Proxy)
+			if err != nil {
+				return nil, fmt.Errorf("init connector: %s", err)
+			}
+			connector = c
+			closers = append(closers, connector)
 		}
 		ss := newSOCKServer()
 		go func() {
 			slog.Info("listening socks " + conf.ListenSOCKS)
-			if err := ss.Serve(lis, tunneler); err != nil {
+			if err := ss.Serve(lis, connector.Connect); err != nil {
 				slog.Error("failed to serve socks proxy: " + err.Error())
 			}
 		}()
@@ -139,21 +140,21 @@ func CloseAll(closers []io.Closer) {
 	}
 }
 
-// Tunneler integrates tunnel dialers with router
-type Tunneler struct {
+// Connector integrates tunnel dialers with router
+type Connector struct {
 	dialers map[string]tunnel.Dialer
 	router  router.Router
 }
 
-// NewTunneler creates a new Tunneler for client side proxy
-func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, error) {
-	var t Tunneler
+// NewConnector creates a new Connector for client side proxy
+func NewConnector(rules []string, tunClients []config.TunnelClient) (*Connector, error) {
+	var c Connector
 	if len(rules) > 0 {
 		r, err := router.New(rules)
 		if err != nil {
 			return nil, err
 		}
-		t.router = r
+		c.router = r
 	}
 
 	dialers := make(map[string]tunnel.Dialer)
@@ -209,19 +210,20 @@ func NewTunneler(rules []string, tunClients []config.TunnelClient) (*Tunneler, e
 		}
 		slog.Info(fmt.Sprintf("route %s: %s %s", tc.Name, tc.Proto, tc.Address))
 	}
-	t.dialers = dialers
-	return &t, nil
+	c.dialers = dialers
+	return &c, nil
 }
 
-// DialContext connects to host:port target directly or through a tunnel, determined by the routing
-func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadWriteCloser, err error) {
+// Connect uses router to determine direct or tunneled connection to host:port,
+// returning a stream for subsequent read/write.
+func (c *Connector) Connect(ctx context.Context, target string) (io.ReadWriteCloser, error) {
 	route := router.DefaultRoute
-	if t.router != nil {
+	if c.router != nil {
 		host, _, err := net.SplitHostPort(target)
 		if err != nil {
 			return nil, err
 		}
-		r, e := t.router.Match(host)
+		r, e := c.router.Match(host)
 		if e != nil {
 			return nil, e
 		}
@@ -236,9 +238,9 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", target)
 	default:
-		d, ok := t.dialers[route]
+		d, ok := c.dialers[route]
 		if !ok {
-			return nil, fmt.Errorf("unknown proxy policy: %s", route)
+			return nil, errors.New("unknown route: " + route)
 		}
 		slog.Debug(fmt.Sprintf("route %s to %s", target, route))
 		return d.DialContext(ctx, target)
@@ -246,11 +248,11 @@ func (t *Tunneler) DialContext(ctx context.Context, target string) (rwc io.ReadW
 }
 
 // Close closes all the tunnel dialers and return the first error encountered
-func (t *Tunneler) Close() error {
+func (c *Connector) Close() error {
 	var err error
-	for _, d := range t.dialers {
-		if c, ok := d.(io.Closer); ok {
-			if e := c.Close(); e != nil && err == nil {
+	for _, d := range c.dialers {
+		if dc, ok := d.(io.Closer); ok {
+			if e := dc.Close(); e != nil && err == nil {
 				err = e
 			}
 		}

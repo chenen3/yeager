@@ -26,7 +26,7 @@ func TestHttpProxy(t *testing.T) {
 	defer s.Close()
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, direct{}); e != nil {
+		if e := s.Serve(lis, directConnect); e != nil {
 			t.Log(e)
 		}
 	}()
@@ -73,7 +73,7 @@ func TestHttpsProxy(t *testing.T) {
 	ready := make(chan struct{})
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, direct{}); e != nil {
+		if e := s.Serve(lis, directConnect); e != nil {
 			t.Log(e)
 		}
 	}()
@@ -124,7 +124,7 @@ func TestCloseHttpProxy(t *testing.T) {
 		}
 	}()
 	close(ready)
-	if err := s.Serve(lis, direct{}); err != nil {
+	if err := s.Serve(lis, directConnect); err != nil {
 		t.Fatal(err)
 	}
 }

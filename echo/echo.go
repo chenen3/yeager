@@ -40,7 +40,8 @@ func (e *Server) Close() error {
 	return err
 }
 
-// NewServer returns a started TCP server for echo testing.
+// NewServer starts a TCP server for testing,
+// it sends back whatever it receives.
 func NewServer() *Server {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

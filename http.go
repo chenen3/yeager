@@ -1,6 +1,3 @@
-// Here implements HTTP proxy server.
-// Refer to https://en.wikipedia.org/wiki/HTTP_tunnel
-// Any data sent to the proxy server will be forwarded, unmodified, to the remote host
 package main
 
 import (
@@ -15,9 +12,10 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/forward"
-	"github.com/chenen3/yeager/tunnel"
 )
 
+// implements HTTP proxy server,
+// refer to https://en.wikipedia.org/wiki/HTTP_tunnel
 type httpProxy struct {
 	mu         sync.Mutex
 	lis        net.Listener
@@ -35,7 +33,7 @@ func newHTTPProxy() *httpProxy {
 
 // Serve serves connection accepted by lis,
 // blocks until an unexpected error is encounttered or Close is called
-func (s *httpProxy) Serve(lis net.Listener, d tunnel.Dialer) error {
+func (s *httpProxy) Serve(lis net.Listener, connect connectFunc) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -52,11 +50,11 @@ func (s *httpProxy) Serve(lis net.Listener, d tunnel.Dialer) error {
 		}
 
 		s.trackConn(conn, true)
-		go s.handleConn(conn, d)
+		go s.handleConn(conn, connect)
 	}
 }
 
-func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
+func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -71,26 +69,26 @@ func (s *httpProxy) handleConn(conn net.Conn, d tunnel.Dialer) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	remote, err := d.DialContext(ctx, dst)
+	stream, err := connect(ctx, dst)
 	if err != nil {
 		slog.Error(fmt.Sprintf("connect %s: %s", dst, err))
 		return
 	}
-	defer remote.Close()
+	defer stream.Close()
 
 	if httpReq != nil {
-		if err = httpReq.Write(remote); err != nil {
+		if err = httpReq.Write(stream); err != nil {
 			slog.Error(err.Error())
 			return
 		}
 	}
 
-	err = forward.Dual(conn, remote)
+	err = forward.Dual(conn, stream)
 	if err != nil && !canIgnore(err) {
 		slog.Error(err.Error(), "addr", dst)
 		return
 	}
-	slog.Debug("forwarded "+dst, "timed", time.Since(start))
+	slog.Debug("closed "+dst, "timed", time.Since(start))
 }
 
 func (s *httpProxy) trackConn(c net.Conn, add bool) {
