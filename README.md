@@ -3,7 +3,7 @@
 A proxy that helps speed up the internet connection.
 
 Features:
-- tunneling over HTTP2, gRPC or QUIC, secured by mutual TLS
+- tunneling over gRPC, QUIC or HTTP2, secured by mutual TLS
 - rule-based routing
 - SOCKS and HTTP proxy
 

@@ -107,7 +107,7 @@ func Generate(host string) (cli, srv Config, err error) {
 		Listen: []TunnelServer{
 			{
 				Address: fmt.Sprintf("0.0.0.0:%d", tunnelPort),
-				Proto:   ProtoHTTP2,
+				Proto:   ProtoGRPC,
 				CAPEM:   splitLine(string(cert.RootCert)),
 				CertPEM: splitLine(string(cert.ServerCert)),
 				KeyPEM:  splitLine(string(cert.ServerKey)),
@@ -131,7 +131,7 @@ func Generate(host string) (cli, srv Config, err error) {
 				Name: "proxy",
 				TunnelServer: TunnelServer{
 					Address: fmt.Sprintf("%s:%d", host, tunnelPort),
-					Proto:   ProtoHTTP2,
+					Proto:   ProtoGRPC,
 					CAPEM:   splitLine(string(cert.RootCert)),
 					CertPEM: splitLine(string(cert.ClientCert)),
 					KeyPEM:  splitLine(string(cert.ClientKey)),
