@@ -5,6 +5,8 @@ on:
     branches: [ master ]
     paths-ignore:
       - '**.md'
+      - 'Dockerfile'
+      - 'install.sh'
   pull_request:
     branches: [ master ]
 
