@@ -77,7 +77,6 @@ For example:
 - `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
 
 ### Docker
-In case you prefer Docker over binary install, that's fine.
 
 build image:
 
