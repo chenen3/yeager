@@ -85,7 +85,7 @@ func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
 
 	err = forward.Dual(conn, stream)
 	if err != nil && !canIgnore(err) {
-		slog.Error(err.Error(), "addr", dst)
+		slog.Error(err.Error())
 		return
 	}
 	slog.Debug("closed "+dst, "timed", time.Since(start))

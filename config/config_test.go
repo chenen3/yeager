@@ -91,7 +91,6 @@ func TestConfig(t *testing.T) {
 			},
 		},
 		Rules: []string{"final,proxy"},
-		Debug: true,
 	}
 	var got Config
 	if err := json.Unmarshal([]byte(rawConf), &got); err != nil {

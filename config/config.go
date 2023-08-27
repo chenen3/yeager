@@ -22,8 +22,6 @@ type Config struct {
 	Listen      []TunnelServer `json:"listen,omitempty"`
 	Proxy       []TunnelClient `json:"proxy,omitempty"`
 	Rules       []string       `json:"rules,omitempty"`
-	// enable debug logging, start HTTP server for profiling
-	Debug bool `json:"debug,omitempty"`
 }
 
 func mergeLine(s []string) string {

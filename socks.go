@@ -79,7 +79,7 @@ func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 
 	err = forward.Dual(conn, stream)
 	if err != nil && !canIgnore(err) {
-		slog.Error(err.Error(), "addr", addr)
+		slog.Error(err.Error())
 		return
 	}
 	slog.Debug("closed "+addr, "timed", time.Since(start))

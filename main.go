@@ -134,6 +134,7 @@ func main() {
 		ip          string
 		srvConfFile string
 		cliConfFile string
+		debug       bool
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.version, "version", false, "print version")
@@ -141,6 +142,7 @@ func main() {
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
 	flag.StringVar(&flags.srvConfFile, "srvconf", "config.json", "server configuration file, used with option -genconf")
 	flag.StringVar(&flags.cliConfFile, "cliconf", "client.json", "client configuration file, used with option -genconf")
+	flag.BoolVar(&flags.debug, "debug", false, "enable debug logging")
 	flag.Parse()
 
 	if flags.version {
@@ -184,7 +186,7 @@ func main() {
 		return
 	}
 
-	if conf.Debug {
+	if flags.debug {
 		go func() {
 			err = http.ListenAndServe("localhost:6060", nil)
 			if err != http.ErrServerClosed {
