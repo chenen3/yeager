@@ -14,13 +14,17 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-
-	"github.com/chenen3/yeager/config"
+	"time"
 )
 
 var version string // set by build -ldflags
 
 func replace(groups []string, a slog.Attr) slog.Attr {
+	// use RFC3339 to format time
+	if a.Key == slog.TimeKey {
+		a.Value = slog.StringValue(a.Value.Time().Format(time.RFC3339))
+		return a
+	}
 	// Remove the directory from the source's filename.
 	if a.Key == slog.SourceKey {
 		source := a.Value.Any().(*slog.Source)
@@ -30,7 +34,6 @@ func replace(groups []string, a slog.Attr) slog.Attr {
 }
 
 func init() {
-	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
@@ -80,12 +83,9 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 		return fmt.Errorf("file %s already exists, operation aborted", cliConfOutput)
 	}
 
-	cliConf, srvConf, err := config.Generate(host)
+	cliConf, srvConf, err := GenerateConfig(host)
 	if err != nil {
 		return fmt.Errorf("failed to generate config: %s", err)
-	}
-	if len(srvConf.Listen) == 0 {
-		return fmt.Errorf("no tunnelListens in server config")
 	}
 	port := 57175
 	srvConf.Listen[0].Address = fmt.Sprintf("0.0.0.0:%d", port)
@@ -98,9 +98,6 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	}
 	fmt.Printf("generated server config file: %s\n", srvConfOutput)
 
-	if len(cliConf.Proxy) == 0 {
-		return fmt.Errorf("no tunnelClients in client config")
-	}
 	cliConf.Proxy[0].Address = fmt.Sprintf("%s:%d", host, port)
 	cliConf.ListenSOCKS = "127.0.0.1:1080"
 	cliConf.ListenHTTP = "127.0.0.1:8080"
@@ -176,13 +173,13 @@ func main() {
 		slog.Error("read config: " + err.Error())
 		return
 	}
-	var conf config.Config
+	var conf Config
 	if err = json.Unmarshal(bs, &conf); err != nil {
 		slog.Error("load config: " + err.Error())
 		return
 	}
 	if len(conf.Proxy) == 0 && len(conf.Listen) == 0 {
-		slog.Error("bad config: no tunnel client nor server")
+		slog.Error("no tunnel client nor server in config")
 		return
 	}
 

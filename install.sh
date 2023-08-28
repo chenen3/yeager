@@ -28,7 +28,7 @@ After=network.target
 ExecStart=/usr/local/bin/yeager -config /usr/local/etc/yeager/config.json
 TimeoutStopSec=5s
 LimitNOFILE=1048576
-# bind privileged ports, e.g. 443
+# be able to bind privileged ports, e.g. 443
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]

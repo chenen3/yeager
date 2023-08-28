@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
-	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/router"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
@@ -23,7 +22,7 @@ var connStats = expvar.NewMap("connstats")
 
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
-func StartServices(conf config.Config) ([]io.Closer, error) {
+func StartServices(conf Config) ([]io.Closer, error) {
 	var closers []io.Closer
 	var connector *Connector
 	if conf.ListenHTTP != "" {
@@ -78,17 +77,17 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 		}))
 	}
 
-	for _, tl := range conf.Listen {
-		tl := tl
-		certPEM, err := tl.GetCertPEM()
+	for _, sc := range conf.Listen {
+		sc := sc
+		certPEM, err := sc.GetCertPEM()
 		if err != nil {
 			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := tl.GetKeyPEM()
+		keyPEM, err := sc.GetKeyPEM()
 		if err != nil {
 			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := tl.GetCAPEM()
+		caPEM, err := sc.GetCAPEM()
 		if err != nil {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
@@ -97,37 +96,37 @@ func StartServices(conf config.Config) ([]io.Closer, error) {
 			return nil, err
 		}
 
-		switch tl.Proto {
-		case config.ProtoGRPC:
-			lis, err := net.Listen("tcp", tl.Address)
+		switch sc.Proto {
+		case ProtoGRPC:
+			lis, err := net.Listen("tcp", sc.Address)
 			if err != nil {
 				return nil, err
 			}
 			var s grpc.TunnelServer
 			go func() {
 				if err := s.Serve(lis, tlsConf); err != nil {
-					slog.Error("start tunnel: "+err.Error(), "proto", tl.Proto)
+					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
 			closers = append(closers, &s)
-		case config.ProtoQUIC:
+		case ProtoQUIC:
 			var s quic.TunnelServer
 			go func() {
-				if err := s.Serve(tl.Address, tlsConf); err != nil {
-					slog.Error("start tunnel: "+err.Error(), "proto", tl.Proto)
+				if err := s.Serve(sc.Address, tlsConf); err != nil {
+					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
 			closers = append(closers, &s)
-		case config.ProtoHTTP2:
+		case ProtoHTTP2:
 			var s http2.TunnelServer
 			go func() {
-				if err := s.Serve(tl.Address, tlsConf, tl.Username, tl.Password); err != nil {
-					slog.Error("start tunnel: "+err.Error(), "proto", tl.Proto)
+				if err := s.Serve(sc.Address, tlsConf, sc.Username, sc.Password); err != nil {
+					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
 			closers = append(closers, &s)
 		}
-		slog.Info(fmt.Sprintf("listening %s %s", tl.Proto, tl.Address))
+		slog.Info(fmt.Sprintf("listening %s %s", sc.Proto, sc.Address))
 	}
 	return closers, nil
 }
@@ -147,7 +146,7 @@ type Connector struct {
 }
 
 // NewConnector creates a new Connector for client side proxy
-func NewConnector(rules []string, tunClients []config.TunnelClient) (*Connector, error) {
+func NewConnector(rules []string, clientConfigs []ClientConfig) (*Connector, error) {
 	var c Connector
 	if len(rules) > 0 {
 		r, err := router.New(rules)
@@ -158,25 +157,25 @@ func NewConnector(rules []string, tunClients []config.TunnelClient) (*Connector,
 	}
 
 	dialers := make(map[string]tunnel.Dialer)
-	for _, tc := range tunClients {
-		if tc.Name == "" {
+	for _, cc := range clientConfigs {
+		if cc.Name == "" {
 			return nil, fmt.Errorf("empty tunnel name")
 		}
-		name := strings.ToLower(tc.Name)
+		name := strings.ToLower(cc.Name)
 		if _, ok := dialers[name]; ok {
 			return nil, fmt.Errorf("duplicated tunnel name: %s", name)
 		}
 
-		hasAuth := tc.Username != "" && tc.Password != ""
-		certPEM, err := tc.GetCertPEM()
+		hasAuth := cc.Username != "" && cc.Password != ""
+		certPEM, err := cc.GetCertPEM()
 		if err != nil && !hasAuth {
 			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := tc.GetKeyPEM()
+		keyPEM, err := cc.GetKeyPEM()
 		if err != nil && !hasAuth {
 			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := tc.GetCAPEM()
+		caPEM, err := cc.GetCAPEM()
 		if err != nil && !hasAuth {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
@@ -185,30 +184,30 @@ func NewConnector(rules []string, tunClients []config.TunnelClient) (*Connector,
 			return nil, fmt.Errorf("make tls conf: %s", err)
 		}
 
-		switch tc.Proto {
-		case config.ProtoGRPC:
-			client := grpc.NewTunnelClient(tc.Address, tlsConf)
+		switch cc.Proto {
+		case ProtoGRPC:
+			client := grpc.NewTunnelClient(cc.Address, tlsConf)
 			dialers[name] = client
-			connStats.Set(tc.Name, expvar.Func(func() any {
+			connStats.Set(cc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-		case config.ProtoQUIC:
-			client := quic.NewTunnelClient(tc.Address, tlsConf)
+		case ProtoQUIC:
+			client := quic.NewTunnelClient(cc.Address, tlsConf)
 			dialers[name] = client
-			connStats.Set(tc.Name, expvar.Func(func() any {
+			connStats.Set(cc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
-		case config.ProtoHTTP2:
-			client := http2.NewTunnelClient(tc.Address, tlsConf, tc.Username, tc.Password)
+		case ProtoHTTP2:
+			client := http2.NewTunnelClient(cc.Address, tlsConf, cc.Username, cc.Password)
 			dialers[name] = client
-			connStats.Set(tc.Name, expvar.Func(func() any {
+			connStats.Set(cc.Name, expvar.Func(func() any {
 				return client.ConnNum()
 			}))
 		default:
-			slog.Warn("ignore unsupported tunnel", "route", tc.Name, "proto", tc.Proto)
+			slog.Warn("ignore unsupported tunnel", "route", cc.Name, "proto", cc.Proto)
 			continue
 		}
-		slog.Info(fmt.Sprintf("route %s: %s %s", tc.Name, tc.Proto, tc.Address))
+		slog.Info(fmt.Sprintf("route %s: %s %s", cc.Name, cc.Proto, cc.Address))
 	}
 	c.dialers = dialers
 	return &c, nil

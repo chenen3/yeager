@@ -7,8 +7,6 @@ import (
 	"net/url"
 	"testing"
 	"time"
-
-	"github.com/chenen3/yeager/config"
 )
 
 var (
@@ -17,7 +15,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	cliConf, srvConf, err := config.Generate("127.0.0.1")
+	cliConf, srvConf, err := GenerateConfig("127.0.0.1")
 	if err != nil {
 		panic(err)
 	}

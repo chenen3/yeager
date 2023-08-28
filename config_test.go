@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"encoding/json"
@@ -68,7 +68,7 @@ func TestConfig(t *testing.T) {
 	want := Config{
 		ListenSOCKS: "127.0.0.1:1081",
 		ListenHTTP:  "127.0.0.1:8081",
-		Listen: []TunnelServer{
+		Listen: []ServerConfig{
 			{
 				Proto:    "grpc",
 				Address:  "127.0.0.1:10812",
@@ -77,10 +77,10 @@ func TestConfig(t *testing.T) {
 				CAFile:   "/path/to/ca-cert.pem",
 			},
 		},
-		Proxy: []TunnelClient{
+		Proxy: []ClientConfig{
 			{
 				Name: "proxy",
-				TunnelServer: TunnelServer{
+				ServerConfig: ServerConfig{
 					Proto:    "grpc",
 					Address:  "127.0.0.1:9000",
 					CertFile: "/path/to/client-cert.pem",

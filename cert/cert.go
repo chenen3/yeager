@@ -28,17 +28,17 @@ type Cert struct {
 
 // Generate generate TLS certificates for mutual authentication
 func Generate(host string) (*Cert, error) {
-	rootCert, rootKey, err := createRootCA()
+	rootCert, rootKey, err := makeRootCA()
 	if err != nil {
 		return nil, err
 	}
 
-	serverCert, serverKey, err := createCertificate(host, rootCert, rootKey)
+	serverCert, serverKey, err := makeCertificate(host, rootCert, rootKey)
 	if err != nil {
 		return nil, err
 	}
 
-	clientCert, clientKey, err := createCertificate(host, rootCert, rootKey)
+	clientCert, clientKey, err := makeCertificate(host, rootCert, rootKey)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func Generate(host string) (*Cert, error) {
 	}, nil
 }
 
-func createRootCA() (certPEM, keyPEM []byte, err error) {
+func makeRootCA() (certPEM, keyPEM []byte, err error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -91,7 +91,7 @@ func createRootCA() (certPEM, keyPEM []byte, err error) {
 	return certPEM, keyPEM, nil
 }
 
-func createCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, keyPEM []byte, err error) {
+func makeCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, keyPEM []byte, err error) {
 	cb, _ := pem.Decode(rootCertPEM)
 	rootCert, err := x509.ParseCertificate(cb.Bytes)
 	if err != nil {
