@@ -34,12 +34,6 @@ func replace(groups []string, a slog.Attr) slog.Attr {
 }
 
 func init() {
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-		flag.PrintDefaults()
-		fmt.Fprint(flag.CommandLine.Output(), example)
-	}
-
 	infoLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		AddSource:   true,
 		Level:       slog.LevelInfo,
@@ -47,18 +41,6 @@ func init() {
 	}))
 	slog.SetDefault(infoLogger)
 }
-
-var example = `
-Example:
-  yeager -config config.json
-    	run service
-
-  yeager -version
-    	print version number
-
-  yeager -genconf [-ip 127.0.0.1] [-client client.json] [-server config.json]
-    	generate a pair of configuration for server and client
-`
 
 func checkIP() (string, error) {
 	resp, err := http.Get("https://checkip.amazonaws.com")
@@ -74,12 +56,10 @@ func checkIP() (string, error) {
 }
 
 func genConfig(host, cliConfOutput, srvConfOutput string) error {
-	_, err := os.Stat(srvConfOutput)
-	if err == nil {
+	if _, err := os.Stat(srvConfOutput); err == nil {
 		return fmt.Errorf("file %s already exists, operation aborted", srvConfOutput)
 	}
-	_, err = os.Stat(cliConfOutput)
-	if err == nil {
+	if _, err := os.Stat(cliConfOutput); err == nil {
 		return fmt.Errorf("file %s already exists, operation aborted", cliConfOutput)
 	}
 
@@ -96,7 +76,7 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	if err = os.WriteFile(srvConfOutput, bs, 0644); err != nil {
 		return fmt.Errorf("failed to write server config: %s", err)
 	}
-	fmt.Printf("generated server config file: %s\n", srvConfOutput)
+	fmt.Println("generated", srvConfOutput)
 
 	cliConf.Proxy[0].Address = fmt.Sprintf("%s:%d", host, port)
 	cliConf.ListenSOCKS = "127.0.0.1:1080"
@@ -117,28 +97,24 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	if err != nil {
 		return fmt.Errorf("failed to write client config: %s", err)
 	}
-	fmt.Printf("generated client config file: %s\n", cliConfOutput)
+	fmt.Println("generated", cliConfOutput)
 	return nil
 }
 
 func main() {
 	var flags struct {
-		configFile  string
-		cert        bool
-		host        string
-		version     bool
-		genConfig   bool
-		ip          string
-		srvConfFile string
-		cliConfFile string
-		debug       bool
+		configFile string
+		cert       bool
+		host       string
+		version    bool
+		genConfig  bool
+		ip         string
+		debug      bool
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.version, "version", false, "print version")
-	flag.BoolVar(&flags.genConfig, "genconf", false, "generate configuration")
+	flag.BoolVar(&flags.genConfig, "genconf", false, "generate a pair of config: client.json and server.json")
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
-	flag.StringVar(&flags.srvConfFile, "srvconf", "config.json", "server configuration file, used with option -genconf")
-	flag.StringVar(&flags.cliConfFile, "cliconf", "client.json", "client configuration file, used with option -genconf")
 	flag.BoolVar(&flags.debug, "debug", false, "enable debug logging")
 	flag.Parse()
 
@@ -157,7 +133,7 @@ func main() {
 			}
 			ip = i
 		}
-		if err := genConfig(ip, flags.cliConfFile, flags.srvConfFile); err != nil {
+		if err := genConfig(ip, "client.json", "server.json"); err != nil {
 			fmt.Println(err)
 			return
 		}

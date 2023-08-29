@@ -10,4 +10,4 @@ RUN apt-get update && \
 WORKDIR /
 COPY --from=builder /app/yeager /usr/local/bin/yeager
 
-CMD ["/usr/local/bin/yeager", "-config", "/usr/local/etc/yeager/config.json"]
+CMD ["/usr/local/bin/yeager", "-config", "/usr/local/etc/yeager/server.json"]

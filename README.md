@@ -19,18 +19,18 @@ Download from release:
 ```sh
 wget https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
 tar -xzvf yeager-linux-amd64.tar.gz
-./yeager -genconf -server server.json -client client.json
+./yeager -genconf
 ```
 
-Here generates the a pair of client and server config, run with the server one:
+Here generates the a pair of client and server config, run with server config:
 ```
 ./yeager -config server.json
 ```
 
 Ensure the firewall allows TCP port 57175.
 
-See also the install [script](https://raw.githubusercontent.com/chenen3/yeager/master/install.sh), 
-which sets up the daemon and BBR(congestion control algorithm).
+See also the install [script](https://raw.githubusercontent.com/chenen3/yeager/master/install.py), 
+which sets up service and BBR.
 
 ## As local client
 
@@ -91,25 +91,27 @@ docker run --rm \
     --workdir /usr/local/etc/yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     yeager \
-    yeager -genconf -server config.json -client client.json
+    /usr/local/bin/yeager -genconf
 
 docker run -d --restart=always --name yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     -p 57175:57175 \
-    yeager
+    yeager \
+    /usr/local/bin/yeager -config /usr/local/etc/yeager/server.json
 ```
 
 local client:
 
 ```sh
 # copy `/usr/local/etc/yeager/client.json` from remote 
-# to local machine as `/usr/local/etc/yeager/config.json`
+# to local machine as `/usr/local/etc/yeager/client.json`
 docker run -d \
     --restart=always \
     --network host \
     --name yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
-    yeager
+    yeager \
+    /usr/local/bin/yeager -config /usr/local/etc/yeager/client.json
 ```
 
 ## Credit
