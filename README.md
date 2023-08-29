@@ -15,35 +15,23 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 
 ## As remote server
 
-Download from release:
-```sh
-wget https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz
-tar -xzvf yeager-linux-amd64.tar.gz
-./yeager -genconf
-```
-
-Here generates the a pair of client and server config, run with server config:
-```
-./yeager -config server.json
-```
-
-Ensure the firewall allows TCP port 57175.
-
-See also the install [script](https://raw.githubusercontent.com/chenen3/yeager/master/install.py), 
-which sets up service and BBR.
+1. install
+    ```sh
+    wget https://raw.githubusercontent.com/chenen3/yeager/master/install.py
+    # Please run as root
+    python3 install.py
+    ```
+    The script generates an client config file: `/usr/local/etc/yeager/client.json`
+2. update firewall and allows TCP port 57175.
 
 ## As local client
 
-Download [here](https://github.com/chenen3/yeager/releases/latest)
-
-Remember the client config file generated before? Now copy it to the local machine.
-
-Run with client.json:
-```sh
-yeager -config client.json
-```
-
-Then the HTTP proxy serve on 127.0.0.1:8080, SOCKS proxy serve on 127.0.0.1:1080
+1. download [here](https://github.com/chenen3/yeager/releases/latest)
+2. copy the client.json to local device, run:
+    ```sh
+    yeager -config client.json
+    ```
+3. SOCKS proxy server address is 127.0.0.1:1080, HTTP proxy server address is 127.0.0.1:8080
 
 See also [running daemon on macOS](TODO)
 
@@ -101,10 +89,8 @@ docker run -d --restart=always --name yeager \
 ```
 
 local client:
-
+> **Note** copy `/usr/local/etc/yeager/client.json` from remote to local device
 ```sh
-# copy `/usr/local/etc/yeager/client.json` from remote 
-# to local machine as `/usr/local/etc/yeager/client.json`
 docker run -d \
     --restart=always \
     --network host \
