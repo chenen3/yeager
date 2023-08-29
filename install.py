@@ -4,9 +4,10 @@ def install():
     os.system("wget https://github.com/chenen3/yeager/releases/latest/download/yeager-linux-amd64.tar.gz")
     os.system("tar -xvf yeager-linux-amd64.tar.gz")
     os.system("cp yeager /usr/local/bin/yeager")
-    if not os.path.exists("/usr/local/bin/yeager/server.json"):
-        os.system("mkdir -p /usr/local/etc/yeager")
-        os.chdir("/usr/local/etc/yeager")
+    cfgdir = "/usr/local/etc/yeager"
+    if not os.path.exists(cfgdir+"/"+"server.json"):
+        os.makedirs(cfgdir, exist_ok=True)
+        os.chdir(cfgdir)
         os.system("/usr/local/bin/yeager -genconf")
 
 def service():
@@ -21,8 +22,8 @@ def service():
     ExecStart=/usr/local/bin/yeager -config /usr/local/etc/yeager/server.json
     TimeoutStopSec=5s
     LimitNOFILE=1048576
-    # be able to bind privileged ports, e.g. 443
-    AmbientCapabilities=CAP_NET_BIND_SERVICE
+    # can bind privileged ports, e.g. 443
+    # AmbientCapabilities=CAP_NET_BIND_SERVICE
 
     [Install]
     WantedBy=multi-user.target
