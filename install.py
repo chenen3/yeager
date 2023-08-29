@@ -6,7 +6,7 @@ def install():
     os.system("cp yeager /usr/local/bin/yeager")
     if not os.path.exists("/usr/local/bin/yeager/server.json"):
         os.system("mkdir -p /usr/local/etc/yeager")
-        os.system("cd /usr/local/etc/yeager")
+        os.chdir("/usr/local/etc/yeager")
         os.system("/usr/local/bin/yeager -genconf")
 
 def setup_service():
