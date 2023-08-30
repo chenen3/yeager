@@ -55,7 +55,6 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 		HandshakeIdleTimeout: 5 * time.Second,
 		MaxIdleTimeout:       idleTimeout,
 		KeepAlivePeriod:      15 * time.Second,
-		EnableDatagrams:      true,
 	})
 	if err != nil {
 		return nil, err
@@ -76,11 +75,13 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	if err != nil {
 		return nil, errors.New("open quic stream: " + err.Error())
 	}
+	stream = wrapStream(stream)
 	m := metadata{Hostport: dst}
 	if _, err := m.WriteTo(stream); err != nil {
+		stream.Close()
 		return nil, err
 	}
-	return wrapStream(stream), nil
+	return stream, nil
 }
 
 func (c *TunnelClient) ConnNum() int {
@@ -106,7 +107,7 @@ type streamWrapper struct {
 	quic.Stream
 }
 
-// wrap the stream with modified Close method
+// wrap the stream with method Close that closes both read and write
 func wrapStream(stream quic.Stream) *streamWrapper {
 	return &streamWrapper{
 		Stream: stream,

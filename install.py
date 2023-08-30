@@ -10,7 +10,7 @@ def install():
         os.chdir(cfgdir)
         os.system("/usr/local/bin/yeager -genconf")
 
-def service():
+def run():
     with open("/etc/systemd/system/yeager.service", "w") as f:
         f.write("""
     [Unit]
@@ -32,7 +32,7 @@ def service():
     os.system("systemctl enable yeager")
     os.system("systemctl start yeager")
     
-def enable_bbr():
+def bbr():
     os.system("sysctl -w net.core.default_qdisc=fq")
     os.system("sysctl -w net.ipv4.tcp_congestion_control=bbr")
 
@@ -41,6 +41,6 @@ if __name__ == "__main__":
         print("Please run as root")
         exit(1)
     install()
-    service()
-    enable_bbr()
+    run()
+    bbr()
     print("Installation finished, please update firewall and allow TCP port 57175")
