@@ -76,6 +76,39 @@ func TestTunnel(t *testing.T) {
 	}
 }
 
+func TestReachStreamLimit(t *testing.T) {
+	es := echo.NewServer()
+	defer es.Close()
+
+	quicConfig.MaxIncomingStreams = 1
+	ts, tc, err := startTunnel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ts.Close()
+	defer tc.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc.Close()
+
+	// reaching stream limit, expected to dial new connection
+	rwc2, err := tc.DialContext(ctx, es.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc2.Close()
+
+	want := 2
+	if got := tc.ConnNum(); got != want {
+		t.Fatalf("got %d connections, expected %d", got, want)
+	}
+}
+
 func BenchmarkThroughput(b *testing.B) {
 	es := echo.NewServer()
 	defer es.Close()

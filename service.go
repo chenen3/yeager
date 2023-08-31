@@ -40,7 +40,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 		}
 		hs := newHTTPProxy()
 		go func() {
-			slog.Info("listening http " + conf.ListenHTTP)
+			slog.Info("listen http " + conf.ListenHTTP)
 			if err := hs.Serve(lis, connector.Connect); err != nil {
 				slog.Error("failed to serve http proxy: " + err.Error())
 			}
@@ -66,7 +66,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 		}
 		ss := newSOCKServer()
 		go func() {
-			slog.Info("listening socks " + conf.ListenSOCKS)
+			slog.Info("listen socks " + conf.ListenSOCKS)
 			if err := ss.Serve(lis, connector.Connect); err != nil {
 				slog.Error("failed to serve socks proxy: " + err.Error())
 			}
@@ -126,7 +126,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			}()
 			closers = append(closers, &s)
 		}
-		slog.Info(fmt.Sprintf("listening %s %s", sc.Proto, sc.Address))
+		slog.Info(fmt.Sprintf("listen %s %s", sc.Proto, sc.Address))
 	}
 	return closers, nil
 }
@@ -207,7 +207,7 @@ func NewConnector(rules []string, clientConfigs []ClientConfig) (*Connector, err
 			slog.Warn("ignore unsupported tunnel", "route", cc.Name, "proto", cc.Proto)
 			continue
 		}
-		slog.Info(fmt.Sprintf("route %s: %s %s", cc.Name, cc.Proto, cc.Address))
+		slog.Info(fmt.Sprintf("register route %s: %s %s", cc.Name, cc.Proto, cc.Address))
 	}
 	c.dialers = dialers
 	return &c, nil

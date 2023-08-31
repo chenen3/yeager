@@ -3,8 +3,8 @@ package quic
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -66,14 +66,52 @@ func (c *TunnelClient) getConn(ctx context.Context, key string) (quic.Connection
 	return conn, nil
 }
 
-func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(ctx, dst)
-	if err != nil {
-		return nil, errors.New("quic dial: " + err.Error())
+func (c *TunnelClient) connect(ctx context.Context) (quic.Stream, error) {
+	c.mu.Lock()
+	for _, conn := range c.conns {
+		if isClosed(conn) {
+			continue
+		}
+		stream, err := conn.OpenStream()
+		if err != nil {
+			// refer to unexported streamOpenErr in quic-go
+			if te, ok := err.(interface{ Temporary() bool }); ok && te.Temporary() {
+				// reach max streams limit
+				slog.Warn(err.Error())
+				continue
+			}
+			c.mu.Unlock()
+			return nil, err
+		}
+		c.mu.Unlock()
+		return stream, nil
 	}
-	stream, err := conn.OpenStreamSync(ctx)
+	c.mu.Unlock()
+
+	conn, err := quic.DialAddr(ctx, c.addr, c.conf, &quic.Config{
+		HandshakeIdleTimeout: 5 * time.Second,
+		MaxIdleTimeout:       idleTimeout,
+		KeepAlivePeriod:      15 * time.Second,
+	})
 	if err != nil {
-		return nil, errors.New("open quic stream: " + err.Error())
+		return nil, err
+	}
+	c.mu.Lock()
+	active := []quic.Connection{conn}
+	for _, conn := range c.conns {
+		if !isClosed(conn) {
+			active = append(active, conn)
+		}
+	}
+	c.conns = active
+	c.mu.Unlock()
+	return conn.OpenStream()
+}
+
+func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
+	stream, err := c.connect(ctx)
+	if err != nil {
+		return nil, err
 	}
 	stream = wrapStream(stream)
 	m := metadata{Hostport: dst}
@@ -107,7 +145,7 @@ type streamWrapper struct {
 	quic.Stream
 }
 
-// wrap the stream with method Close that closes both read and write
+// makes stream's method Close close both read and write
 func wrapStream(stream quic.Stream) *streamWrapper {
 	return &streamWrapper{
 		Stream: stream,

@@ -13,15 +13,19 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+// TunnelServer is a QUIC tunnel server, its zero value is ready to use
+type TunnelServer struct {
+	mu  sync.Mutex
+	lis *quic.Listener
+}
+
 // Idleness duration is defined since no incomming network activity,
 // quic-go doesn't act like the grpc way that checking the number of streams.
 // Increase this duration to 5 minutes so the connection doesn't get closed too soon
 const idleTimeout = 5 * time.Minute
 
-// TunnelServer is a QUIC tunnel server, its zero value is ready to use
-type TunnelServer struct {
-	mu  sync.Mutex
-	lis *quic.Listener
+var quicConfig = &quic.Config{
+	MaxIdleTimeout: idleTimeout,
 }
 
 // Serve will return a non-nil error unless Close is called.
@@ -30,11 +34,7 @@ func (s *TunnelServer) Serve(address string, tlsConf *tls.Config) error {
 		return errors.New("TLS config required")
 	}
 	tlsConf.NextProtos = append(tlsConf.NextProtos, "quic")
-	conf := &quic.Config{
-		MaxIdleTimeout:  idleTimeout,
-		EnableDatagrams: true,
-	}
-	lis, err := quic.ListenAddr(address, tlsConf, conf)
+	lis, err := quic.ListenAddr(address, tlsConf, quicConfig)
 	if err != nil {
 		return err
 	}
