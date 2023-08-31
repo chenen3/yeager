@@ -22,7 +22,7 @@ type TunnelClient struct {
 	password string
 }
 
-func makeUtlsConfig(t *tls.Config) *utls.Config {
+func utlsConfigFromTLS(t *tls.Config) *utls.Config {
 	u := &utls.Config{
 		ServerName: t.ServerName,
 		MinVersion: t.MinVersion,
@@ -53,21 +53,11 @@ func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *T
 		password: password,
 	}
 
-	roller, err := utls.NewRoller()
-	if err != nil {
-		panic(err)
-	}
-
 	// mitigate website fingerprinting via multiplexing of HTTP/2 ,
 	// the fewer connections the better, so a single client is used here
 	tc.client = &http.Client{Transport: &http2.Transport{
 		TLSClientConfig: cfg,
 		DialTLSContext: func(ctx context.Context, network, addr string, tlsCfg *tls.Config) (net.Conn, error) {
-			// utls Roller does not accept IP address as server name
-			if net.ParseIP(tlsCfg.ServerName) == nil {
-				return roller.Dial(network, addr, tlsCfg.ServerName)
-			}
-
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
@@ -76,7 +66,8 @@ func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *T
 			if err != nil {
 				return nil, err
 			}
-			return utls.UClient(conn, makeUtlsConfig(tlsCfg), utls.HelloRandomized), nil
+			// sometimes HelloRandomized does not work on my macbook
+			return utls.UClient(conn, utlsConfigFromTLS(tlsCfg), utls.HelloChrome_Auto), nil
 		},
 		ReadIdleTimeout: 15 * time.Second,
 		PingTimeout:     2 * time.Second,
