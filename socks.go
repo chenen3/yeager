@@ -53,7 +53,7 @@ func (s *socksServer) Serve(lis net.Listener, connect connectFunc) error {
 	}
 }
 
-type connectFunc func(ctx context.Context, addr string) (stream io.ReadWriteCloser, err error)
+type connectFunc func(ctx context.Context, addr string) (io.ReadWriteCloser, error)
 
 func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 	defer s.trackConn(conn, false)
@@ -82,8 +82,10 @@ func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 		slog.Error(err.Error())
 		return
 	}
-	slog.Debug("closed "+addr, "timed", time.Since(start))
+	slog.Debug("closed "+addr, durationKey, time.Since(start))
 }
+
+const durationKey = "dur"
 
 func canIgnore(err error) bool {
 	return errors.Is(err, net.ErrClosed) ||

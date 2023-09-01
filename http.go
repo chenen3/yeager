@@ -88,7 +88,7 @@ func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
 		slog.Error(err.Error())
 		return
 	}
-	slog.Debug("closed "+dst, "timed", time.Since(start))
+	slog.Debug("closed "+dst, durationKey, time.Since(start))
 }
 
 func (s *httpProxy) trackConn(c net.Conn, add bool) {

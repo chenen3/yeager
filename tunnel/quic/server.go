@@ -21,7 +21,7 @@ type TunnelServer struct {
 
 // Idleness duration is defined since no incomming network activity,
 // quic-go doesn't act like the grpc way that checking the number of streams.
-// Increase this duration to 5 minutes so the connection doesn't get closed too soon
+// Increase this duration to 5 minutes so the connection doesn't get closed too early
 const idleTimeout = 5 * time.Minute
 
 var quicConfig = &quic.Config{
