@@ -10,24 +10,26 @@ def install():
         os.chdir(cfgdir)
         os.system("/usr/local/bin/yeager -genconf")
 
+serviceConfig = '''
+[Unit]
+Description=yeager
+Documentation=https://github.com/chenen3/yeager
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/yeager -config /usr/local/etc/yeager/server.json
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+# can bind privileged ports, e.g. 443
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+'''
+
 def run():
     with open("/etc/systemd/system/yeager.service", "w") as f:
-        f.write("""
-    [Unit]
-    Description=yeager
-    Documentation=https://github.com/chenen3/yeager
-    After=network.target
-
-    [Service]
-    ExecStart=/usr/local/bin/yeager -config /usr/local/etc/yeager/server.json
-    TimeoutStopSec=5s
-    LimitNOFILE=1048576
-    # can bind privileged ports, e.g. 443
-    # AmbientCapabilities=CAP_NET_BIND_SERVICE
-
-    [Install]
-    WantedBy=multi-user.target
-    """)
+        f.write(serviceConfig)
     os.system("systemctl daemon-reload")
     os.system("systemctl enable yeager")
     os.system("systemctl start yeager")

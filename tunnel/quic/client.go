@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -77,7 +76,6 @@ func (c *TunnelClient) connect(ctx context.Context) (quic.Stream, error) {
 			// refer to unexported streamOpenErr in quic-go
 			if te, ok := err.(interface{ Temporary() bool }); ok && te.Temporary() {
 				// reach max streams limit
-				slog.Warn(err.Error())
 				continue
 			}
 			c.mu.Unlock()
