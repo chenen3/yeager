@@ -1,4 +1,4 @@
-package forward
+package flow
 
 import (
 	"errors"
@@ -9,15 +9,12 @@ import (
 var bufPool = sync.Pool{
 	New: func() any {
 		// refer to 16KB maxPlaintext in crypto/tls/common.go
-		s := make([]byte, 16*1024)
-		// A pointer can be put into the return interface value without an allocation.
-		return &s
+		b := make([]byte, 16*1024)
+		return &b
 	},
 }
 
-// Copy is adapted from io.Copy.
-// It ignores the ReadFrom and WriteTo Interface,
-// stages through the built-in buffer pool
+// Copy is adapted from io.Copy, and uses buffer pool to copy data from src to dst.
 func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	b := bufPool.Get().(*[]byte)
 	for {
@@ -51,9 +48,9 @@ func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	return written, err
 }
 
-// Dual copies data in both directions between a and b,
+// Relay copies data in both directions between a and b,
 // blocks until one of them completes.
-func Dual(a, b io.ReadWriter) error {
+func Relay(a, b io.ReadWriter) error {
 	c := make(chan error, 2)
 	go func() {
 		_, err := Copy(a, b)

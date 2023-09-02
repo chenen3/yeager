@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/forward"
+	"github.com/chenen3/yeager/flow"
 	"github.com/quic-go/quic-go"
 )
 
@@ -95,7 +95,7 @@ func handleStream(stream quic.Stream) {
 	}
 	defer conn.Close()
 
-	err = forward.Dual(stream, conn)
+	err = flow.Relay(stream, conn)
 	if err != nil {
 		if e, ok := err.(*quic.ApplicationError); ok && e.ErrorCode == 0 {
 			return

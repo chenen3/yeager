@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/forward"
+	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/tunnel/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -62,7 +62,7 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	defer conn.Close()
 
-	err = forward.Dual(toReadWriter(stream), conn)
+	err = flow.Relay(toReadWriter(stream), conn)
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return nil

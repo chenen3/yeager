@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/forward"
+	"github.com/chenen3/yeager/flow"
 )
 
 // implements HTTP proxy server,
@@ -83,7 +83,7 @@ func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
 		}
 	}
 
-	err = forward.Dual(conn, stream)
+	err = flow.Relay(conn, stream)
 	if err != nil && !canIgnore(err) {
 		slog.Error(err.Error())
 		return

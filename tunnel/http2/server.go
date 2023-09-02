@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/forward"
+	"github.com/chenen3/yeager/flow"
 	"golang.org/x/net/http2"
 )
 
@@ -101,11 +101,11 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 	go func() {
-		forward.Copy(conn, r.Body)
+		flow.Copy(conn, r.Body)
 		conn.Close()
 	}()
 	// after Handler finished, calling http2.responseWriter.Flush() may panic
-	forward.Copy(&flushWriter{w}, conn)
+	flow.Copy(&flushWriter{w}, conn)
 }
 
 func (s *TunnelServer) Close() error {

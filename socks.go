@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/forward"
+	"github.com/chenen3/yeager/flow"
 )
 
 type socksServer struct {
@@ -77,7 +77,7 @@ func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 	}
 	defer stream.Close()
 
-	err = forward.Dual(conn, stream)
+	err = flow.Relay(conn, stream)
 	if err != nil && !canIgnore(err) {
 		slog.Error(err.Error())
 		return

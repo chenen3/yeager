@@ -1,4 +1,4 @@
-package forward
+package flow
 
 import (
 	"bytes"
@@ -118,27 +118,3 @@ func BenchmarkBufSize32KB(b *testing.B) {
 		Copy(io.Discard, r)
 	}
 }
-
-/*
-func TestReadableBytes(t *testing.T) {
-	type args struct {
-		n int64
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{args: args{1}, want: "1B"},
-		{args: args{2*1024 + 521}, want: "2.5KB"},
-		{args: args{3*1024*1024 + 512*1024}, want: "3.5MB"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ReadableBytes(tt.args.n); got != tt.want {
-				t.Errorf("ReadableBytes() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-*/
