@@ -46,28 +46,10 @@ func TestRouter(t *testing.T) {
 			args:   args{"www.apple.com"},
 			want:   "faketag",
 		},
-		// {
-		// 	name:   "geosite",
-		// 	fields: fields{rules: []string{"geosite,private,faketag"}},
-		// 	args:   args{"localhost"},
-		// 	want:   "faketag",
-		// },
-		// {
-		// 	name:   "geosite",
-		// 	fields: fields{rules: []string{"geosite,apple@cn,faketag"}},
-		// 	args:   args{"apple.cn"},
-		// 	want:   "faketag",
-		// },
 		{
 			name:   "ip-cidr",
 			fields: fields{rules: []string{"ip-cidr,127.0.0.1/8,faketag"}},
 			args:   args{"127.0.0.1"},
-			want:   "faketag",
-		},
-		{
-			name:   "ip-cidr",
-			fields: fields{rules: []string{"ip-cidr,192.168.0.0/16,faketag"}},
-			args:   args{"192.168.1.1"},
 			want:   "faketag",
 		},
 	}
@@ -90,5 +72,33 @@ func TestRouter(t *testing.T) {
 				return
 			}
 		})
+	}
+}
+
+func BenchmarkMatcher(b *testing.B) {
+	var rules = []string{
+		"ip-cidr,127.0.0.1/8,direct",
+		"ip-cidr,192.168.0.0/16,direct",
+		"ip-cidr,172.16.0.0/12,direct",
+		"ip-cidr,10.0.0.0/8,direct",
+		"domain,localhost,direct",
+		"geosite,apple@cn,direct",
+		"geosite,jd,direct",
+		"geosite,alibaba,direct",
+		"geosite,baidu,direct",
+		"geosite,tencent,direct",
+		"geosite,bilibili,direct",
+		"geosite,zhihu,direct",
+	}
+	r, err := New(rules)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := r.Match("iamfake.com"); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

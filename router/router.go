@@ -31,34 +31,34 @@ const (
 )
 
 type rule struct {
-	matcher
-	kind  string
-	route string
+	kind    string
+	route   string
+	matcher matcher
 }
 
 func newRule(kind string, value string, route string) (*rule, error) {
 	var m matcher
 	switch strings.ToLower(kind) {
 	case domainRule:
-		m = domainMatcher(value)
+		m = domainMatch(value)
 	case domainSuffixRule:
-		m = domainSuffixMatcher(value)
+		m = domainSuffixMatch(value)
 	case domainKeywordRule:
-		m = domainKeywordMatcher(value)
+		m = domainKeywordMatch(value)
 	case geoSiteRule:
-		gm, err := newGeoSiteMatcher(value)
+		gm, err := newGeoSiteMatch(value)
 		if err != nil {
 			return nil, err
 		}
 		m = gm
 	case ipCIDRRule:
-		cm, err := newCIDRMatcher(value)
+		_, ipNet, err := net.ParseCIDR(value)
 		if err != nil {
 			return nil, err
 		}
-		m = cm
+		m = cidrMatch{ipNet}
 	case finalRule:
-		m = finalMatcher{}
+		m = allMatch{}
 	default:
 		return nil, errors.New("unsupported rule type: " + kind)
 	}
@@ -78,42 +78,21 @@ func parseRule(rule string) (*rule, error) {
 	parts := strings.Split(rule, ",")
 	switch len(parts) {
 	case 2:
-		rtype := parts[0]
-		if !strings.EqualFold(rtype, finalRule) {
+		kind := parts[0]
+		if !strings.EqualFold(kind, finalRule) {
 			return nil, errors.New("invalid final rule: " + rule)
 		}
-		return newRule(rtype, "", parts[1])
+		return newRule(kind, "", parts[1])
 	case 3:
-		typ := parts[0]
+		kind := parts[0]
 		val := parts[1]
 		if val == "" {
 			return nil, errors.New("empty rule value: " + rule)
 		}
-		return newRule(typ, val, parts[2])
+		return newRule(kind, val, parts[2])
 	default:
 		return nil, errors.New("wrong form of rule: " + rule)
 	}
-}
-
-type host struct {
-	Domain string
-	IsIPv4 bool
-	IP     net.IP
-}
-
-func parseHost(s string) (host, error) {
-	if s == "" {
-		return host{}, errors.New("empty host name")
-	}
-
-	var h host
-	if ip := net.ParseIP(s); ip == nil {
-		h.Domain = s
-	} else if ipv4 := ip.To4(); ipv4 != nil {
-		h.IsIPv4 = true
-		h.IP = ipv4
-	}
-	return h, nil
 }
 
 type Router []*rule
@@ -143,26 +122,22 @@ func New(rules []string) (Router, error) {
 }
 
 func (r Router) Match(host string) (route string, err error) {
-	h, err := parseHost(host)
-	if err != nil {
-		return "", err
-	}
-
+	ip := net.ParseIP(host)
 	// did consider using cache to speed up the matching,
 	// but here is not the performance bottleneck
 	for _, rule := range r {
 		// do not dive deep if the rule type is not match
 		switch rule.kind {
 		case domainRule, domainSuffixRule, domainKeywordRule, geoSiteRule:
-			if h.Domain == "" {
+			if host == "" {
 				continue
 			}
 		case ipCIDRRule:
-			if h.IP == nil {
+			if ip == nil {
 				continue
 			}
 		}
-		if rule.Match(h) {
+		if rule.matcher.match(host, ip) {
 			return rule.route, nil
 		}
 	}

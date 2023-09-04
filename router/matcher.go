@@ -11,66 +11,58 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// see similar implementation in golang.org/x/net/http/httpproxy/proxy.go
+
 type matcher interface {
-	Match(host) bool
+	// match returns true if the host and ip are allowed
+	match(host string, ip net.IP) bool
 }
 
-type domainMatcher string
+type allMatch struct{}
 
-func (d domainMatcher) Match(h host) bool {
-	return h.Domain == string(d)
+func (a allMatch) match(host string, ip net.IP) bool {
+	return true
 }
 
-type domainKeywordMatcher string
+type domainMatch string
 
-func (key domainKeywordMatcher) Match(h host) bool {
-	return strings.Contains(h.Domain, string(key))
+func (d domainMatch) match(host string, ip net.IP) bool {
+	return host == string(d)
 }
 
-type domainSuffixMatcher string
+type domainKeywordMatch string
 
-func (m domainSuffixMatcher) Match(h host) bool {
-	if h.Domain == "" {
+func (key domainKeywordMatch) match(host string, ip net.IP) bool {
+	return strings.Contains(host, string(key))
+}
+
+type domainSuffixMatch string
+
+func (m domainSuffixMatch) match(host string, ip net.IP) bool {
+	if host == "" {
 		return false
 	}
-	if !strings.HasSuffix(h.Domain, string(m)) {
+	if !strings.HasSuffix(host, string(m)) {
 		return false
 	}
 
-	domain := h.Domain
-	return len(m) == len(domain) || domain[len(domain)-len(m)-1] == '.'
+	return len(m) == len(host) || host[len(host)-len(m)-1] == '.'
 }
 
-type domainRegexMatcher struct {
+type domainRegexMatch struct {
 	re *regexp.Regexp
 }
 
-func newRegexMatcher(expr string) (*domainRegexMatcher, error) {
-	re, err := regexp.Compile(expr)
-	if err != nil {
-		return nil, err
-	}
-	return &domainRegexMatcher{re: re}, nil
+func (m domainRegexMatch) match(host string, ip net.IP) bool {
+	return host != "" && m.re.MatchString(host)
 }
 
-func (m *domainRegexMatcher) Match(h host) bool {
-	return h.Domain != "" && m.re.MatchString(h.Domain)
+type cidrMatch struct {
+	cidr *net.IPNet
 }
 
-type cidrMatcher struct {
-	*net.IPNet
-}
-
-func newCIDRMatcher(s string) (*cidrMatcher, error) {
-	_, ipNet, err := net.ParseCIDR(s)
-	if err != nil {
-		return nil, err
-	}
-	return &cidrMatcher{ipNet}, nil
-}
-
-func (c *cidrMatcher) Match(h host) bool {
-	return h.IsIPv4 && c.Contains(h.IP)
+func (m cidrMatch) match(host string, ip net.IP) bool {
+	return m.cidr.Contains(ip)
 }
 
 const geositeFile = "/usr/local/etc/yeager/geosite.dat"
@@ -107,13 +99,13 @@ func extractCountrySite(country string) ([]*pb.Domain, error) {
 	return nil, errors.New("unsupported country code: " + country)
 }
 
-type matchFunc func(host) bool
+type matchFunc func(host string, ip net.IP) bool
 
-// benchmark shows that a geoSiteMatcher composed of function
+// benchmark shows that a geoSiteMatch composed of function
 // is nearly 40% faster than one composed of interface
-type geoSiteMatcher []matchFunc
+type geoSiteMatch []matchFunc
 
-func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
+func newGeoSiteMatch(value string) (geoSiteMatch, error) {
 	// 配置规则geosite的值可能带有属性，例如 google@ads ，表示只要google所有域名中带有ads属性的域名
 	parts := strings.Split(value, "@")
 	geoValue := strings.TrimSpace(parts[0])
@@ -127,7 +119,7 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 		return nil, err
 	}
 
-	g := make(geoSiteMatcher, 0, len(sites))
+	g := make(geoSiteMatch, 0, len(sites))
 	for _, domain := range sites {
 		if len(attrs) > 0 && !domainContainsAnyAttr(domain, attrs) {
 			continue
@@ -135,29 +127,29 @@ func newGeoSiteMatcher(value string) (geoSiteMatcher, error) {
 		var f matchFunc
 		switch domain.Type {
 		case pb.Domain_Plain:
-			f = domainKeywordMatcher(domain.Value).Match
+			f = domainKeywordMatch(domain.Value).match
 		case pb.Domain_RootDomain:
-			f = domainSuffixMatcher(domain.Value).Match
+			f = domainSuffixMatch(domain.Value).match
 		case pb.Domain_Full:
-			f = domainMatcher(domain.Value).Match
+			f = domainMatch(domain.Value).match
 		case pb.Domain_Regex:
-			rm, err := newRegexMatcher(domain.Value)
+			re, err := regexp.Compile(domain.Value)
 			if err != nil {
 				return nil, err
 			}
-			f = rm.Match
+			f = domainRegexMatch{re}.match
 		}
 		g = append(g, f)
 	}
 	return g, nil
 }
 
-func (g geoSiteMatcher) Match(h host) bool {
-	if h.Domain == "" {
+func (g geoSiteMatch) match(host string, ip net.IP) bool {
+	if host == "" {
 		return false
 	}
 	for _, f := range g {
-		if f(h) {
+		if f(host, ip) {
 			return true
 		}
 	}
@@ -173,10 +165,4 @@ func domainContainsAnyAttr(domain *pb.Domain, attrs []string) bool {
 		}
 	}
 	return false
-}
-
-type finalMatcher struct{}
-
-func (f finalMatcher) Match(h host) bool {
-	return true
 }

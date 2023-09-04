@@ -3,7 +3,6 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -87,10 +86,10 @@ const targetKey = "target"
 func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
 	conn, err := c.getConn(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("connect grpc: %s", err)
+		return nil, err
 	}
-	client := pb.NewTunnelClient(conn)
 
+	client := pb.NewTunnelClient(conn)
 	// this context controls the lifetime of the stream, do not use short-lived contexts
 	sctx, cancel := context.WithCancel(context.Background())
 	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, dst))
@@ -98,7 +97,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	if err != nil {
 		cancel()
 		conn.Close()
-		return nil, fmt.Errorf("create grpc stream: %s", err)
+		return nil, err
 	}
 	return wrapClientStream(stream, cancel), nil
 }
@@ -126,7 +125,7 @@ type clientStreamWrapper struct {
 	buf     []byte
 }
 
-// wraps client stream and implements io.ReadWriteCloser
+// wraps client stream as io.ReadWriteCloser
 func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
 	return &clientStreamWrapper{stream: stream, onClose: onClose}
 }

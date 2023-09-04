@@ -182,11 +182,11 @@ func (m *metadata) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	size := int(b[0])
-	bs := make([]byte, size)
-	n, err := io.ReadFull(r, bs)
+	buf := make([]byte, size)
+	n, err := io.ReadFull(r, buf)
 	if err != nil {
 		return int64(n), err
 	}
-	m.Hostport = string(bs)
+	m.Hostport = string(buf)
 	return int64(ns + n), nil
 }
