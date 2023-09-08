@@ -161,16 +161,12 @@ type metadata struct {
 }
 
 // [length, payload...]
-func (m *metadata) Bytes() []byte {
-	size := len(m.Hostport)
-	bs := make([]byte, 0, size+1)
-	bs = append(bs, byte(size))
-	bs = append(bs, []byte(m.Hostport)...)
-	return bs
-}
-
 func (m *metadata) WriteTo(w io.Writer) (int64, error) {
-	n, err := w.Write(m.Bytes())
+	size := len(m.Hostport)
+	buf := make([]byte, 0, size+1)
+	buf = append(buf, byte(size))
+	buf = append(buf, []byte(m.Hostport)...)
+	n, err := w.Write(buf)
 	return int64(n), err
 }
 

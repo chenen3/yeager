@@ -99,11 +99,9 @@ func extractCountrySite(country string) ([]*pb.Domain, error) {
 	return nil, errors.New("unsupported country code: " + country)
 }
 
-type matchFunc func(host string, ip net.IP) bool
-
-// benchmark shows that a geoSiteMatch composed of function
+// benchmark indicates a geoSiteMatch composed of function
 // is nearly 40% faster than one composed of interface
-type geoSiteMatch []matchFunc
+type geoSiteMatch []func(host string, ip net.IP) bool
 
 func newGeoSiteMatch(value string) (geoSiteMatch, error) {
 	// 配置规则geosite的值可能带有属性，例如 google@ads ，表示只要google所有域名中带有ads属性的域名
@@ -124,7 +122,7 @@ func newGeoSiteMatch(value string) (geoSiteMatch, error) {
 		if len(attrs) > 0 && !domainContainsAnyAttr(domain, attrs) {
 			continue
 		}
-		var f matchFunc
+		var f func(host string, ip net.IP) bool
 		switch domain.Type {
 		case pb.Domain_Plain:
 			f = domainKeywordMatch(domain.Value).match
@@ -144,12 +142,12 @@ func newGeoSiteMatch(value string) (geoSiteMatch, error) {
 	return g, nil
 }
 
-func (g geoSiteMatch) match(host string, ip net.IP) bool {
+func (g geoSiteMatch) match(host string, _ net.IP) bool {
 	if host == "" {
 		return false
 	}
 	for _, f := range g {
-		if f(host, ip) {
+		if f(host, nil) {
 			return true
 		}
 	}

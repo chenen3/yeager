@@ -36,7 +36,30 @@ type rule struct {
 	matcher matcher
 }
 
-func newRule(kind string, value string, route string) (*rule, error) {
+// there are two form of rules:
+//   - ordinary rule: type,value,route
+//   - final rule: FINAL,route
+func parseRule(s string) (rule, error) {
+	var kind, value, route string
+	parts := strings.Split(s, ",")
+	switch len(parts) {
+	case 2:
+		kind = parts[0]
+		if !strings.EqualFold(kind, finalRule) {
+			return rule{}, errors.New("bad final rule: " + s)
+		}
+		route = parts[1]
+	case 3:
+		kind = parts[0]
+		value = parts[1]
+		if value == "" {
+			return rule{}, errors.New("empty rule value: " + s)
+		}
+		route = parts[2]
+	default:
+		return rule{}, errors.New("bad rule: " + s)
+	}
+
 	var m matcher
 	switch strings.ToLower(kind) {
 	case domainRule:
@@ -48,22 +71,22 @@ func newRule(kind string, value string, route string) (*rule, error) {
 	case geoSiteRule:
 		gm, err := newGeoSiteMatch(value)
 		if err != nil {
-			return nil, err
+			return rule{}, err
 		}
 		m = gm
 	case ipCIDRRule:
 		_, ipNet, err := net.ParseCIDR(value)
 		if err != nil {
-			return nil, err
+			return rule{}, err
 		}
 		m = cidrMatch{ipNet}
 	case finalRule:
 		m = allMatch{}
 	default:
-		return nil, errors.New("unsupported rule type: " + kind)
+		return rule{}, errors.New("unsupported rule type: " + kind)
 	}
 
-	r := &rule{
+	r := rule{
 		kind:    strings.ToLower(kind),
 		route:   strings.ToLower(route),
 		matcher: m,
@@ -71,40 +94,16 @@ func newRule(kind string, value string, route string) (*rule, error) {
 	return r, nil
 }
 
-// there are two form of rules:
-//   - ordinary rule: type,value,route
-//   - final rule: FINAL,route
-func parseRule(rule string) (*rule, error) {
-	parts := strings.Split(rule, ",")
-	switch len(parts) {
-	case 2:
-		kind := parts[0]
-		if !strings.EqualFold(kind, finalRule) {
-			return nil, errors.New("invalid final rule: " + rule)
-		}
-		return newRule(kind, "", parts[1])
-	case 3:
-		kind := parts[0]
-		val := parts[1]
-		if val == "" {
-			return nil, errors.New("empty rule value: " + rule)
-		}
-		return newRule(kind, val, parts[2])
-	default:
-		return nil, errors.New("wrong form of rule: " + rule)
-	}
-}
-
-type Router []*rule
+type Router []rule
 
 func New(rules []string) (Router, error) {
 	if len(rules) == 0 {
 		return nil, errors.New("empty rules")
 	}
 
-	parsed := make([]*rule, len(rules))
-	for i, rawRule := range rules {
-		ru, err := parseRule(rawRule)
+	parsed := make([]rule, len(rules))
+	for i, s := range rules {
+		ru, err := parseRule(s)
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +125,7 @@ func (r Router) Match(host string) (route string, err error) {
 	// did consider using cache to speed up the matching,
 	// but here is not the performance bottleneck
 	for _, rule := range r {
-		// do not dive deep if the rule type is not match
+		// do not dive deep if the rule type does not match
 		switch rule.kind {
 		case domainRule, domainSuffixRule, domainKeywordRule, geoSiteRule:
 			if host == "" {

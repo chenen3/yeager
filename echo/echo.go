@@ -14,20 +14,20 @@ type Server struct {
 	running  sync.WaitGroup
 }
 
-func (e *Server) Serve() {
-	e.running.Add(1)
-	defer e.running.Done()
+func (s *Server) Serve() {
+	s.running.Add(1)
+	defer s.running.Done()
 	for {
-		conn, err := e.Listener.Accept()
+		conn, err := s.Listener.Accept()
 		if err != nil {
-			if e != nil && !errors.Is(err, net.ErrClosed) {
+			if s != nil && !errors.Is(err, net.ErrClosed) {
 				slog.Error(err.Error())
 			}
 			return
 		}
-		e.running.Add(1)
+		s.running.Add(1)
 		go func() {
-			defer e.running.Done()
+			defer s.running.Done()
 			io.Copy(conn, conn)
 			conn.Close()
 		}()
