@@ -44,7 +44,10 @@ func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	c.mu.Lock()
 	for i, cc := range c.conns {
 		if canTakeRequest(cc) {
-			c.conns = c.conns[i:]
+			if i > 0 {
+				// clear dead conn
+				c.conns = c.conns[i:]
+			}
 			c.mu.Unlock()
 			return cc, nil
 		}
@@ -100,12 +103,6 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		return nil, err
 	}
 	return wrapClientStream(stream, cancel), nil
-}
-
-func (c *TunnelClient) ConnNum() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.conns)
 }
 
 func (c *TunnelClient) Close() error {

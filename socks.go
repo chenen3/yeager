@@ -103,11 +103,11 @@ func (s *socksServer) trackConn(c net.Conn, add bool) {
 }
 
 // ConnNum returns the number of active connections
-func (s *socksServer) ConnNum() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.activeConn)
-}
+// func (s *socksServer) ConnNum() int {
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
+// 	return len(s.activeConn)
+// }
 
 func (s *socksServer) Close() error {
 	s.mu.Lock()

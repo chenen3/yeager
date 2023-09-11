@@ -104,7 +104,7 @@ func TestReachStreamLimit(t *testing.T) {
 	defer rwc2.Close()
 
 	want := 2
-	if got := tc.ConnNum(); got != want {
+	if got := len(tc.conns); got != want {
 		t.Fatalf("got %d connections, expected %d", got, want)
 	}
 }

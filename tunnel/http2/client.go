@@ -112,10 +112,6 @@ func (c *TunnelClient) Close() error {
 	return nil
 }
 
-func (c *TunnelClient) ConnNum() int {
-	return -1
-}
-
 type stream struct {
 	rc io.ReadCloser
 	wc *io.PipeWriter

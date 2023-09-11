@@ -120,12 +120,6 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	return stream, nil
 }
 
-func (c *TunnelClient) ConnNum() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.conns)
-}
-
 func (c *TunnelClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

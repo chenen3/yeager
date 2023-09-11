@@ -102,11 +102,11 @@ func (s *httpProxy) trackConn(c net.Conn, add bool) {
 }
 
 // ConnNum returns the number of active connections
-func (s *httpProxy) ConnNum() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.activeConn)
-}
+// func (s *httpProxy) ConnNum() int {
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
+// 	return len(s.activeConn)
+// }
 
 // Close close listener and all active connections
 func (s *httpProxy) Close() error {

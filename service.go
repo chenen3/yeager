@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,8 +16,6 @@ import (
 	"github.com/chenen3/yeager/tunnel/http2"
 	"github.com/chenen3/yeager/tunnel/quic"
 )
-
-var connStats = expvar.NewMap("connstats")
 
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
@@ -46,9 +43,6 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			}
 		}()
 		closers = append(closers, hs)
-		connStats.Set("http", expvar.Func(func() any {
-			return hs.ConnNum()
-		}))
 	}
 
 	if conf.ListenSOCKS != "" {
@@ -72,9 +66,6 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			}
 		}()
 		closers = append(closers, ss)
-		connStats.Set("socks", expvar.Func(func() any {
-			return ss.ConnNum()
-		}))
 	}
 
 	for _, sc := range conf.Listen {
@@ -188,21 +179,12 @@ func NewConnector(rules []string, clientConfigs []ClientConfig) (*Connector, err
 		case ProtoGRPC:
 			client := grpc.NewTunnelClient(cc.Address, tlsConf)
 			dialers[name] = client
-			connStats.Set(cc.Name, expvar.Func(func() any {
-				return client.ConnNum()
-			}))
 		case ProtoQUIC:
 			client := quic.NewTunnelClient(cc.Address, tlsConf)
 			dialers[name] = client
-			connStats.Set(cc.Name, expvar.Func(func() any {
-				return client.ConnNum()
-			}))
 		case ProtoHTTP2:
 			client := http2.NewTunnelClient(cc.Address, tlsConf, cc.Username, cc.Password)
 			dialers[name] = client
-			connStats.Set(cc.Name, expvar.Func(func() any {
-				return client.ConnNum()
-			}))
 		default:
 			slog.Warn("ignore unsupported tunnel", "route", cc.Name, "proto", cc.Proto)
 			continue
