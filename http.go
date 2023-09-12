@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -14,47 +16,45 @@ import (
 	"github.com/chenen3/yeager/flow"
 )
 
-// implements HTTP proxy server,
 // refer to https://en.wikipedia.org/wiki/HTTP_tunnel
 type httpProxy struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
-	done       chan struct{}
 }
 
-func newHTTPProxy() *httpProxy {
-	s := &httpProxy{
-		activeConn: make(map[net.Conn]struct{}),
-		done:       make(chan struct{}),
-	}
-	return s
+type dialFunc func(ctx context.Context, address string) (io.ReadWriteCloser, error)
+
+var defaultDial = func(ctx context.Context, address string) (io.ReadWriteCloser, error) {
+	var d net.Dialer
+	return d.DialContext(ctx, "tcp", address)
 }
 
 // Serve serves connection accepted by lis,
-// blocks until an unexpected error is encounttered or Close is called
-func (s *httpProxy) Serve(lis net.Listener, connect connectFunc) error {
+// blocks until an unexpected error is encounttered or Close is called.
+// If dial is nil, the net package's standard dialer is used.
+func (s *httpProxy) Serve(lis net.Listener, dial dialFunc) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
-
+	if dial == nil {
+		dial = defaultDial
+	}
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			select {
-			case <-s.done:
-				return nil
-			default:
-				return err
+			if errors.Is(err, net.ErrClosed) {
+				err = nil
 			}
+			return err
 		}
 
 		s.trackConn(conn, true)
-		go s.handleConn(conn, connect)
+		go s.handleConn(conn, dial)
 	}
 }
 
-func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
+func (s *httpProxy) handleConn(conn net.Conn, dial dialFunc) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -69,7 +69,7 @@ func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	stream, err := connect(ctx, dst)
+	stream, err := dial(ctx, dst)
 	if err != nil {
 		slog.Error(fmt.Sprintf("connect %s: %s", dst, err))
 		return
@@ -94,6 +94,9 @@ func (s *httpProxy) handleConn(conn net.Conn, connect connectFunc) {
 func (s *httpProxy) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.activeConn == nil {
+		s.activeConn = make(map[net.Conn]struct{})
+	}
 	if add {
 		s.activeConn[c] = struct{}{}
 	} else {
@@ -101,20 +104,10 @@ func (s *httpProxy) trackConn(c net.Conn, add bool) {
 	}
 }
 
-// ConnNum returns the number of active connections
-// func (s *httpProxy) ConnNum() int {
-// 	s.mu.Lock()
-// 	defer s.mu.Unlock()
-// 	return len(s.activeConn)
-// }
-
 // Close close listener and all active connections
 func (s *httpProxy) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.done != nil {
-		close(s.done)
-	}
 	var err error
 	if s.lis != nil {
 		err = s.lis.Close()

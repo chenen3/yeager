@@ -22,11 +22,11 @@ func TestHttpProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	s := newHTTPProxy()
+	var s httpProxy
 	defer s.Close()
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, directConnect); e != nil {
+		if e := s.Serve(lis, nil); e != nil {
 			t.Log(e)
 		}
 	}()
@@ -68,12 +68,12 @@ func TestHttpsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := newHTTPProxy()
+	var s httpProxy
 	defer s.Close()
 	ready := make(chan struct{})
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, directConnect); e != nil {
+		if e := s.Serve(lis, nil); e != nil {
 			t.Log(e)
 		}
 	}()
@@ -98,33 +98,5 @@ func TestHttpsProxy(t *testing.T) {
 	}
 	if string(got) != want {
 		t.Fatalf("got %s, want %s", got, want)
-	}
-}
-
-func TestCloseHttpProxy(t *testing.T) {
-	// test no-op Close
-	s := newHTTPProxy()
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// test if Serve can exit properly when Close called
-	s = newHTTPProxy()
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ready := make(chan struct{})
-	go func() {
-		<-ready
-		// in case Serve has not started yet
-		time.Sleep(time.Millisecond)
-		if err := s.Close(); err != nil {
-			t.Error(err)
-		}
-	}()
-	close(ready)
-	if err := s.Serve(lis, directConnect); err != nil {
-		t.Fatal(err)
 	}
 }

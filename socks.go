@@ -16,46 +16,38 @@ import (
 	"github.com/chenen3/yeager/flow"
 )
 
+// SOCKS server, version 5
 type socksServer struct {
-	lis        net.Listener
 	mu         sync.Mutex
+	lis        net.Listener
 	activeConn map[net.Conn]struct{}
-	done       chan struct{}
-}
-
-func newSOCKServer() *socksServer {
-	return &socksServer{
-		activeConn: make(map[net.Conn]struct{}),
-		done:       make(chan struct{}),
-	}
 }
 
 // Serve serves connection accepted by lis,
-// blocking until the server closes or encounters an unexpected error
-func (s *socksServer) Serve(lis net.Listener, connect connectFunc) error {
+// blocking until the server closes or encounters an unexpected error.
+// If dial is nil, the net package's standard dialer is used.
+func (s *socksServer) Serve(lis net.Listener, dial dialFunc) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
-
+	if dial == nil {
+		dial = defaultDial
+	}
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			select {
-			case <-s.done:
-				return nil
-			default:
-				return err
+			if errors.Is(err, net.ErrClosed) {
+				err = nil
 			}
+			return err
 		}
 
 		s.trackConn(conn, true)
-		go s.handleConn(conn, connect)
+		go s.handleConn(conn, dial)
 	}
 }
 
-type connectFunc func(ctx context.Context, addr string) (io.ReadWriteCloser, error)
-
-func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
+func (s *socksServer) handleConn(conn net.Conn, dial dialFunc) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -70,7 +62,7 @@ func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	stream, err := connect(ctx, addr)
+	stream, err := dial(ctx, addr)
 	if err != nil {
 		slog.Error(fmt.Sprintf("connect %s: %s", addr, err))
 		return
@@ -88,13 +80,15 @@ func (s *socksServer) handleConn(conn net.Conn, connect connectFunc) {
 const durationKey = "dur"
 
 func canIgnore(err error) bool {
-	return errors.Is(err, net.ErrClosed) ||
-		strings.Contains(err.Error(), "connection reset by peer")
+	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer")
 }
 
 func (s *socksServer) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.activeConn == nil {
+		s.activeConn = make(map[net.Conn]struct{})
+	}
 	if add {
 		s.activeConn[c] = struct{}{}
 	} else {
@@ -102,19 +96,9 @@ func (s *socksServer) trackConn(c net.Conn, add bool) {
 	}
 }
 
-// ConnNum returns the number of active connections
-// func (s *socksServer) ConnNum() int {
-// 	s.mu.Lock()
-// 	defer s.mu.Unlock()
-// 	return len(s.activeConn)
-// }
-
 func (s *socksServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.done != nil {
-		close(s.done)
-	}
 	var err error
 	if s.lis != nil {
 		err = s.lis.Close()
