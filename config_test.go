@@ -41,11 +41,7 @@ var rawConf = `
 				"-----END CERTIFICATE-----"
 			]
 		}
-	],
-	"rules": [
-		"final,proxy"
-	],
-	"debug": true
+	]
 }
 `
 
@@ -90,7 +86,6 @@ func TestConfig(t *testing.T) {
 				},
 			},
 		},
-		Rules: []string{"final,proxy"},
 	}
 	var got Config
 	if err := json.Unmarshal([]byte(rawConf), &got); err != nil {

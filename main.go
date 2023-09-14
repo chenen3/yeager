@@ -80,13 +80,13 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	cliConf.Proxy[0].Address = fmt.Sprintf("%s:%d", host, port)
 	cliConf.ListenSOCKS = "127.0.0.1:1080"
 	cliConf.ListenHTTP = "127.0.0.1:8080"
-	cliConf.Rules = []string{
+	cliConf.Routes = []string{
 		"ip-cidr,127.0.0.1/8,direct",
 		"ip-cidr,192.168.0.0/16,direct",
 		"ip-cidr,172.16.0.0/12,direct",
 		"ip-cidr,10.0.0.0/8,direct",
 		"domain,localhost,direct",
-		"final,proxy",
+		"final," + cliConf.Proxy[0].Name,
 	}
 	bs, err = json.MarshalIndent(cliConf, "", "\t")
 	if err != nil {
@@ -139,13 +139,30 @@ func main() {
 		return
 	}
 
+	if flags.debug {
+		debugLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource:   true,
+			Level:       slog.LevelDebug,
+			ReplaceAttr: replace,
+		}))
+		slog.SetDefault(debugLogger)
+
+		debugSrv := http.Server{Addr: "localhost:6060"}
+		defer debugSrv.Close()
+		go func() {
+			if err := debugSrv.ListenAndServe(); err != http.ErrServerClosed {
+				slog.Warn("debug server: " + err.Error())
+			}
+		}()
+	}
+
 	if flags.configFile == "" {
 		flag.Usage()
 		return
 	}
 	bs, err := os.ReadFile(flags.configFile)
 	if err != nil {
-		slog.Error("read config: " + err.Error())
+		slog.Error("read config file: " + err.Error())
 		return
 	}
 	var conf Config
@@ -153,31 +170,11 @@ func main() {
 		slog.Error("load config: " + err.Error())
 		return
 	}
-	if len(conf.Proxy) == 0 && len(conf.Listen) == 0 {
-		slog.Error("no tunnel client nor server in config")
-		return
-	}
-
-	if flags.debug {
-		go func() {
-			err = http.ListenAndServe("localhost:6060", nil)
-			if err != http.ErrServerClosed {
-				slog.Warn("start debug server", "err", err)
-			}
-		}()
-		debugLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			AddSource:   true,
-			Level:       slog.LevelDebug,
-			ReplaceAttr: replace,
-		}))
-		slog.SetDefault(debugLogger)
-	}
-
 	slog.Info("yeager starting", "version", version)
-	closers, err := StartServices(conf)
+	services, err := StartServices(conf)
 	if err != nil {
 		slog.Error("start services: " + err.Error())
-		CloseAll(closers)
+		closeAll(services)
 		return
 	}
 
@@ -185,6 +182,6 @@ func main() {
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	sig := <-ch
 	slog.Info("signal " + sig.String())
-	CloseAll(closers)
+	closeAll(services)
 	slog.Info("goodbye")
 }

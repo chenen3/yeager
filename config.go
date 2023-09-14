@@ -12,10 +12,10 @@ import (
 
 type Config struct {
 	Listen      []ServerConfig `json:"listen,omitempty"`
-	Proxy       []ClientConfig `json:"proxy,omitempty"`
-	Rules       []string       `json:"rules,omitempty"`
 	ListenSOCKS string         `json:"listenSOCKS,omitempty"`
 	ListenHTTP  string         `json:"listenHTTP,omitempty"`
+	Proxy       []ClientConfig `json:"proxy,omitempty"`
+	Routes      []string       `json:"routes,omitempty"`
 }
 
 const (
@@ -128,7 +128,7 @@ func GenerateConfig(host string) (cli, srv Config, err error) {
 					KeyPEM:  splitLine(string(cert.ClientKey)),
 				}},
 		},
-		Rules: []string{"final,proxy"},
+		Routes: []string{"final,proxy"},
 	}
 	return cli, srv, nil
 }

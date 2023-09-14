@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"time"
 
-	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
 )
 
@@ -20,29 +19,6 @@ type TunnelClient struct {
 	client   *http.Client
 	username string
 	password string
-}
-
-func utlsConfigFromTLS(t *tls.Config) *utls.Config {
-	u := &utls.Config{
-		ServerName: t.ServerName,
-		MinVersion: t.MinVersion,
-		RootCAs:    t.RootCAs,
-		// ClientSessionCache: if using only one http2 connection, then the cache may not needed
-	}
-	for _, cert := range t.Certificates {
-		ucert := utls.Certificate{
-			Certificate:                 cert.Certificate,
-			PrivateKey:                  cert.PrivateKey,
-			OCSPStaple:                  cert.OCSPStaple,
-			SignedCertificateTimestamps: cert.SignedCertificateTimestamps,
-			Leaf:                        cert.Leaf,
-		}
-		for _, sign := range cert.SupportedSignatureAlgorithms {
-			ucert.SupportedSignatureAlgorithms = append(ucert.SupportedSignatureAlgorithms, utls.SignatureScheme(sign))
-		}
-		u.Certificates = append(u.Certificates, ucert)
-	}
-	return u
 }
 
 // NewTunnelClient creates a client to issue CONNECT requests and tunnel traffic via HTTPS proxy.
@@ -57,17 +33,12 @@ func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *T
 	// the fewer connections the better, so a single client is used here
 	tc.client = &http.Client{Transport: &http2.Transport{
 		TLSClientConfig: cfg,
-		DialTLSContext: func(ctx context.Context, network, addr string, tlsCfg *tls.Config) (net.Conn, error) {
+		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			d := &net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}
-			conn, err := d.DialContext(ctx, network, addr)
-			if err != nil {
-				return nil, err
-			}
-			// sometimes HelloRandomized does not work on my macbook
-			return utls.UClient(conn, utlsConfigFromTLS(tlsCfg), utls.HelloChrome_Auto), nil
+			return tls.DialWithDialer(d, "tcp", addr, cfg)
 		},
 		ReadIdleTimeout: 15 * time.Second,
 		PingTimeout:     2 * time.Second,

@@ -20,12 +20,12 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	srvClosers, err := StartServices(srvConf)
-	defer CloseAll(srvClosers)
+	defer closeAll(srvClosers)
 	if err != nil {
 		panic(err)
 	}
 	cliClosers, err := StartServices(cliConf)
-	defer CloseAll(cliClosers)
+	defer closeAll(cliClosers)
 	if err != nil {
 		panic(err)
 	}

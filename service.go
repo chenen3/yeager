@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
-	"github.com/chenen3/yeager/router"
+	"github.com/chenen3/yeager/route"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/http2"
@@ -20,52 +20,52 @@ import (
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
 func StartServices(conf Config) ([]io.Closer, error) {
-	var closers []io.Closer
-	var rd *RouteDialer
-	if conf.ListenHTTP != "" {
-		lis, err := net.Listen("tcp", conf.ListenHTTP)
-		if err != nil {
-			return nil, err
-		}
-		if rd == nil {
-			d, err := NewRouteDialer(conf.Rules, conf.Proxy)
-			if err != nil {
-				return nil, fmt.Errorf("init connector: %s", err)
-			}
-			rd = d
-			closers = append(closers, rd)
-		}
-		hs := &httpProxy{}
-		go func() {
-			slog.Info("listen http " + conf.ListenHTTP)
-			if err := hs.Serve(lis, rd.DialContext); err != nil {
-				slog.Error("failed to serve http proxy: " + err.Error())
-			}
-		}()
-		closers = append(closers, hs)
+	if len(conf.Proxy) == 0 && len(conf.Listen) == 0 {
+		return nil, errors.New("no proxy client nor server specified in config")
 	}
 
-	if conf.ListenSOCKS != "" {
-		lis, err := net.Listen("tcp", conf.ListenSOCKS)
+	var services []io.Closer
+	if len(conf.Proxy) > 0 {
+		routes := conf.Routes
+		if len(routes) == 0 {
+			// routing through the first proxy client by default
+			routes = []string{"final," + conf.Proxy[0].Name}
+		}
+		r, err := NewRouter(routes, conf.Proxy)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("init router: " + err.Error())
 		}
-		if rd == nil {
-			c, err := NewRouteDialer(conf.Rules, conf.Proxy)
+		services = append(services, r)
+
+		if conf.ListenHTTP != "" {
+			lis, err := net.Listen("tcp", conf.ListenHTTP)
 			if err != nil {
-				return nil, fmt.Errorf("init connector: %s", err)
+				return nil, err
 			}
-			rd = c
-			closers = append(closers, rd)
+			hs := &httpProxy{}
+			go func() {
+				slog.Info("listen http " + conf.ListenHTTP)
+				if err := hs.Serve(lis, r.DialContext); err != nil {
+					slog.Error("failed to serve http proxy: " + err.Error())
+				}
+			}()
+			services = append(services, hs)
 		}
-		ss := new(socksServer)
-		go func() {
-			slog.Info("listen socks " + conf.ListenSOCKS)
-			if err := ss.Serve(lis, rd.DialContext); err != nil {
-				slog.Error("failed to serve socks proxy: " + err.Error())
+
+		if conf.ListenSOCKS != "" {
+			lis, err := net.Listen("tcp", conf.ListenSOCKS)
+			if err != nil {
+				return nil, err
 			}
-		}()
-		closers = append(closers, ss)
+			ss := new(socksServer)
+			go func() {
+				slog.Info("listen socks " + conf.ListenSOCKS)
+				if err := ss.Serve(lis, r.DialContext); err != nil {
+					slog.Error("failed to serve socks proxy: " + err.Error())
+				}
+			}()
+			services = append(services, ss)
+		}
 	}
 
 	for _, sc := range conf.Listen {
@@ -99,7 +99,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
-			closers = append(closers, &s)
+			services = append(services, &s)
 		case ProtoQUIC:
 			var s quic.TunnelServer
 			go func() {
@@ -107,7 +107,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
-			closers = append(closers, &s)
+			services = append(services, &s)
 		case ProtoHTTP2:
 			var s http2.TunnelServer
 			go func() {
@@ -115,36 +115,38 @@ func StartServices(conf Config) ([]io.Closer, error) {
 					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
-			closers = append(closers, &s)
+			services = append(services, &s)
 		}
 		slog.Info(fmt.Sprintf("listen %s %s", sc.Proto, sc.Address))
 	}
-	return closers, nil
+	return services, nil
 }
 
-func CloseAll(closers []io.Closer) {
-	for _, c := range closers {
-		if err := c.Close(); err != nil {
-			slog.Error("failed to close: " + err.Error())
+func closeAll(services []io.Closer) {
+	for _, s := range services {
+		if err := s.Close(); err != nil {
+			slog.Error(err.Error())
 		}
 	}
 }
 
-// RouteDialer integrates tunnel dialers with router
-type RouteDialer struct {
+// Router integrates tunnel dialers with routes
+type Router struct {
 	dialers map[string]tunnel.Dialer
-	router  router.Router
+	routes  route.Routes
 }
 
-func NewRouteDialer(rules []string, clientConfigs []ClientConfig) (*RouteDialer, error) {
-	var d RouteDialer
-	if len(rules) > 0 {
-		r, err := router.New(rules)
-		if err != nil {
-			return nil, err
-		}
-		d.router = r
+func NewRouter(rules []string, clientConfigs []ClientConfig) (*Router, error) {
+	if len(rules) == 0 {
+		return nil, errors.New("rules required")
 	}
+
+	var r Router
+	rs, err := route.New(rules)
+	if err != nil {
+		return nil, err
+	}
+	r.routes = rs
 
 	dialers := make(map[string]tunnel.Dialer)
 	for _, cc := range clientConfigs {
@@ -190,46 +192,43 @@ func NewRouteDialer(rules []string, clientConfigs []ClientConfig) (*RouteDialer,
 		}
 		slog.Info(fmt.Sprintf("register route %s: %s %s", cc.Name, cc.Proto, cc.Address))
 	}
-	d.dialers = dialers
-	return &d, nil
+	r.dialers = dialers
+	return &r, nil
 }
 
-// DialContext uses router to determine direct or tunneled connection to host:port,
+// DialContext uses routes to determine direct or tunneled connection to host:port,
 // returning a stream for subsequent read/write.
-func (d *RouteDialer) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
-	route := router.DefaultRoute
-	if d.router != nil {
-		host, _, err := net.SplitHostPort(target)
-		if err != nil {
-			return nil, err
-		}
-		r, e := d.router.Match(host)
-		if e != nil {
-			return nil, e
-		}
-		route = r
+func (r *Router) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		return nil, err
 	}
-	switch route {
-	case router.RejectRoute:
-		return nil, errors.New("route rejected")
-	case router.DirectRoute:
+	pass, e := r.routes.Match(host)
+	if e != nil {
+		return nil, e
+	}
+
+	switch pass {
+	case route.Direct:
 		slog.Debug("connect " + target)
 		var d net.Dialer
 		return d.DialContext(ctx, "tcp", target)
+	case route.Reject:
+		return nil, errors.New("route rejected")
 	default:
-		d, ok := d.dialers[route]
+		d, ok := r.dialers[pass]
 		if !ok {
-			return nil, errors.New("unknown route: " + route)
+			return nil, errors.New("unknown route: " + pass)
 		}
-		slog.Debug(fmt.Sprintf("route %s to %s", target, route))
+		slog.Debug(fmt.Sprintf("route %s to %s", target, pass))
 		return d.DialContext(ctx, target)
 	}
 }
 
 // Close closes all the tunnel dialers and return the first error encountered
-func (d *RouteDialer) Close() error {
+func (r *Router) Close() error {
 	var err error
-	for _, d := range d.dialers {
+	for _, d := range r.dialers {
 		if dc, ok := d.(io.Closer); ok {
 			if e := dc.Close(); e != nil && err == nil {
 				err = e

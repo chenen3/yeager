@@ -114,8 +114,6 @@ func (c *TunnelClient) Close() error {
 	return nil
 }
 
-var _ io.ReadWriteCloser = (*clientStreamWrapper)(nil)
-
 type clientStreamWrapper struct {
 	stream  pb.Tunnel_StreamClient
 	onClose func()
