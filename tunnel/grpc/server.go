@@ -62,17 +62,21 @@ func (s *TunnelServer) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	defer conn.Close()
 
-	err = flow.Relay(toReadWriter(stream), conn)
-	if err != nil {
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
-		if s, ok := status.FromError(err); ok && s.Code() == codes.Canceled {
-			return nil
-		}
+	err = flow.Relay(streamToRW(stream), conn)
+	if err != nil && !canIgnore(err) {
 		slog.Error(err.Error(), "addr", target)
 	}
 	return nil
+}
+
+func canIgnore(err error) bool {
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	if s, ok := status.FromError(err); ok && s.Code() == codes.Canceled {
+		return true
+	}
+	return false
 }
 
 func (s *TunnelServer) Close() error {
@@ -92,7 +96,7 @@ type serverStreamWrapper struct {
 }
 
 // convert server stream to io.ReadWriter
-func toReadWriter(stream pb.Tunnel_StreamServer) io.ReadWriter {
+func streamToRW(stream pb.Tunnel_StreamServer) io.ReadWriter {
 	return &serverStreamWrapper{stream: stream}
 }
 

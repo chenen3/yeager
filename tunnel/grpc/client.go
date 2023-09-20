@@ -102,7 +102,7 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 		conn.Close()
 		return nil, err
 	}
-	return wrapClientStream(stream, cancel), nil
+	return streamToRWC(stream, cancel), nil
 }
 
 func (c *TunnelClient) Close() error {
@@ -120,8 +120,8 @@ type clientStreamWrapper struct {
 	buf     []byte
 }
 
-// wraps client stream as io.ReadWriteCloser
-func wrapClientStream(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
+// convert client stream to io.ReadWriteCloser
+func streamToRWC(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
 	return &clientStreamWrapper{stream: stream, onClose: onClose}
 }
 
