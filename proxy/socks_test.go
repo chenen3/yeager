@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"io"
@@ -22,7 +22,7 @@ func TestSocksProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	var s socksServer
+	var s SOCKSServer
 	defer s.Close()
 	go func() {
 		close(ready)

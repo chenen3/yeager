@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"io"
@@ -22,7 +22,7 @@ func TestHttpProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	var s httpProxy
+	var s HTTPServer
 	defer s.Close()
 	go func() {
 		close(ready)
@@ -68,7 +68,7 @@ func TestHttpsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var s httpProxy
+	var s HTTPServer
 	defer s.Close()
 	ready := make(chan struct{})
 	go func() {

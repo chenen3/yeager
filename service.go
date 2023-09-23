@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/chenen3/yeager/cert"
+	"github.com/chenen3/yeager/proxy"
 	"github.com/chenen3/yeager/route"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
@@ -42,7 +43,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			if err != nil {
 				return nil, err
 			}
-			hs := &httpProxy{}
+			hs := new(proxy.HTTPServer)
 			go func() {
 				slog.Info("listen http " + conf.ListenHTTP)
 				if err := hs.Serve(lis, r.DialContext); err != nil {
@@ -57,7 +58,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			if err != nil {
 				return nil, err
 			}
-			ss := new(socksServer)
+			ss := new(proxy.SOCKSServer)
 			go func() {
 				slog.Info("listen socks " + conf.ListenSOCKS)
 				if err := ss.Serve(lis, r.DialContext); err != nil {

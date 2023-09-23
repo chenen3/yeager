@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 )
 
 // SOCKS server, version 5
-type socksServer struct {
+type SOCKSServer struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
@@ -26,7 +26,7 @@ type socksServer struct {
 // Serve serves connection accepted by lis,
 // blocking until the server closes or encounters an unexpected error.
 // If dial is nil, the net package's standard dialer is used.
-func (s *socksServer) Serve(lis net.Listener, dial dialFunc) error {
+func (s *SOCKSServer) Serve(lis net.Listener, dial dialFunc) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -47,7 +47,7 @@ func (s *socksServer) Serve(lis net.Listener, dial dialFunc) error {
 	}
 }
 
-func (s *socksServer) handleConn(conn net.Conn, dial dialFunc) {
+func (s *SOCKSServer) handleConn(conn net.Conn, dial dialFunc) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -83,7 +83,7 @@ func canIgnore(err error) bool {
 	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer")
 }
 
-func (s *socksServer) trackConn(c net.Conn, add bool) {
+func (s *SOCKSServer) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeConn == nil {
@@ -96,7 +96,7 @@ func (s *socksServer) trackConn(c net.Conn, add bool) {
 	}
 }
 
-func (s *socksServer) Close() error {
+func (s *SOCKSServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var err error

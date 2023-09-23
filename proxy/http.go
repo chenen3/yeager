@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"bufio"
@@ -17,7 +17,7 @@ import (
 )
 
 // refer to https://en.wikipedia.org/wiki/HTTP_tunnel
-type httpProxy struct {
+type HTTPServer struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
@@ -33,7 +33,7 @@ var defaultDial = func(ctx context.Context, address string) (io.ReadWriteCloser,
 // Serve serves connection accepted by lis,
 // blocks until an unexpected error is encounttered or Close is called.
 // If dial is nil, the net package's standard dialer is used.
-func (s *httpProxy) Serve(lis net.Listener, dial dialFunc) error {
+func (s *HTTPServer) Serve(lis net.Listener, dial dialFunc) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
@@ -54,7 +54,7 @@ func (s *httpProxy) Serve(lis net.Listener, dial dialFunc) error {
 	}
 }
 
-func (s *httpProxy) handleConn(conn net.Conn, dial dialFunc) {
+func (s *HTTPServer) handleConn(conn net.Conn, dial dialFunc) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
@@ -91,7 +91,7 @@ func (s *httpProxy) handleConn(conn net.Conn, dial dialFunc) {
 	slog.Debug("closed "+dst, durationKey, time.Since(start))
 }
 
-func (s *httpProxy) trackConn(c net.Conn, add bool) {
+func (s *HTTPServer) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeConn == nil {
@@ -105,7 +105,7 @@ func (s *httpProxy) trackConn(c net.Conn, add bool) {
 }
 
 // Close close listener and all active connections
-func (s *httpProxy) Close() error {
+func (s *HTTPServer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var err error
