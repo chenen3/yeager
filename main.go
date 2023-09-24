@@ -103,8 +103,6 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 func main() {
 	var flags struct {
 		configFile string
-		cert       bool
-		host       string
 		version    bool
 		genConfig  bool
 		ip         string

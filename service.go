@@ -32,7 +32,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			// routing through the first proxy client by default
 			routes = []string{"final," + conf.Proxy[0].Name}
 		}
-		r, err := NewRouter(routes, conf.Proxy)
+		r, err := newRouter(routes, conf.Proxy)
 		if err != nil {
 			return nil, errors.New("init router: " + err.Error())
 		}
@@ -131,18 +131,18 @@ func closeAll(services []io.Closer) {
 	}
 }
 
-// Router integrates tunnel dialers with routes
-type Router struct {
+// router integrates tunnel dialers with routes
+type router struct {
 	dialers map[string]tunnel.Dialer
 	routes  route.Routes
 }
 
-func NewRouter(rules []string, clientConfigs []ClientConfig) (*Router, error) {
+func newRouter(rules []string, clientConfigs []ClientConfig) (*router, error) {
 	if len(rules) == 0 {
 		return nil, errors.New("rules required")
 	}
 
-	var r Router
+	var r router
 	rs, err := route.New(rules)
 	if err != nil {
 		return nil, err
@@ -199,14 +199,14 @@ func NewRouter(rules []string, clientConfigs []ClientConfig) (*Router, error) {
 
 // DialContext uses routes to determine direct or tunneled connection to host:port,
 // returning a stream for subsequent read/write.
-func (r *Router) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
+func (r *router) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
 	host, _, err := net.SplitHostPort(target)
 	if err != nil {
 		return nil, err
 	}
-	pass, e := r.routes.Match(host)
-	if e != nil {
-		return nil, e
+	pass, err := r.routes.Match(host)
+	if err != nil {
+		return nil, err
 	}
 
 	switch pass {
@@ -227,7 +227,7 @@ func (r *Router) DialContext(ctx context.Context, target string) (io.ReadWriteCl
 }
 
 // Close closes all the tunnel dialers and return the first error encountered
-func (r *Router) Close() error {
+func (r *router) Close() error {
 	var err error
 	for _, d := range r.dialers {
 		if dc, ok := d.(io.Closer); ok {
