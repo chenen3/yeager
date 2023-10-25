@@ -163,21 +163,31 @@ func newProxyDialer(cc ServerConfig) (*proxyDialer, error) {
 	return &proxyDialer{dialer: d, allowPrivate: cc.allowPrivate}, nil
 }
 
+func private(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+		return true
+	}
+	return false
+}
+
 // DialContext uses routes to determine direct or tunneled connection to host:port,
 // returning a stream for subsequent read/write.
-func (d *proxyDialer) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
+func (d *proxyDialer) DialContext(ctx context.Context, address string) (io.ReadWriteCloser, error) {
+	// In production, requests to private host do not go through the proxy server
 	if !d.allowPrivate {
-		host, _, err := net.SplitHostPort(target)
+		host, _, err := net.SplitHostPort(address)
 		if err != nil {
 			return nil, err
 		}
-		if ip := net.ParseIP(host); ip != nil {
-			if ip.IsLoopback() || ip.IsPrivate() {
-				return nil, errors.New("private address is not allowed")
-			}
+		if private(host) {
+			var d net.Dialer
+			return d.DialContext(ctx, "tcp", address)
 		}
 	}
-	return d.dialer.DialContext(ctx, target)
+	return d.dialer.DialContext(ctx, address)
 }
 
 func (d *proxyDialer) Close() error {

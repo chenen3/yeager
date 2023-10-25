@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,37 +15,36 @@ var (
 	socksListen string
 )
 
-func TestMain(m *testing.M) {
+func runTestServer() (clients, servers []io.Closer, listenHTTP, listenSOCKS string) {
 	cliConf, srvConf, err := GenerateConfig("127.0.0.1")
 	if err != nil {
 		panic(err)
 	}
 
 	srvClosers, err := StartServices(srvConf)
-	defer closeAll(srvClosers)
 	if err != nil {
 		panic(err)
 	}
 
 	cliConf.Proxy.allowPrivate = true
 	cliClosers, err := StartServices(cliConf)
-	defer closeAll(cliClosers)
 	if err != nil {
 		panic(err)
 	}
 
-	httpListen = cliConf.ListenHTTP
-	socksListen = cliConf.ListenSOCKS
-	m.Run()
+	return cliClosers, srvClosers, cliConf.ListenHTTP, cliConf.ListenSOCKS
 }
 
 func TestHttpProxyToTunnel(t *testing.T) {
+	clients, servers, listenHTTP, _ := runTestServer()
+	defer closeAll(clients)
+	defer closeAll(servers)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "1")
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("http://" + httpListen)
+	pu, err := url.Parse("http://" + listenHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,12 +74,15 @@ func TestHttpProxyToTunnel(t *testing.T) {
 }
 
 func TestSocksProxyToTunnel(t *testing.T) {
+	clients, servers, _, listenSOCKS := runTestServer()
+	defer closeAll(clients)
+	defer closeAll(servers)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "1")
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("socks5://" + socksListen)
+	pu, err := url.Parse("socks5://" + listenSOCKS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,5 +108,25 @@ func TestSocksProxyToTunnel(t *testing.T) {
 	}
 	if string(bs) != "1" {
 		t.Fatalf("want 1, got %s", bs)
+	}
+}
+
+func TestPrivate(t *testing.T) {
+	cliConf, _, err := GenerateConfig("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// private address is not allowed by default
+	d, err := newProxyDialer(cliConf.Proxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hosts := []string{"localhost", "127.0.0.1", "192.168.1.1"}
+	for i := range hosts {
+		rwc, err := d.DialContext(context.Background(), hosts[i])
+		if err == nil {
+			defer rwc.Close()
+			t.Fatal("expected error")
+		}
 	}
 }
