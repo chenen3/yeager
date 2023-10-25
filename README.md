@@ -17,9 +17,9 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 
 1. install
     ```sh
-    wget https://raw.githubusercontent.com/chenen3/yeager/master/install.py
+    $ wget https://raw.githubusercontent.com/chenen3/yeager/master/install.py
     # Please run as root
-    python3 install.py
+    $ python3 install.py
     ```
     The script generates an client config file: `/usr/local/etc/yeager/client.json`
 2. update firewall and allows TCP port 57175.
@@ -29,7 +29,7 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 1. download [here](https://github.com/chenen3/yeager/releases/latest)
 2. copy the client.json to local device, run:
     ```sh
-    yeager -config client.json
+    $ yeager -config client.json
     ```
 3. SOCKS proxy server address is 127.0.0.1:1080, HTTP proxy server address is 127.0.0.1:8080
 
@@ -59,7 +59,7 @@ For example:
     >
     > need to download the pre-defined domain list first:
     > ```sh
-    > wget --output-document /usr/local/etc/yeager/geosite.dat \
+    > $ wget --output-document /usr/local/etc/yeager/geosite.dat \
     >   https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
     > ```
 - `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
@@ -69,19 +69,19 @@ For example:
 build image:
 
 ```sh
-docker build -t yeager .
+$ docker build -t yeager .
 ```
 
 remote server:
 
 ```sh
-docker run --rm \
+$ docker run --rm \
     --workdir /usr/local/etc/yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     yeager \
     /usr/local/bin/yeager -genconf
 
-docker run -d --restart=always --name yeager \
+$ docker run -d --restart=always --name yeager \
     -v /usr/local/etc/yeager:/usr/local/etc/yeager \
     -p 57175:57175 \
     yeager \
@@ -91,7 +91,7 @@ docker run -d --restart=always --name yeager \
 local client:
 > **Note** copy `/usr/local/etc/yeager/client.json` from remote to local device
 ```sh
-docker run -d \
+$ docker run -d \
     --restart=always \
     --network host \
     --name yeager \
