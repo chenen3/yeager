@@ -35,36 +35,7 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 
 See also [running daemon on macOS](TODO)
 
-<!-- TODO: move to wiki page -->
-## Advance usage
-### Routing rule
-
-The routing rule specifies where the incoming traffic is sent to. It supports two forms:
-- `type,value,policy`
-- `final,policy`
-
-The proxy policy is specified by config, also Yeager comes with two built-in proxy policies:
-
-- `direct` means connecting directly, not through a tunnel server
-- `reject` means connection rejected
-
-For example:
-
-- `ip-cidr,127.0.0.1/8,direct` access directly if IP matches
-- `domain,www.apple.com,direct` access directly if the domain name matches
-- `domain-suffix,apple.com,direct`access directly if the root domain name matches
-- `domain-keyword,apple,direct` access directly if keyword matches
-- `geosite,cn,direct` access directly if the domain name is located in CN.
-    > **Note** 
-    >
-    > need to download the pre-defined domain list first:
-    > ```sh
-    > $ wget --output-document /usr/local/etc/yeager/geosite.dat \
-    >   https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
-    > ```
-- `final,proxy` access through the proxy server. If present, must be the last rule, by default is `final,direct`
-
-### Docker
+## use with Docker
 
 build image:
 

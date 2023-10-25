@@ -19,11 +19,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
+
 	srvClosers, err := StartServices(srvConf)
 	defer closeAll(srvClosers)
 	if err != nil {
 		panic(err)
 	}
+
+	cliConf.Proxy.allowPrivate = true
 	cliClosers, err := StartServices(cliConf)
 	defer closeAll(cliClosers)
 	if err != nil {

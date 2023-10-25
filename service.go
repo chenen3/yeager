@@ -7,11 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"strings"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/proxy"
-	"github.com/chenen3/yeager/route"
 	"github.com/chenen3/yeager/tunnel"
 	"github.com/chenen3/yeager/tunnel/grpc"
 	"github.com/chenen3/yeager/tunnel/http2"
@@ -21,22 +19,17 @@ import (
 // StartServices starts services with the given config,
 // any started service will be return as io.Closer for future stopping
 func StartServices(conf Config) ([]io.Closer, error) {
-	if len(conf.Proxy) == 0 && len(conf.Listen) == 0 {
+	if len(conf.Listen) == 0 && conf.Proxy.Address == "" {
 		return nil, errors.New("no proxy client nor server specified in config")
 	}
 
 	var services []io.Closer
-	if len(conf.Proxy) > 0 {
-		routes := conf.Routes
-		if len(routes) == 0 {
-			// routing through the first proxy client by default
-			routes = []string{"final," + conf.Proxy[0].Name}
-		}
-		r, err := newRouter(routes, conf.Proxy)
+	if conf.Proxy.Address != "" {
+		pd, err := newProxyDialer(conf.Proxy)
 		if err != nil {
-			return nil, errors.New("init router: " + err.Error())
+			return nil, err
 		}
-		services = append(services, r)
+		services = append(services, pd)
 
 		if conf.ListenHTTP != "" {
 			lis, err := net.Listen("tcp", conf.ListenHTTP)
@@ -46,7 +39,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			hs := new(proxy.HTTPServer)
 			go func() {
 				slog.Info("listen http " + conf.ListenHTTP)
-				if err := hs.Serve(lis, r.DialContext); err != nil {
+				if err := hs.Serve(lis, pd.DialContext); err != nil {
 					slog.Error("failed to serve http proxy: " + err.Error())
 				}
 			}()
@@ -61,7 +54,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			ss := new(proxy.SOCKSServer)
 			go func() {
 				slog.Info("listen socks " + conf.ListenSOCKS)
-				if err := ss.Serve(lis, r.DialContext); err != nil {
+				if err := ss.Serve(lis, pd.DialContext); err != nil {
 					slog.Error("failed to serve socks proxy: " + err.Error())
 				}
 			}()
@@ -131,110 +124,66 @@ func closeAll(services []io.Closer) {
 	}
 }
 
-// router integrates tunnel dialers with routes
-type router struct {
-	dialers map[string]tunnel.Dialer
-	routes  route.Routes
+type proxyDialer struct {
+	dialer       tunnel.Dialer
+	allowPrivate bool
 }
 
-func newRouter(rules []string, clientConfigs []ClientConfig) (*router, error) {
-	if len(rules) == 0 {
-		return nil, errors.New("rules required")
+func newProxyDialer(cc ServerConfig) (*proxyDialer, error) {
+	hasAuth := cc.Username != "" && cc.Password != ""
+	certPEM, err := cc.GetCertPEM()
+	if err != nil && !hasAuth {
+		return nil, fmt.Errorf("read certificate: %s", err)
+	}
+	keyPEM, err := cc.GetKeyPEM()
+	if err != nil && !hasAuth {
+		return nil, fmt.Errorf("read key: %s", err)
+	}
+	caPEM, err := cc.GetCAPEM()
+	if err != nil && !hasAuth {
+		return nil, fmt.Errorf("read CA: %s", err)
+	}
+	tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
+	if err != nil && !hasAuth {
+		return nil, fmt.Errorf("make tls conf: %s", err)
 	}
 
-	var r router
-	rs, err := route.New(rules)
-	if err != nil {
-		return nil, err
+	var d tunnel.Dialer
+	switch cc.Proto {
+	case ProtoGRPC:
+		d = grpc.NewTunnelClient(cc.Address, tlsConf)
+	case ProtoQUIC:
+		d = quic.NewTunnelClient(cc.Address, tlsConf)
+	case ProtoHTTP2:
+		d = http2.NewTunnelClient(cc.Address, tlsConf, cc.Username, cc.Password)
+	default:
+		return nil, errors.New("unsupported proxy protocol: " + cc.Proto)
 	}
-	r.routes = rs
-
-	dialers := make(map[string]tunnel.Dialer)
-	for _, cc := range clientConfigs {
-		if cc.Name == "" {
-			return nil, fmt.Errorf("empty tunnel name")
-		}
-		name := strings.ToLower(cc.Name)
-		if _, ok := dialers[name]; ok {
-			return nil, fmt.Errorf("duplicated tunnel name: %s", name)
-		}
-
-		hasAuth := cc.Username != "" && cc.Password != ""
-		certPEM, err := cc.GetCertPEM()
-		if err != nil && !hasAuth {
-			return nil, fmt.Errorf("read certificate: %s", err)
-		}
-		keyPEM, err := cc.GetKeyPEM()
-		if err != nil && !hasAuth {
-			return nil, fmt.Errorf("read key: %s", err)
-		}
-		caPEM, err := cc.GetCAPEM()
-		if err != nil && !hasAuth {
-			return nil, fmt.Errorf("read CA: %s", err)
-		}
-		tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
-		if err != nil && !hasAuth {
-			return nil, fmt.Errorf("make tls conf: %s", err)
-		}
-
-		switch cc.Proto {
-		case ProtoGRPC:
-			client := grpc.NewTunnelClient(cc.Address, tlsConf)
-			dialers[name] = client
-		case ProtoQUIC:
-			client := quic.NewTunnelClient(cc.Address, tlsConf)
-			dialers[name] = client
-		case ProtoHTTP2:
-			client := http2.NewTunnelClient(cc.Address, tlsConf, cc.Username, cc.Password)
-			dialers[name] = client
-		default:
-			slog.Warn("ignore unsupported tunnel", "route", cc.Name, "proto", cc.Proto)
-			continue
-		}
-		slog.Info(fmt.Sprintf("register route %s: %s %s", cc.Name, cc.Proto, cc.Address))
-	}
-	r.dialers = dialers
-	return &r, nil
+	slog.Info(fmt.Sprintf("use proxy: %s %s", cc.Proto, cc.Address))
+	return &proxyDialer{dialer: d, allowPrivate: cc.allowPrivate}, nil
 }
 
 // DialContext uses routes to determine direct or tunneled connection to host:port,
 // returning a stream for subsequent read/write.
-func (r *router) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
-	host, _, err := net.SplitHostPort(target)
-	if err != nil {
-		return nil, err
-	}
-	pass, err := r.routes.Match(host)
-	if err != nil {
-		return nil, err
-	}
-
-	switch pass {
-	case route.Direct:
-		slog.Debug("connect " + target)
-		var d net.Dialer
-		return d.DialContext(ctx, "tcp", target)
-	case route.Reject:
-		return nil, errors.New("route rejected")
-	default:
-		d, ok := r.dialers[pass]
-		if !ok {
-			return nil, errors.New("unknown route: " + pass)
+func (d *proxyDialer) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
+	if !d.allowPrivate {
+		host, _, err := net.SplitHostPort(target)
+		if err != nil {
+			return nil, err
 		}
-		slog.Debug(fmt.Sprintf("route %s to %s", target, pass))
-		return d.DialContext(ctx, target)
-	}
-}
-
-// Close closes all the tunnel dialers and return the first error encountered
-func (r *router) Close() error {
-	var err error
-	for _, d := range r.dialers {
-		if dc, ok := d.(io.Closer); ok {
-			if e := dc.Close(); e != nil && err == nil {
-				err = e
+		if ip := net.ParseIP(host); ip != nil {
+			if ip.IsLoopback() || ip.IsPrivate() {
+				return nil, errors.New("private address is not allowed")
 			}
 		}
 	}
-	return err
+	return d.dialer.DialContext(ctx, target)
+}
+
+func (d *proxyDialer) Close() error {
+	c, ok := d.dialer.(io.Closer)
+	if !ok {
+		return nil
+	}
+	return c.Close()
 }

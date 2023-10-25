@@ -77,17 +77,9 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	}
 	fmt.Println("generated", srvConfOutput)
 
-	cliConf.Proxy[0].Address = fmt.Sprintf("%s:%d", host, port)
+	cliConf.Proxy.Address = fmt.Sprintf("%s:%d", host, port)
 	cliConf.ListenSOCKS = "127.0.0.1:1080"
 	cliConf.ListenHTTP = "127.0.0.1:8080"
-	cliConf.Routes = []string{
-		"ip-cidr,127.0.0.1/8,direct",
-		"ip-cidr,192.168.0.0/16,direct",
-		"ip-cidr,172.16.0.0/12,direct",
-		"ip-cidr,10.0.0.0/8,direct",
-		"domain,localhost,direct",
-		"final," + cliConf.Proxy[0].Name,
-	}
 	bs, err = json.MarshalIndent(cliConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)
