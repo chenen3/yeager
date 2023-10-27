@@ -160,7 +160,15 @@ func main() {
 		slog.Error("load config: " + err.Error())
 		return
 	}
+
 	slog.Info("yeager starting", "version", version)
+	if conf.Proxy.Address != "" {
+		slog.Info(fmt.Sprintf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address))
+	}
+	for _, sc := range conf.Listen {
+		slog.Info(fmt.Sprintf("listen %s %s", sc.Proto, sc.Address))
+	}
+
 	services, err := StartServices(conf)
 	if err != nil {
 		slog.Error("start services: " + err.Error())

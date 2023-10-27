@@ -16,23 +16,26 @@ import (
 	"github.com/chenen3/yeager/flow"
 )
 
-// SOCKS server, version 5
-type SOCKSServer struct {
+type dialFunc func(ctx context.Context, network, address string) (io.ReadWriteCloser, error)
+
+type socks5Server struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
+	dial       dialFunc
+}
+
+func NewSOCKS5Server(dial dialFunc) *socks5Server {
+	return &socks5Server{dial: dial}
 }
 
 // Serve serves connection accepted by lis,
 // blocking until the server closes or encounters an unexpected error.
 // If dial is nil, the net package's standard dialer is used.
-func (s *SOCKSServer) Serve(lis net.Listener, dial dialFunc) error {
+func (s *socks5Server) Serve(lis net.Listener) error {
 	s.mu.Lock()
 	s.lis = lis
 	s.mu.Unlock()
-	if dial == nil {
-		dial = defaultDial
-	}
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -43,16 +46,16 @@ func (s *SOCKSServer) Serve(lis net.Listener, dial dialFunc) error {
 		}
 
 		s.trackConn(conn, true)
-		go s.handleConn(conn, dial)
+		go s.handleConn(conn)
 	}
 }
 
-func (s *SOCKSServer) handleConn(conn net.Conn, dial dialFunc) {
+func (s *socks5Server) handleConn(conn net.Conn) {
 	defer s.trackConn(conn, false)
 	defer conn.Close()
 
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	addr, err := socksHandshake(conn)
+	addr, err := handshake(conn)
 	if err != nil {
 		slog.Error("handshake: " + err.Error())
 		return
@@ -62,18 +65,18 @@ func (s *SOCKSServer) handleConn(conn net.Conn, dial dialFunc) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	stream, err := dial(ctx, addr)
+	stream, err := s.dial(ctx, "tcp", addr)
 	if err != nil {
 		slog.Error(fmt.Sprintf("connect %s: %s", addr, err))
 		return
 	}
 	defer stream.Close()
 
-	err = flow.Relay(conn, stream)
-	if err != nil && !canIgnore(err) {
-		slog.Error(err.Error())
-		return
-	}
+	flow.Relay(conn, stream)
+	// if err != nil && !canIgnore(err) {
+	// 	slog.Error(err.Error())
+	// 	return
+	// }
 	slog.Debug("closed "+addr, durationKey, time.Since(start))
 }
 
@@ -83,7 +86,7 @@ func canIgnore(err error) bool {
 	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer")
 }
 
-func (s *SOCKSServer) trackConn(c net.Conn, add bool) {
+func (s *socks5Server) trackConn(c net.Conn, add bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeConn == nil {
@@ -96,7 +99,7 @@ func (s *SOCKSServer) trackConn(c net.Conn, add bool) {
 	}
 }
 
-func (s *SOCKSServer) Close() error {
+func (s *socks5Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var err error
@@ -125,19 +128,22 @@ const (
 )
 
 // Refer to https://datatracker.ietf.org/doc/html/rfc1928
-func socksHandshake(rw io.ReadWriter) (addr string, err error) {
-	buf := make([]byte, maxAddrLen)
+func handshake(rw io.ReadWriter) (addr string, err error) {
+	buf := [maxAddrLen]byte{}
 	// read VER, NMETHODS, METHODS
 	if _, err = io.ReadFull(rw, buf[:2]); err != nil {
 		return "", err
+	}
+	if version := buf[0]; version != 0x05 {
+		return "", errors.New("unsupported verison")
 	}
 	nmethods := buf[1]
 	if _, err = io.ReadFull(rw, buf[:nmethods]); err != nil {
 		return "", err
 	}
 
-	// socks5服务在此仅作为入站代理，使用场景应该是本地内网，无需认证
-	// VER METHOD
+	// reply VER METHOD
+	// it is fine to reply no auth when serving locally
 	noAuth := []byte{0x05, 0x00}
 	if _, err = rw.Write(noAuth); err != nil {
 		return "", err
@@ -148,17 +154,17 @@ func socksHandshake(rw io.ReadWriter) (addr string, err error) {
 	}
 
 	if cmd := buf[1]; cmd != cmdConnect {
-		return "", fmt.Errorf("yet not supported cmd: %x", cmd)
+		return "", fmt.Errorf("unsupported cmd: %x", cmd)
 	}
 
-	addr, err = readAddr(rw, buf)
+	addr, err = readSOCKSAddr(rw, buf[:])
 	if err != nil {
 		return "", err
 	}
 
-	// VER REP RSV ATYP BND.ADDR BND.PORT
-	resp := []byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if _, err = rw.Write(resp); err != nil {
+	// reply VER REP RSV ATYP BND.ADDR BND.PORT
+	_, err = rw.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	if err != nil {
 		return "", err
 	}
 
@@ -169,46 +175,45 @@ func socksHandshake(rw io.ReadWriter) (addr string, err error) {
 // bytes order:
 //
 //	ATYP BND.ADDR BND.PORT
-func readAddr(r io.Reader, b []byte) (addr string, err error) {
-	if len(b) < maxAddrLen {
+func readSOCKSAddr(r io.Reader, buf []byte) (addr string, err error) {
+	if len(buf) < maxAddrLen {
 		return "", errors.New("short buffer")
 	}
-	if _, err = io.ReadFull(r, b[:1]); err != nil {
+	if _, err = io.ReadFull(r, buf[:1]); err != nil {
 		return "", err
 	}
 
 	var (
-		atyp = b[0]
+		atyp = buf[0]
 		host string
 	)
 	switch atyp {
 	case atypIPv4:
-		if _, err = io.ReadFull(r, b[:net.IPv4len]); err != nil {
+		if _, err = io.ReadFull(r, buf[:net.IPv4len]); err != nil {
 			return "", err
 		}
-		host = net.IPv4(b[0], b[1], b[2], b[3]).String()
+		host = net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
 	case atypDomain:
-		if _, err = io.ReadFull(r, b[:1]); err != nil {
+		if _, err = io.ReadFull(r, buf[:1]); err != nil {
 			return "", err
 		}
-		domainLen := b[0]
-		if _, err = io.ReadFull(r, b[:domainLen]); err != nil {
+		domainLen := buf[0]
+		if _, err = io.ReadFull(r, buf[:domainLen]); err != nil {
 			return "", err
 		}
-		host = string(b[:domainLen])
+		host = string(buf[:domainLen])
 	case atypIPv6:
-		if _, err = io.ReadFull(r, b[:net.IPv6len]); err != nil {
+		if _, err = io.ReadFull(r, buf[:net.IPv6len]); err != nil {
 			return "", err
 		}
 		ipv6 := make(net.IP, net.IPv6len)
-		copy(ipv6, b[:net.IPv6len])
+		copy(ipv6, buf[:net.IPv6len])
 		host = ipv6.String()
 	}
 
-	if _, err = io.ReadFull(r, b[:2]); err != nil {
+	if _, err = io.ReadFull(r, buf[:2]); err != nil {
 		return "", err
 	}
-
-	port := binary.BigEndian.Uint16(b[:2])
+	port := binary.BigEndian.Uint16(buf[:2])
 	return net.JoinHostPort(host, strconv.Itoa(int(port))), nil
 }

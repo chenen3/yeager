@@ -73,8 +73,5 @@ $ docker run -d \
 
 ## Credit
 
-- [ginuerzh/gost](https://github.com/ginuerzh/gost)
 - [grpc/grpc-go](https://github.com/grpc/grpc-go)
 - [lucas-clemente/quic-go](https://github.com/lucas-clemente/quic-go)
-- [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community)
-- [refraction-networking/utls](https://github.com/refraction-networking/utls)

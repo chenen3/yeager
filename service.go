@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/proxy"
@@ -32,18 +33,17 @@ func StartServices(conf Config) ([]io.Closer, error) {
 		services = append(services, pd)
 
 		if conf.ListenHTTP != "" {
-			lis, err := net.Listen("tcp", conf.ListenHTTP)
-			if err != nil {
-				return nil, err
+			s := &http.Server{
+				Addr:    conf.ListenHTTP,
+				Handler: proxy.NewHTTPHandler(pd.Dial),
 			}
-			hs := new(proxy.HTTPServer)
 			go func() {
-				slog.Info("listen http " + conf.ListenHTTP)
-				if err := hs.Serve(lis, pd.DialContext); err != nil {
+				err := s.ListenAndServe()
+				if err != nil && err != http.ErrServerClosed {
 					slog.Error("failed to serve http proxy: " + err.Error())
 				}
 			}()
-			services = append(services, hs)
+			services = append(services, s)
 		}
 
 		if conf.ListenSOCKS != "" {
@@ -51,10 +51,10 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			if err != nil {
 				return nil, err
 			}
-			ss := new(proxy.SOCKSServer)
+			ss := proxy.NewSOCKS5Server(pd.Dial)
 			go func() {
-				slog.Info("listen socks " + conf.ListenSOCKS)
-				if err := ss.Serve(lis, pd.DialContext); err != nil {
+				err := ss.Serve(lis)
+				if err != nil {
 					slog.Error("failed to serve socks proxy: " + err.Error())
 				}
 			}()
@@ -111,7 +111,6 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			}()
 			services = append(services, &s)
 		}
-		slog.Info(fmt.Sprintf("listen %s %s", sc.Proto, sc.Address))
 	}
 	return services, nil
 }
@@ -159,7 +158,6 @@ func newProxyDialer(cc ServerConfig) (*proxyDialer, error) {
 	default:
 		return nil, errors.New("unsupported proxy protocol: " + cc.Proto)
 	}
-	slog.Info(fmt.Sprintf("use proxy: %s %s", cc.Proto, cc.Address))
 	return &proxyDialer{dialer: d, allowPrivate: cc.allowPrivate}, nil
 }
 
@@ -173,9 +171,8 @@ func private(host string) bool {
 	return false
 }
 
-// DialContext uses routes to determine direct or tunneled connection to host:port,
-// returning a stream for subsequent read/write.
-func (d *proxyDialer) DialContext(ctx context.Context, address string) (io.ReadWriteCloser, error) {
+func (d *proxyDialer) Dial(ctx context.Context, network, address string) (io.ReadWriteCloser, error) {
+	slog.Debug("connect to " + address)
 	// In production, requests to private host do not go through the proxy server
 	if !d.allowPrivate {
 		host, _, err := net.SplitHostPort(address)

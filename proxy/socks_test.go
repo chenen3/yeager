@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -10,10 +11,15 @@ import (
 	"time"
 )
 
+var directDial = func(ctx context.Context, network, address string) (io.ReadWriteCloser, error) {
+	var d net.Dialer
+	return d.DialContext(ctx, network, address)
+}
+
 func TestSocksProxy(t *testing.T) {
 	want := "ok"
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, want)
+		w.Write([]byte(want))
 	}))
 	defer httpSrv.Close()
 
@@ -22,11 +28,11 @@ func TestSocksProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	var s SOCKSServer
+	s := NewSOCKS5Server(directDial)
 	defer s.Close()
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, nil); e != nil {
+		if e := s.Serve(lis); e != nil {
 			t.Log(e)
 		}
 	}()

@@ -123,7 +123,7 @@ func TestPrivate(t *testing.T) {
 	}
 	hosts := []string{"localhost", "127.0.0.1", "192.168.1.1"}
 	for i := range hosts {
-		rwc, err := d.DialContext(context.Background(), hosts[i])
+		rwc, err := d.Dial(context.Background(), "tcp", hosts[i])
 		if err == nil {
 			defer rwc.Close()
 			t.Fatal("expected error")
