@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -55,7 +54,7 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 	proxyConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	addr, err := handshake(proxyConn)
 	if err != nil {
-		logger.Error.Print("handshake: %s", err)
+		logger.Error.Printf("handshake: %s", err)
 		return
 	}
 	proxyConn.SetReadDeadline(time.Time{})
@@ -74,12 +73,6 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 		targetConn.CloseWrite()
 	}()
 	flow.Copy(proxyConn, targetConn)
-}
-
-const durationKey = "dur"
-
-func canIgnore(err error) bool {
-	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer")
 }
 
 func (s *socks5Server) trackConn(c net.Conn, add bool) {

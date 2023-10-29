@@ -80,7 +80,7 @@ func main() {
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.BoolVar(&flags.genConfig, "genconf", false, "generate a pair of config: client.json and server.json")
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
-	flag.BoolVar(&flags.debug, "debug", false, "enable debug logging")
+	flag.BoolVar(&flags.debug, "debug", false, "start a local HTTP server for profiling")
 	flag.Parse()
 
 	if flags.version {
@@ -106,22 +106,22 @@ func main() {
 	}
 
 	if flags.debug {
-		debugSrv := http.Server{Addr: "localhost:6060"}
-		defer debugSrv.Close()
+		s := http.Server{Addr: "localhost:6060"}
+		defer s.Close()
 		go func() {
-			if err := debugSrv.ListenAndServe(); err != http.ErrServerClosed {
+			if err := s.ListenAndServe(); err != http.ErrServerClosed {
 				logger.Error.Printf("debug server: %s", err)
 			}
 		}()
 	}
 
 	if flags.configFile == "" {
-		flag.Usage()
+		fmt.Println("missing option -config")
 		return
 	}
 	bs, err := os.ReadFile(flags.configFile)
 	if err != nil {
-		logger.Error.Printf("read config file: %s", err)
+		logger.Error.Printf("read config: %s", err)
 		return
 	}
 	var conf Config
@@ -130,6 +130,7 @@ func main() {
 		return
 	}
 
+	// FYI
 	logger.Info.Printf("yeager starting version: %s", version)
 	if conf.Proxy.Address != "" {
 		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)

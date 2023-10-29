@@ -55,7 +55,7 @@ func makeBasicAuth(username, password string) string {
 }
 
 func (c *dialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
-	pr, reqBodyWriter := io.Pipe()
+	pr, pw := io.Pipe()
 	req := &http.Request{
 		Method: http.MethodConnect,
 		// For client requests, the URL's Host specifies the server to connect to
@@ -80,7 +80,7 @@ func (c *dialer) Dial(ctx context.Context, target string) (transport.Stream, err
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
 	}
-	return &stream{rc: resp.Body, wc: reqBodyWriter}, nil
+	return &stream{rc: resp.Body, wc: pw}, nil
 }
 
 func (c *dialer) Close() error {

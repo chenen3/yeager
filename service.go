@@ -75,7 +75,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
-		tlsConf, err := cert.MakeServerTLSConfig(caPEM, certPEM, keyPEM)
+		tlsConf, err := cert.ServerTLSConfig(caPEM, certPEM, keyPEM)
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +135,7 @@ func newTransportDialer(cc ServerConfig) (*transDialer, error) {
 	if err != nil && !hasAuth {
 		return nil, fmt.Errorf("read CA: %s", err)
 	}
-	tlsConf, err := cert.MakeClientTLSConfig(caPEM, certPEM, keyPEM)
+	tlsConf, err := cert.ClientTLSConfig(caPEM, certPEM, keyPEM)
 	if err != nil && !hasAuth {
 		return nil, fmt.Errorf("make tls conf: %s", err)
 	}

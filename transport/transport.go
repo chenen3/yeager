@@ -8,7 +8,6 @@ import (
 // Stream is the interface that wraps io.ReadWriteCloser and CloseWrite method
 type Stream interface {
 	io.ReadWriteCloser
-	// close the write side of the stream, unblocking subsequent read
 	CloseWrite() error
 }
 

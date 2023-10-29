@@ -65,6 +65,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 
 	go func() {
 		flow.Copy(targetConn, proxyConn)
+		// unblock subsequent read
 		targetConn.CloseWrite()
 	}()
 	flow.Copy(proxyConn, targetConn)
