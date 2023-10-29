@@ -11,19 +11,22 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/chenen3/yeager/transport"
 	"golang.org/x/net/http2"
 )
 
-type TunnelClient struct {
+type dialer struct {
 	addr     string
 	client   *http.Client
 	username string
 	password string
 }
 
-// NewTunnelClient creates a client to issue CONNECT requests and tunnel traffic via HTTPS proxy.
-func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *TunnelClient {
-	tc := &TunnelClient{
+// NewDialer returns a dialer that issues HTTP Connect to a HTTP2 server,
+// creating a tunnel between local and target address,
+// working like an HTTPS proxy client.
+func NewDialer(addr string, cfg *tls.Config, username, password string) *dialer {
+	tc := &dialer{
 		addr:     addr,
 		username: username,
 		password: password,
@@ -46,13 +49,16 @@ func NewTunnelClient(addr string, cfg *tls.Config, username, password string) *T
 	return tc
 }
 
-func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadWriteCloser, error) {
-	pr, pw := io.Pipe()
+func makeBasicAuth(username, password string) string {
+	auth := username + ":" + password
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+func (c *dialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+	pr, reqBodyWriter := io.Pipe()
 	req := &http.Request{
 		Method: http.MethodConnect,
-		// For client requests, the URL's Host specifies the server to connect to,
-		// while the Request's Host field optionally specifies the Host header
-		// value to send in the HTTP request.
+		// For client requests, the URL's Host specifies the server to connect to
 		URL:           &url.URL{Scheme: "https", Host: c.addr},
 		Host:          target,
 		Header:        make(http.Header),
@@ -60,25 +66,24 @@ func (c *TunnelClient) DialContext(ctx context.Context, target string) (io.ReadW
 		ContentLength: -1,
 	}
 	req.Header.Set("User-Agent", "Chrome/115.0.0.0")
-	if c.username != "" && c.password != "" {
-		req.Header.Set("Proxy-Authorization",
-			"Basic "+base64.StdEncoding.EncodeToString([]byte(c.username+":"+c.password)))
+	if c.username != "" {
+		req.Header.Set("Proxy-Authorization", makeBasicAuth(c.username, c.password))
 	}
 
-	// the client return Responses from servers once
-	// the response headers have been received
+	// Once the client receives the header from server, it immediately returns a response
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, errors.New("http2 request: " + err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
 	}
-	return &stream{rc: resp.Body, wc: pw}, nil
+	return &stream{rc: resp.Body, wc: reqBodyWriter}, nil
 }
 
-func (c *TunnelClient) Close() error {
+func (c *dialer) Close() error {
 	c.client.CloseIdleConnections()
 	return nil
 }
@@ -88,19 +93,23 @@ type stream struct {
 	wc *io.PipeWriter
 }
 
-func (s *stream) Read(p []byte) (n int, err error) {
-	return s.rc.Read(p)
+func (b *stream) Read(p []byte) (n int, err error) {
+	return b.rc.Read(p)
 }
 
-func (s *stream) Write(p []byte) (n int, err error) {
-	return s.wc.Write(p)
+func (b *stream) Write(p []byte) (n int, err error) {
+	return b.wc.Write(p)
 }
 
-func (s *stream) Close() error {
-	werr := s.wc.Close()
-	rerr := s.rc.Close()
+func (b *stream) Close() error {
+	werr := b.wc.Close()
+	rerr := b.rc.Close()
 	if werr != nil {
 		return werr
 	}
 	return rerr
+}
+
+func (b *stream) CloseWrite() error {
+	return b.wc.Close()
 }

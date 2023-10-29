@@ -14,24 +14,22 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/flow"
+	"github.com/chenen3/yeager/transport"
 )
-
-type dialFunc func(ctx context.Context, network, address string) (io.ReadWriteCloser, error)
 
 type socks5Server struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
-	dial       dialFunc
+	dialer     transport.Dialer
 }
 
-func NewSOCKS5Server(dial dialFunc) *socks5Server {
-	return &socks5Server{dial: dial}
+func NewSOCKS5Server(dialer transport.Dialer) *socks5Server {
+	return &socks5Server{dialer: dialer}
 }
 
 // Serve serves connection accepted by lis,
 // blocking until the server closes or encounters an unexpected error.
-// If dial is nil, the net package's standard dialer is used.
 func (s *socks5Server) Serve(lis net.Listener) error {
 	s.mu.Lock()
 	s.lis = lis
@@ -50,34 +48,32 @@ func (s *socks5Server) Serve(lis net.Listener) error {
 	}
 }
 
-func (s *socks5Server) handleConn(conn net.Conn) {
-	defer s.trackConn(conn, false)
-	defer conn.Close()
+func (s *socks5Server) handleConn(proxyConn net.Conn) {
+	defer s.trackConn(proxyConn, false)
+	defer proxyConn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	addr, err := handshake(conn)
+	proxyConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	addr, err := handshake(proxyConn)
 	if err != nil {
 		slog.Error("handshake: " + err.Error())
 		return
 	}
-	conn.SetReadDeadline(time.Time{})
+	proxyConn.SetReadDeadline(time.Time{})
 
-	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	stream, err := s.dial(ctx, "tcp", addr)
+	targetConn, err := s.dialer.Dial(ctx, addr)
 	if err != nil {
 		slog.Error(fmt.Sprintf("connect %s: %s", addr, err))
 		return
 	}
-	defer stream.Close()
+	defer targetConn.Close()
 
-	flow.Relay(conn, stream)
-	// if err != nil && !canIgnore(err) {
-	// 	slog.Error(err.Error())
-	// 	return
-	// }
-	slog.Debug("closed "+addr, durationKey, time.Since(start))
+	go func() {
+		flow.Copy(targetConn, proxyConn)
+		targetConn.CloseWrite()
+	}()
+	flow.Copy(proxyConn, targetConn)
 }
 
 const durationKey = "dur"

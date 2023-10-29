@@ -19,7 +19,7 @@ type Config struct {
 
 const (
 	ProtoGRPC  = "grpc"
-	ProtoQUIC  = "quic"
+	ProtoQUIC  = "quic" // deprecated
 	ProtoHTTP2 = "http2"
 )
 

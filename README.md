@@ -3,7 +3,7 @@
 A proxy that helps speed up the internet connection.
 
 Features:
-- tunneling over gRPC, QUIC or HTTP2, secured by mutual TLS
+- tunneling over gRPC or HTTP2, secured by mutual TLS
 - rule-based routing
 - SOCKS and HTTP proxy
 
@@ -74,4 +74,3 @@ $ docker run -d \
 ## Credit
 
 - [grpc/grpc-go](https://github.com/grpc/grpc-go)
-- [lucas-clemente/quic-go](https://github.com/lucas-clemente/quic-go)

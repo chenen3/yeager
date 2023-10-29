@@ -3,11 +3,11 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/tunnel/grpc/pb"
+	"github.com/chenen3/yeager/transport"
+	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
@@ -16,15 +16,16 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-type TunnelClient struct {
+type dialer struct {
 	addr  string
 	cfg   *tls.Config
 	mu    sync.Mutex
 	conns []*grpc.ClientConn
 }
 
-func NewTunnelClient(addr string, cfg *tls.Config) *TunnelClient {
-	return &TunnelClient{
+// NewDialer returns a dialer that acts like a proxy client
+func NewDialer(addr string, cfg *tls.Config) *dialer {
+	return &dialer{
 		addr: addr,
 		cfg:  cfg,
 	}
@@ -40,23 +41,23 @@ const keepaliveInterval = 15 * time.Second
 // getConn tends to use existing client connections, dialing new ones if necessary.
 // To mitigate the website fingerprinting via multiplexing in HTTP/2,
 // fewer connections will be better.
-func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
-	c.mu.Lock()
-	for i, cc := range c.conns {
+func (d *dialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
+	d.mu.Lock()
+	for i, cc := range d.conns {
 		if canTakeRequest(cc) {
 			if i > 0 {
 				// clear dead conn
-				c.conns = c.conns[i:]
+				d.conns = d.conns[i:]
 			}
-			c.mu.Unlock()
+			d.mu.Unlock()
 			return cc, nil
 		}
 		cc.Close()
 	}
-	c.mu.Unlock()
+	d.mu.Unlock()
 
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(c.cfg)),
+		grpc.WithTransportCredentials(credentials.NewTLS(d.cfg)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
@@ -73,21 +74,21 @@ func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 			Timeout: 2 * time.Second,
 		}),
 	}
-	conn, err := grpc.DialContext(ctx, c.addr, opts...)
+	conn, err := grpc.DialContext(ctx, d.addr, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	c.mu.Lock()
-	c.conns = append(c.conns, conn)
-	c.mu.Unlock()
+	d.mu.Lock()
+	d.conns = append(d.conns, conn)
+	d.mu.Unlock()
 	return conn, nil
 }
 
 const targetKey = "target"
 
-func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(ctx)
+func (d *dialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+	conn, err := d.getConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,17 +96,17 @@ func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWrit
 	client := pb.NewTunnelClient(conn)
 	// this context controls the lifetime of the stream, do not use short-lived contexts
 	sctx, cancel := context.WithCancel(context.Background())
-	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, dst))
+	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, target))
 	stream, err := client.Stream(sctx)
 	if err != nil {
 		cancel()
 		conn.Close()
 		return nil, err
 	}
-	return streamToRWC(stream, cancel), nil
+	return &clientStream{Stream: stream, OnClose: cancel}, nil
 }
 
-func (c *TunnelClient) Close() error {
+func (c *dialer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, cc := range c.conns {
@@ -114,20 +115,16 @@ func (c *TunnelClient) Close() error {
 	return nil
 }
 
-type clientStreamWrapper struct {
-	stream  pb.Tunnel_StreamClient
-	onClose func()
+type clientStream struct {
+	// TODO: rename tunnel to transport
+	Stream  pb.Tunnel_StreamClient
+	OnClose func()
 	buf     []byte
 }
 
-// convert client stream to io.ReadWriteCloser
-func streamToRWC(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
-	return &clientStreamWrapper{stream: stream, onClose: onClose}
-}
-
-func (cs *clientStreamWrapper) Read(b []byte) (n int, err error) {
+func (cs *clientStream) Read(b []byte) (n int, err error) {
 	if len(cs.buf) == 0 {
-		m, err := cs.stream.Recv()
+		m, err := cs.Stream.Recv()
 		if err != nil {
 			return 0, err
 		}
@@ -138,16 +135,20 @@ func (cs *clientStreamWrapper) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (cs *clientStreamWrapper) Write(b []byte) (n int, err error) {
-	if err = cs.stream.Send(&pb.Message{Data: b}); err != nil {
+func (cs *clientStream) Write(b []byte) (n int, err error) {
+	if err = cs.Stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}
 	return len(b), nil
 }
 
-func (cs *clientStreamWrapper) Close() error {
-	if cs.onClose != nil {
-		cs.onClose()
+func (cs *clientStream) Close() error {
+	if cs.OnClose != nil {
+		cs.OnClose()
 	}
 	return nil
+}
+
+func (cs *clientStream) CloseWrite() error {
+	return cs.Stream.CloseSend()
 }

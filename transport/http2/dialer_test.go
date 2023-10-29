@@ -13,41 +13,31 @@ import (
 	"github.com/chenen3/yeager/echo"
 )
 
-func startTunnel() (*TunnelServer, *TunnelClient, error) {
+func run() (*Server, *dialer, error) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
 	}
 	lis.Close()
 
-	ct, err := cert.Generate("127.0.0.1")
+	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
 	if err != nil {
 		return nil, nil, err
 	}
-	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ts := new(TunnelServer)
+	ts := new(Server)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, "", ""); e != nil {
 			slog.Error(e.Error())
 		}
 	}()
-
-	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf, "", "")
+	tc := NewDialer(lis.Addr().String(), cliTLSConf, "", "")
 	return ts, tc, nil
 }
 
-func TestH2Tunnel(t *testing.T) {
+func TestHTTP2Connect(t *testing.T) {
 	e := echo.NewServer()
 	defer e.Close()
-	ts, tc, err := startTunnel()
+	ts, td, err := run()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,18 +46,18 @@ func TestH2Tunnel(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, e.Listener.Addr().String())
+	stream, err := td.Dial(ctx, e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rwc.Close()
+	defer stream.Close()
 
 	want := []byte{1}
 	got := make([]byte, len(want))
-	if _, we := rwc.Write(want); we != nil {
+	if _, we := stream.Write(want); we != nil {
 		t.Fatalf("write data: %s", we)
 	}
-	n, re := rwc.Read(got)
+	n, re := stream.Read(got)
 	if re != nil && re != io.EOF {
 		t.Fatalf("read data: %s", re)
 	}
@@ -88,44 +78,39 @@ func TestAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	lis.Close()
-	ct, err := cert.Generate("127.0.0.1")
+
+	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	user, pass := "u", "p"
-	ts := new(TunnelServer)
+	ts := new(Server)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
 			slog.Error(e.Error())
 		}
 	}()
 	defer ts.Close()
-	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf, user, pass)
-	defer tc.Close()
+
+	td := NewDialer(lis.Addr().String(), cliTLSConf, user, pass)
+	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
+	stream, err := td.Dial(ctx, es.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rwc.Close()
+	defer stream.Close()
 
 	want := []byte{1}
 	got := make([]byte, len(want))
-	if _, we := rwc.Write(want); we != nil {
+	if _, we := stream.Write(want); we != nil {
 		t.Fatalf("write data: %s", we)
 	}
-	n, re := rwc.Read(got)
+	n, re := stream.Read(got)
 	if re != nil && re != io.EOF {
 		t.Fatalf("read data: %s", re)
 	}
@@ -146,41 +131,36 @@ func TestBadAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	lis.Close()
-	ct, err := cert.Generate("127.0.0.1")
+
+	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	user, pass := "u", "p"
-	ts := new(TunnelServer)
+	ts := new(Server)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
 			slog.Error(e.Error())
 		}
 	}()
 	defer ts.Close()
-	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tc := NewTunnelClient(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass")
-	defer tc.Close()
+
+	td := NewDialer(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass")
+	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, err = tc.DialContext(ctx, es.Listener.Addr().String())
+	_, err = td.Dial(ctx, es.Listener.Addr().String())
 	if err == nil {
 		t.Fatalf("expected error for mismatch auth")
 	}
 
-	tc2 := NewTunnelClient(lis.Addr().String(), cliTLSConf, "", "")
-	defer tc2.Close()
+	td2 := NewDialer(lis.Addr().String(), cliTLSConf, "", "")
+	defer td2.Close()
 	time.Sleep(time.Millisecond * 100)
-	_, err = tc2.DialContext(ctx, es.Listener.Addr().String())
+	_, err = td2.Dial(ctx, es.Listener.Addr().String())
 	if err == nil {
 		t.Fatalf("expected error for empty auth")
 	}
@@ -190,18 +170,18 @@ func BenchmarkThroughput(b *testing.B) {
 	es := echo.NewServer()
 	defer es.Close()
 
-	ts, tc, err := startTunnel()
+	ts, td, err := run()
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer ts.Close()
-	defer tc.Close()
-	// the tunnel server may not started yet
+	defer td.Close()
+	// waiting for the server to start
 	time.Sleep(time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, es.Listener.Addr().String())
+	rwc, err := td.Dial(ctx, es.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}

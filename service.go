@@ -11,10 +11,9 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/proxy"
-	"github.com/chenen3/yeager/tunnel"
-	"github.com/chenen3/yeager/tunnel/grpc"
-	"github.com/chenen3/yeager/tunnel/http2"
-	"github.com/chenen3/yeager/tunnel/quic"
+	"github.com/chenen3/yeager/transport"
+	"github.com/chenen3/yeager/transport/grpc"
+	"github.com/chenen3/yeager/transport/http2"
 )
 
 // StartServices starts services with the given config,
@@ -26,16 +25,16 @@ func StartServices(conf Config) ([]io.Closer, error) {
 
 	var services []io.Closer
 	if conf.Proxy.Address != "" {
-		pd, err := newProxyDialer(conf.Proxy)
+		dialer, err := newTransportDialer(conf.Proxy)
 		if err != nil {
 			return nil, err
 		}
-		services = append(services, pd)
+		services = append(services, dialer)
 
 		if conf.ListenHTTP != "" {
 			s := &http.Server{
 				Addr:    conf.ListenHTTP,
-				Handler: proxy.NewHTTPHandler(pd.Dial),
+				Handler: proxy.NewHTTPHandler(dialer),
 			}
 			go func() {
 				err := s.ListenAndServe()
@@ -51,7 +50,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			if err != nil {
 				return nil, err
 			}
-			ss := proxy.NewSOCKS5Server(pd.Dial)
+			ss := proxy.NewSOCKS5Server(dialer)
 			go func() {
 				err := ss.Serve(lis)
 				if err != nil {
@@ -87,23 +86,15 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			if err != nil {
 				return nil, err
 			}
-			var s grpc.TunnelServer
+			var s grpc.Server
 			go func() {
 				if err := s.Serve(lis, tlsConf); err != nil {
 					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
 				}
 			}()
 			services = append(services, &s)
-		case ProtoQUIC:
-			var s quic.TunnelServer
-			go func() {
-				if err := s.Serve(sc.Address, tlsConf); err != nil {
-					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
-				}
-			}()
-			services = append(services, &s)
 		case ProtoHTTP2:
-			var s http2.TunnelServer
+			var s http2.Server
 			go func() {
 				if err := s.Serve(sc.Address, tlsConf, sc.Username, sc.Password); err != nil {
 					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
@@ -123,12 +114,14 @@ func closeAll(services []io.Closer) {
 	}
 }
 
-type proxyDialer struct {
-	dialer       tunnel.Dialer
+// wrapper for transport.Dialer so that private requests
+// do not go through the transport server by default
+type transDialer struct {
+	dialer       transport.Dialer
 	allowPrivate bool
 }
 
-func newProxyDialer(cc ServerConfig) (*proxyDialer, error) {
+func newTransportDialer(cc ServerConfig) (*transDialer, error) {
 	hasAuth := cc.Username != "" && cc.Password != ""
 	certPEM, err := cc.GetCertPEM()
 	if err != nil && !hasAuth {
@@ -147,18 +140,16 @@ func newProxyDialer(cc ServerConfig) (*proxyDialer, error) {
 		return nil, fmt.Errorf("make tls conf: %s", err)
 	}
 
-	var d tunnel.Dialer
+	var d transport.Dialer
 	switch cc.Proto {
 	case ProtoGRPC:
-		d = grpc.NewTunnelClient(cc.Address, tlsConf)
-	case ProtoQUIC:
-		d = quic.NewTunnelClient(cc.Address, tlsConf)
+		d = grpc.NewDialer(cc.Address, tlsConf)
 	case ProtoHTTP2:
-		d = http2.NewTunnelClient(cc.Address, tlsConf, cc.Username, cc.Password)
+		d = http2.NewDialer(cc.Address, tlsConf, cc.Username, cc.Password)
 	default:
 		return nil, errors.New("unsupported proxy protocol: " + cc.Proto)
 	}
-	return &proxyDialer{dialer: d, allowPrivate: cc.allowPrivate}, nil
+	return &transDialer{dialer: d, allowPrivate: cc.allowPrivate}, nil
 }
 
 func private(host string) bool {
@@ -171,9 +162,8 @@ func private(host string) bool {
 	return false
 }
 
-func (d *proxyDialer) Dial(ctx context.Context, network, address string) (io.ReadWriteCloser, error) {
+func (d *transDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
 	slog.Debug("connect to " + address)
-	// In production, requests to private host do not go through the proxy server
 	if !d.allowPrivate {
 		host, _, err := net.SplitHostPort(address)
 		if err != nil {
@@ -181,13 +171,18 @@ func (d *proxyDialer) Dial(ctx context.Context, network, address string) (io.Rea
 		}
 		if private(host) {
 			var d net.Dialer
-			return d.DialContext(ctx, "tcp", address)
+			conn, err := d.DialContext(ctx, "tcp", address)
+			if err != nil {
+				return nil, err
+			}
+			tcpConn, _ := conn.(*net.TCPConn)
+			return tcpConn, nil
 		}
 	}
-	return d.dialer.DialContext(ctx, address)
+	return d.dialer.Dial(ctx, address)
 }
 
-func (d *proxyDialer) Close() error {
+func (d *transDialer) Close() error {
 	c, ok := d.dialer.(io.Closer)
 	if !ok {
 		return nil

@@ -194,3 +194,20 @@ func MakeClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	}
 	return conf, nil
 }
+
+// helper function
+func MutualTLSConfig(host string) (clientTLS, serverTLS *tls.Config, err error) {
+	cert, err := Generate(host)
+	if err != nil {
+		return
+	}
+	clientTLS, err = MakeClientTLSConfig(cert.RootCert, cert.ClientCert, cert.ClientKey)
+	if err != nil {
+		return
+	}
+	serverTLS, err = MakeServerTLSConfig(cert.RootCert, cert.ServerCert, cert.ServerKey)
+	if err != nil {
+		return
+	}
+	return
+}

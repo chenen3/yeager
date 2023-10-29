@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"crypto/tls"
-	"encoding/base64"
 	"errors"
 	"log/slog"
 	"net"
@@ -17,13 +16,13 @@ import (
 	"golang.org/x/net/http2"
 )
 
-type TunnelServer struct {
+type Server struct {
 	mu  sync.Mutex
 	lis net.Listener
 }
 
 // Serve blocks until closed, or error occurs.
-func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password string) error {
+func (s *Server) Serve(address string, cfg *tls.Config, username, password string) error {
 	cfg.NextProtos = []string{http2.NextProtoTLS}
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -35,11 +34,8 @@ func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password
 	s.mu.Unlock()
 	h2s := &http2.Server{IdleTimeout: 10 * time.Minute}
 	var h handler
-	if username != "" && password != "" {
-		auth := username + ":" + password
-		buf := make([]byte, base64.StdEncoding.EncodedLen(len(auth)))
-		base64.StdEncoding.Encode(buf, []byte(auth))
-		h.auth = buf
+	if username != "" {
+		h.auth = []byte(makeBasicAuth(username, password))
 	}
 	for {
 		conn, err := lis.Accept()
@@ -66,55 +62,57 @@ func (s *TunnelServer) Serve(address string, cfg *tls.Config, username, password
 	}
 }
 
-type handler struct {
-	auth []byte
-}
-
-// works like HTTPS proxy server
-func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Host == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if len(h.auth) != 0 {
-		pa := r.Header.Get("Proxy-Authorization")
-		const prefix = "Basic "
-		if len(pa) <= len(prefix) || !strings.EqualFold(pa[:len(prefix)], prefix) ||
-			subtle.ConstantTimeCompare([]byte(pa[len(prefix):]), h.auth) != 1 {
-			// do not rely 407, which implys a proxy server
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if f, ok := w.(http.Flusher); ok {
-		// client is waiting for this response header,
-		// send it as soon as possible
-		f.Flush()
-	}
-
-	conn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
-	if err != nil {
-		slog.Error(err.Error())
-		return
-	}
-	defer conn.Close()
-	go func() {
-		flow.Copy(conn, r.Body)
-		conn.Close()
-	}()
-	// after Handler finished, calling http2.responseWriter.Flush() may panic
-	flow.Copy(&flushWriter{w}, conn)
-}
-
-func (s *TunnelServer) Close() error {
+func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.lis != nil {
 		return s.lis.Close()
 	}
 	return nil
+}
+
+type handler struct {
+	auth []byte
+}
+
+// works like HTTPS proxy server
+func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodConnect {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if r.Host == "" {
+		http.Error(w, "missing host", http.StatusBadRequest)
+		return
+	}
+	if len(h.auth) != 0 {
+		auth := r.Header.Get("Proxy-Authorization")
+		const prefix = "Basic "
+		if len(auth) <= len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) ||
+			subtle.ConstantTimeCompare([]byte(auth[len(prefix):]), h.auth[len(prefix):]) != 1 {
+			w.WriteHeader(http.StatusProxyAuthRequired)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if f, ok := w.(http.Flusher); ok {
+		// client is waiting for this header
+		f.Flush()
+	}
+
+	targetConn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	defer targetConn.Close()
+	go func() {
+		flow.Copy(targetConn, r.Body)
+		tcpConn, _ := targetConn.(*net.TCPConn)
+		tcpConn.CloseWrite()
+	}()
+	flow.Copy(&flushWriter{w}, targetConn)
 }
 
 type flushWriter struct {

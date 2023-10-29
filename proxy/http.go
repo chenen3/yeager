@@ -5,14 +5,17 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/chenen3/yeager/flow"
+	"github.com/chenen3/yeager/transport"
 )
 
 type httpHandler struct {
-	dial dialFunc
+	dialer transport.Dialer
 }
 
-func NewHTTPHandler(dial dialFunc) *httpHandler {
-	return &httpHandler{dial: dial}
+func NewHTTPHandler(dialer transport.Dialer) *httpHandler {
+	return &httpHandler{dialer: dialer}
 }
 
 func (h httpHandler) ServeHTTP(proxyResp http.ResponseWriter, proxyReq *http.Request) {
@@ -32,7 +35,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		http.Error(proxyResp, "missing port in address", http.StatusBadRequest)
 		return
 	}
-	targetConn, err := h.dial(proxyReq.Context(), "tcp", proxyReq.Host)
+	targetConn, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
 		slog.Error(err.Error())
@@ -61,11 +64,10 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	}
 
 	go func() {
-		io.Copy(targetConn, proxyConn)
-		// TODO: targetConn.CloseWrite()
-		targetConn.Close()
+		flow.Copy(targetConn, proxyConn)
+		targetConn.CloseWrite()
 	}()
-	io.Copy(proxyConn, targetConn)
+	flow.Copy(proxyConn, targetConn)
 }
 
 func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Request) {
@@ -77,7 +79,7 @@ func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	if proxyReq.URL.Port() == "" {
 		host += ":80"
 	}
-	targetConn, err := h.dial(proxyReq.Context(), "tcp", host)
+	targetConn, err := h.dialer.Dial(proxyReq.Context(), host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
 		slog.Error(err.Error())
@@ -98,6 +100,7 @@ func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		return
 	}
 	defer targetResp.Body.Close()
+
 	for key, values := range targetResp.Header {
 		for _, value := range values {
 			proxyResp.Header().Add(key, value)
