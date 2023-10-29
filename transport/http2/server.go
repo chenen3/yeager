@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/flow"
+	"github.com/chenen3/yeager/logger"
 	"golang.org/x/net/http2"
 )
 
@@ -51,7 +51,7 @@ func (s *Server) Serve(address string, cfg *tls.Config, username, password strin
 		err = tlsConn.HandshakeContext(ctx)
 		cancel()
 		if err != nil {
-			slog.Error("tls handshake: " + err.Error())
+			logger.Error.Printf("tls handshake: %s", err)
 			tlsConn.Close()
 			continue
 		}
@@ -103,7 +103,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	targetConn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
 	if err != nil {
-		slog.Error(err.Error())
+		logger.Error.Print(err)
 		return
 	}
 	defer targetConn.Close()

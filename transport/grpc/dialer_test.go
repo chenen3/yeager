@@ -5,13 +5,13 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
+	"github.com/chenen3/yeager/logger"
 )
 
 func startTunnel() (*Server, *dialer, error) {
@@ -29,7 +29,7 @@ func startTunnel() (*Server, *dialer, error) {
 	go func() {
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
-			slog.Error(err.Error())
+			logger.Error.Print(err)
 		}
 	}()
 

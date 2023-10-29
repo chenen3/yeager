@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 
 	"github.com/chenen3/yeager/cert"
+	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/proxy"
 	"github.com/chenen3/yeager/transport"
 	"github.com/chenen3/yeager/transport/grpc"
@@ -39,7 +39,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			go func() {
 				err := s.ListenAndServe()
 				if err != nil && err != http.ErrServerClosed {
-					slog.Error("failed to serve http proxy: " + err.Error())
+					logger.Error.Printf("serve http proxy: %s", err)
 				}
 			}()
 			services = append(services, s)
@@ -54,7 +54,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			go func() {
 				err := ss.Serve(lis)
 				if err != nil {
-					slog.Error("failed to serve socks proxy: " + err.Error())
+					logger.Error.Printf("serve socks proxy: %s", err)
 				}
 			}()
 			services = append(services, ss)
@@ -89,7 +89,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			var s grpc.Server
 			go func() {
 				if err := s.Serve(lis, tlsConf); err != nil {
-					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
+					logger.Error.Printf("transport server: %s", err)
 				}
 			}()
 			services = append(services, &s)
@@ -97,7 +97,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			var s http2.Server
 			go func() {
 				if err := s.Serve(sc.Address, tlsConf, sc.Username, sc.Password); err != nil {
-					slog.Error("start tunnel: "+err.Error(), "proto", sc.Proto)
+					logger.Error.Printf("transport server: %s", err)
 				}
 			}()
 			services = append(services, &s)
@@ -109,7 +109,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 func closeAll(services []io.Closer) {
 	for _, s := range services {
 		if err := s.Close(); err != nil {
-			slog.Error(err.Error())
+			logger.Error.Print(err)
 		}
 	}
 }
@@ -163,7 +163,7 @@ func private(host string) bool {
 }
 
 func (d *transDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
-	slog.Debug("connect to " + address)
+	logger.Info.Printf("connect to %s", address)
 	if !d.allowPrivate {
 		host, _, err := net.SplitHostPort(address)
 		if err != nil {

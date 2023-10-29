@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"strconv"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/flow"
+	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
 )
 
@@ -55,7 +55,7 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 	proxyConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	addr, err := handshake(proxyConn)
 	if err != nil {
-		slog.Error("handshake: " + err.Error())
+		logger.Error.Print("handshake: %s", err)
 		return
 	}
 	proxyConn.SetReadDeadline(time.Time{})
@@ -64,7 +64,7 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 	defer cancel()
 	targetConn, err := s.dialer.Dial(ctx, addr)
 	if err != nil {
-		slog.Error(fmt.Sprintf("connect %s: %s", addr, err))
+		logger.Error.Printf("connect %s: %s", addr, err)
 		return
 	}
 	defer targetConn.Close()

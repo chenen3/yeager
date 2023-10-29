@@ -59,7 +59,7 @@ func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {
 
 	// err = flow.Relay(&serverStream{Stream: stream}, targetConn)
 	// if err != nil && !canIgnore(err) {
-	// 	slog.Error(err.Error(), "addr", target)
+	// 	slog.Error.Print(err.Error(), "addr", target)
 	// }
 
 	ss := &serverStream{Stream: stream}

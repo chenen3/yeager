@@ -5,41 +5,17 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
+
+	"github.com/chenen3/yeager/logger"
 )
 
 var version string // set by build -ldflags
-
-func replace(groups []string, a slog.Attr) slog.Attr {
-	// use RFC3339 to format time
-	if a.Key == slog.TimeKey {
-		a.Value = slog.StringValue(a.Value.Time().Format(time.RFC3339))
-		return a
-	}
-	// Remove the directory from the source's filename.
-	if a.Key == slog.SourceKey {
-		source := a.Value.Any().(*slog.Source)
-		source.File = filepath.Base(source.File)
-	}
-	return a
-}
-
-func init() {
-	infoLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		AddSource:   true,
-		Level:       slog.LevelInfo,
-		ReplaceAttr: replace,
-	}))
-	slog.SetDefault(infoLogger)
-}
 
 func checkIP() (string, error) {
 	resp, err := http.Get("https://checkip.amazonaws.com")
@@ -130,18 +106,11 @@ func main() {
 	}
 
 	if flags.debug {
-		debugLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			AddSource:   true,
-			Level:       slog.LevelDebug,
-			ReplaceAttr: replace,
-		}))
-		slog.SetDefault(debugLogger)
-
 		debugSrv := http.Server{Addr: "localhost:6060"}
 		defer debugSrv.Close()
 		go func() {
 			if err := debugSrv.ListenAndServe(); err != http.ErrServerClosed {
-				slog.Warn("debug server: " + err.Error())
+				logger.Error.Printf("debug server: %s", err)
 			}
 		}()
 	}
@@ -152,26 +121,26 @@ func main() {
 	}
 	bs, err := os.ReadFile(flags.configFile)
 	if err != nil {
-		slog.Error("read config file: " + err.Error())
+		logger.Error.Printf("read config file: %s", err)
 		return
 	}
 	var conf Config
 	if err = json.Unmarshal(bs, &conf); err != nil {
-		slog.Error("load config: " + err.Error())
+		logger.Error.Printf("load config: %s", err)
 		return
 	}
 
-	slog.Info("yeager starting", "version", version)
+	logger.Info.Printf("yeager starting version: %s", version)
 	if conf.Proxy.Address != "" {
-		slog.Info(fmt.Sprintf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address))
+		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
 	}
 	for _, sc := range conf.Listen {
-		slog.Info(fmt.Sprintf("listen %s %s", sc.Proto, sc.Address))
+		logger.Info.Printf("listen %s %s", sc.Proto, sc.Address)
 	}
 
 	services, err := StartServices(conf)
 	if err != nil {
-		slog.Error("start services: " + err.Error())
+		logger.Error.Printf("start services: %s", err)
 		closeAll(services)
 		return
 	}
@@ -179,7 +148,7 @@ func main() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	sig := <-ch
-	slog.Info("signal " + sig.String())
+	logger.Info.Printf("signal %s", sig)
 	closeAll(services)
-	slog.Info("goodbye")
+	logger.Info.Printf("goodbye")
 }

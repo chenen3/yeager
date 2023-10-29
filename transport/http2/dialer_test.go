@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log/slog"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
+	"github.com/chenen3/yeager/logger"
 )
 
 func run() (*Server, *dialer, error) {
@@ -27,7 +27,7 @@ func run() (*Server, *dialer, error) {
 	ts := new(Server)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, "", ""); e != nil {
-			slog.Error(e.Error())
+			logger.Error.Print(e)
 		}
 	}()
 	tc := NewDialer(lis.Addr().String(), cliTLSConf, "", "")
@@ -88,7 +88,7 @@ func TestAuth(t *testing.T) {
 	ts := new(Server)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
-			slog.Error(e.Error())
+			logger.Error.Print(e)
 		}
 	}()
 	defer ts.Close()
@@ -141,7 +141,7 @@ func TestBadAuth(t *testing.T) {
 	ts := new(Server)
 	go func() {
 		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
-			slog.Error(e.Error())
+			logger.Error.Print(e)
 		}
 	}()
 	defer ts.Close()
