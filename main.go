@@ -78,9 +78,9 @@ func main() {
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.version, "version", false, "print version")
-	flag.BoolVar(&flags.genConfig, "genconf", false, "generate a pair of config: client.json and server.json")
-	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, used with option -genconf")
-	flag.BoolVar(&flags.debug, "debug", false, "start a local HTTP server for profiling")
+	flag.BoolVar(&flags.genConfig, "genconf", false, "generate config")
+	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, using with option -genconf")
+	flag.BoolVar(&flags.debug, "debug", false, "debug logging")
 	flag.Parse()
 
 	if flags.version {
@@ -106,11 +106,12 @@ func main() {
 	}
 
 	if flags.debug {
+		logger.Debug.SetOutput(os.Stderr)
 		s := http.Server{Addr: "localhost:6060"}
 		defer s.Close()
 		go func() {
 			if err := s.ListenAndServe(); err != http.ErrServerClosed {
-				logger.Error.Printf("debug server: %s", err)
+				logger.Error.Print(err)
 			}
 		}()
 	}
@@ -130,13 +131,19 @@ func main() {
 		return
 	}
 
-	// FYI
+	// for your information
 	logger.Info.Printf("yeager starting version: %s", version)
-	if conf.Proxy.Address != "" {
-		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
-	}
 	for _, sc := range conf.Listen {
 		logger.Info.Printf("listen %s %s", sc.Proto, sc.Address)
+	}
+	if conf.ListenHTTP != "" {
+		logger.Info.Printf("listen HTTP proxy: %s", conf.ListenHTTP)
+	}
+	if conf.ListenSOCKS != "" {
+		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.ListenSOCKS)
+	}
+	if conf.Proxy.Address != "" {
+		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
 	}
 
 	services, err := StartServices(conf)

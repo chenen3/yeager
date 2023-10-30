@@ -12,41 +12,41 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/transport"
-	"golang.org/x/net/http2"
 )
 
 type dialer struct {
 	addr     string
-	client   *http.Client
 	username string
 	password string
+	client   *http.Client
 }
 
 // NewDialer returns a dialer that issues HTTP Connect to a HTTP2 server,
 // creating a tunnel between local and target address,
 // working like an HTTPS proxy client.
 func NewDialer(addr string, cfg *tls.Config, username, password string) *dialer {
-	tc := &dialer{
+	d := &dialer{
 		addr:     addr,
 		username: username,
 		password: password,
 	}
 
 	// mitigate website fingerprinting via multiplexing of HTTP/2 ,
-	// the fewer connections the better, so a single client is used here
-	tc.client = &http.Client{Transport: &http2.Transport{
-		TLSClientConfig: cfg,
-		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-			d := &net.Dialer{
+	// the fewer connections the better
+	d.client = &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
-			}
-			return tls.DialWithDialer(d, "tcp", addr, cfg)
+			}).DialContext,
+			TLSClientConfig:     cfg,
+			ForceAttemptHTTP2:   true,
+			MaxIdleConns:        100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 5 * time.Second,
 		},
-		ReadIdleTimeout: 15 * time.Second,
-		PingTimeout:     2 * time.Second,
-	}}
-	return tc
+	}
+	return d
 }
 
 func makeBasicAuth(username, password string) string {
