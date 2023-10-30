@@ -20,7 +20,7 @@ type Config struct {
 const (
 	ProtoGRPC  = "grpc"
 	ProtoQUIC  = "quic" // deprecated
-	ProtoHTTP2 = "http2"
+	ProtoHTTP2 = "h2"
 )
 
 type ServerConfig struct {
@@ -38,7 +38,7 @@ type ServerConfig struct {
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
 
-	allowPrivate bool
+	allowPrivate bool // test only
 }
 
 func mergeLine(s []string) string {
