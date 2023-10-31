@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"io"
 	"net"
 	"net/http"
@@ -12,18 +11,6 @@ import (
 
 	"github.com/chenen3/yeager/transport"
 )
-
-type direct struct{}
-
-func (direct) Dial(ctx context.Context, addr string) (transport.Stream, error) {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-	tcpConn, _ := conn.(*net.TCPConn)
-	return tcpConn, nil
-}
 
 func TestSocksProxy(t *testing.T) {
 	want := "ok"
@@ -37,7 +24,7 @@ func TestSocksProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	s := NewSOCKS5Server(direct{})
+	s := NewSOCKS5Server(new(transport.TCPStreamDialer))
 	defer s.Close()
 	go func() {
 		close(ready)

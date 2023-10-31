@@ -16,28 +16,35 @@ import (
 	"github.com/chenen3/yeager/transport/http2"
 )
 
-// StartServices starts services with the given config,
-// any started service will be return as io.Closer for future stopping
-func StartServices(conf Config) ([]io.Closer, error) {
-	if len(conf.Listen) == 0 && conf.Proxy.Address == "" {
+// StartServices starts services using the given config
+// and returns any instances that can be close.
+func StartServices(cfg Config) ([]any, error) {
+	if len(cfg.Listen) == 0 && cfg.Proxy.Address == "" {
 		return nil, errors.New("no proxy client nor server specified in config")
 	}
 
-	var services []io.Closer
-	if conf.Proxy.Address != "" {
-		dialer, err := newTransportDialer(conf.Proxy)
+	var services []any
+	if cfg.Proxy.Address != "" {
+		var dialer transport.StreamDialer
+		d, err := newStreamDialer(cfg.Proxy)
 		if err != nil {
 			return nil, err
 		}
+		if cfg.Proxy.allowPrivate {
+			dialer = d
+		} else {
+			dialer = streamDialerBypassPrivate{StreamDialer: d}
+		}
 		services = append(services, dialer)
 
-		if conf.ListenHTTP != "" {
-			s := &http.Server{
-				Addr:    conf.ListenHTTP,
-				Handler: proxy.NewHTTPHandler(dialer),
+		if cfg.ListenHTTP != "" {
+			listener, err := net.Listen("tcp", cfg.ListenHTTP)
+			if err != nil {
+				return nil, err
 			}
+			s := &http.Server{Handler: proxy.NewHTTPHandler(dialer)}
 			go func() {
-				err := s.ListenAndServe()
+				err := s.Serve(listener)
 				if err != nil && err != http.ErrServerClosed {
 					logger.Error.Printf("serve http proxy: %s", err)
 				}
@@ -45,14 +52,14 @@ func StartServices(conf Config) ([]io.Closer, error) {
 			services = append(services, s)
 		}
 
-		if conf.ListenSOCKS != "" {
-			lis, err := net.Listen("tcp", conf.ListenSOCKS)
+		if cfg.ListenSOCKS != "" {
+			listener, err := net.Listen("tcp", cfg.ListenSOCKS)
 			if err != nil {
 				return nil, err
 			}
 			ss := proxy.NewSOCKS5Server(dialer)
 			go func() {
-				err := ss.Serve(lis)
+				err := ss.Serve(listener)
 				if err != nil {
 					logger.Error.Printf("serve socks proxy: %s", err)
 				}
@@ -61,7 +68,7 @@ func StartServices(conf Config) ([]io.Closer, error) {
 		}
 	}
 
-	for _, sc := range conf.Listen {
+	for _, sc := range cfg.Listen {
 		sc := sc
 		certPEM, err := sc.GetCertPEM()
 		if err != nil {
@@ -106,22 +113,17 @@ func StartServices(conf Config) ([]io.Closer, error) {
 	return services, nil
 }
 
-func closeAll(services []io.Closer) {
+func closeAll(services []any) {
 	for _, s := range services {
-		if err := s.Close(); err != nil {
-			logger.Error.Print(err)
+		if c, ok := s.(io.Closer); ok {
+			if err := c.Close(); err != nil {
+				logger.Error.Print(err)
+			}
 		}
 	}
 }
 
-// wrapper for transport.Dialer so that private requests
-// do not go through the transport server by default
-type transDialer struct {
-	dialer       transport.Dialer
-	allowPrivate bool
-}
-
-func newTransportDialer(cc ServerConfig) (*transDialer, error) {
+func newStreamDialer(cc ServerConfig) (transport.StreamDialer, error) {
 	hasAuth := cc.Username != "" && cc.Password != ""
 	certPEM, err := cc.GetCertPEM()
 	if err != nil && !hasAuth {
@@ -140,16 +142,16 @@ func newTransportDialer(cc ServerConfig) (*transDialer, error) {
 		return nil, fmt.Errorf("make tls conf: %s", err)
 	}
 
-	var d transport.Dialer
+	var d transport.StreamDialer
 	switch cc.Proto {
 	case ProtoGRPC:
-		d = grpc.NewDialer(cc.Address, tlsConf)
+		d = grpc.NewStreamDialer(cc.Address, tlsConf)
 	case ProtoHTTP2:
-		d = http2.NewDialer(cc.Address, tlsConf, cc.Username, cc.Password)
+		d = http2.NewStreamDialer(cc.Address, tlsConf, cc.Username, cc.Password)
 	default:
-		return nil, errors.New("unsupported proxy protocol: " + cc.Proto)
+		return nil, errors.New("unsupported protocol: " + cc.Proto)
 	}
-	return &transDialer{dialer: d, allowPrivate: cc.allowPrivate}, nil
+	return d, nil
 }
 
 func private(host string) bool {
@@ -162,30 +164,20 @@ func private(host string) bool {
 	return false
 }
 
-func (d *transDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
-	logger.Info.Printf("connect to %s", address)
-	if !d.allowPrivate {
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			return nil, err
-		}
-		if private(host) {
-			var d net.Dialer
-			conn, err := d.DialContext(ctx, "tcp", address)
-			if err != nil {
-				return nil, err
-			}
-			tcpConn, _ := conn.(*net.TCPConn)
-			return tcpConn, nil
-		}
-	}
-	return d.dialer.Dial(ctx, address)
+// If the dialing address is private, this dialer connects directly to it
+// without going through SteamDialer
+type streamDialerBypassPrivate struct {
+	transport.StreamDialer
+	direct transport.TCPStreamDialer
 }
 
-func (d *transDialer) Close() error {
-	c, ok := d.dialer.(io.Closer)
-	if !ok {
-		return nil
+func (d streamDialerBypassPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
 	}
-	return c.Close()
+	if private(host) {
+		return d.direct.Dial(ctx, address)
+	}
+	return d.StreamDialer.Dial(ctx, address)
 }

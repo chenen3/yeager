@@ -14,18 +14,19 @@ import (
 	"github.com/chenen3/yeager/transport"
 )
 
-type dialer struct {
+type streamDialer struct {
 	addr     string
 	username string
 	password string
 	client   *http.Client
 }
 
-// NewDialer returns a dialer that issues HTTP Connect to a HTTP2 server,
-// creating a tunnel between local and target address,
-// working like an HTTPS proxy client.
-func NewDialer(addr string, cfg *tls.Config, username, password string) *dialer {
-	d := &dialer{
+var _ transport.StreamDialer = (*streamDialer)(nil)
+
+// NewStreamDialer returns a transport.StreamDialer that
+// connects to the specified HTTP2 server address
+func NewStreamDialer(addr string, cfg *tls.Config, username, password string) *streamDialer {
+	d := &streamDialer{
 		addr:     addr,
 		username: username,
 		password: password,
@@ -54,7 +55,7 @@ func makeBasicAuth(username, password string) string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func (c *dialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+func (c *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
 		Method: http.MethodConnect,
@@ -83,7 +84,7 @@ func (c *dialer) Dial(ctx context.Context, target string) (transport.Stream, err
 	return &stream{rc: resp.Body, wc: pw}, nil
 }
 
-func (c *dialer) Close() error {
+func (c *streamDialer) Close() error {
 	c.client.CloseIdleConnections()
 	return nil
 }

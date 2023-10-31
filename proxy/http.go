@@ -1,5 +1,10 @@
 package proxy
 
+// This HTTP proxy is adapted from the httpproxy package in outline-sdk,
+// which is more intuitive and clear than mine (written with TCP server).
+// I plan to import the original package when it is officially released.
+// See details in https://github.com/Jigsaw-Code/outline-sdk/tree/main/x/httpproxy
+
 import (
 	"bufio"
 	"io"
@@ -11,10 +16,10 @@ import (
 )
 
 type httpHandler struct {
-	dialer transport.Dialer
+	dialer transport.StreamDialer
 }
 
-func NewHTTPHandler(dialer transport.Dialer) *httpHandler {
+func NewHTTPHandler(dialer transport.StreamDialer) *httpHandler {
 	return &httpHandler{dialer: dialer}
 }
 
@@ -35,6 +40,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		http.Error(proxyResp, "missing port in address", http.StatusBadRequest)
 		return
 	}
+	logger.Debug.Printf("connect to %s", proxyReq.Host)
 	targetConn, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)

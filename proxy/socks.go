@@ -20,10 +20,10 @@ type socks5Server struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
-	dialer     transport.Dialer
+	dialer     transport.StreamDialer
 }
 
-func NewSOCKS5Server(dialer transport.Dialer) *socks5Server {
+func NewSOCKS5Server(dialer transport.StreamDialer) *socks5Server {
 	return &socks5Server{dialer: dialer}
 }
 
@@ -61,6 +61,7 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	logger.Debug.Printf("connect to %s", addr)
 	targetConn, err := s.dialer.Dial(ctx, addr)
 	if err != nil {
 		logger.Error.Printf("connect %s: %s", addr, err)
