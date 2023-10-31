@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/chenen3/yeager/transport"
 )
 
 func TestHttpProxy(t *testing.T) {
@@ -22,7 +24,7 @@ func TestHttpProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	s := http.Server{Handler: NewHTTPHandler(direct{})}
+	s := http.Server{Handler: NewHTTPHandler(new(transport.TCPStreamDialer))}
 	defer s.Close()
 	go func() {
 		close(ready)
@@ -68,7 +70,7 @@ func TestHttpsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := http.Server{Handler: NewHTTPHandler(direct{})}
+	s := http.Server{Handler: NewHTTPHandler(new(transport.TCPStreamDialer))}
 	defer s.Close()
 	ready := make(chan struct{})
 	go func() {

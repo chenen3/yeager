@@ -13,7 +13,7 @@ import (
 	"github.com/chenen3/yeager/logger"
 )
 
-func run() (*Server, *dialer, error) {
+func run() (*Server, *streamDialer, error) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
@@ -30,7 +30,7 @@ func run() (*Server, *dialer, error) {
 			logger.Error.Print(e)
 		}
 	}()
-	tc := NewDialer(lis.Addr().String(), cliTLSConf, "", "")
+	tc := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "")
 	return ts, tc, nil
 }
 
@@ -93,7 +93,7 @@ func TestAuth(t *testing.T) {
 	}()
 	defer ts.Close()
 
-	td := NewDialer(lis.Addr().String(), cliTLSConf, user, pass)
+	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, user, pass)
 	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
@@ -146,7 +146,7 @@ func TestBadAuth(t *testing.T) {
 	}()
 	defer ts.Close()
 
-	td := NewDialer(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass")
+	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass")
 	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
@@ -157,7 +157,7 @@ func TestBadAuth(t *testing.T) {
 		t.Fatalf("expected error for mismatch auth")
 	}
 
-	td2 := NewDialer(lis.Addr().String(), cliTLSConf, "", "")
+	td2 := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "")
 	defer td2.Close()
 	time.Sleep(time.Millisecond * 100)
 	_, err = td2.Dial(ctx, es.Listener.Addr().String())

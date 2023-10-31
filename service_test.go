@@ -16,7 +16,7 @@ var (
 	socksListen string
 )
 
-func runTestServer() (clients, servers []io.Closer, listenHTTP, listenSOCKS string) {
+func runTestServer() (clients, servers []any, listenHTTP, listenSOCKS string) {
 	cliConf, srvConf, err := GenerateConfig("127.0.0.1")
 	if err != nil {
 		panic(err)
@@ -165,21 +165,27 @@ func TestSocksProxyToGRPC(t *testing.T) {
 }
 
 func TestPrivate(t *testing.T) {
+	localServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer localServer.Close()
+
 	cliConf, _, err := GenerateConfig("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// private address is not allowed by default
-	d, err := newTransportDialer(cliConf.Proxy)
+	d, err := newStreamDialer(cliConf.Proxy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hosts := []string{"localhost", "127.0.0.1", "192.168.1.1"}
-	for i := range hosts {
-		rwc, err := d.Dial(context.Background(), hosts[i])
-		if err == nil {
-			defer rwc.Close()
-			t.Fatal("expected error")
-		}
+	dialer := streamDialerBypassPrivate{StreamDialer: d}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	stream, err := dialer.Dial(ctx, localServer.Listener.Addr().String())
+	if err != nil {
+		// If dialer does not connect to localServer directly, Dial fails
+		// because no transport server is running
+		t.Fatalf("got error: %s, want nil", err)
 	}
+	stream.Close()
 }

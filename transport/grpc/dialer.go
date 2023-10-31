@@ -16,16 +16,19 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-type dialer struct {
+type streamDialer struct {
 	addr  string
 	cfg   *tls.Config
 	mu    sync.Mutex
 	conns []*grpc.ClientConn
 }
 
-// NewDialer returns a dialer that acts like a proxy client
-func NewDialer(addr string, cfg *tls.Config) *dialer {
-	return &dialer{
+var _ transport.StreamDialer = (*streamDialer)(nil)
+
+// NewStreamDialer returns a transport.StreamDialer that
+// connects to the specified gRPC server address.
+func NewStreamDialer(addr string, cfg *tls.Config) *streamDialer {
+	return &streamDialer{
 		addr: addr,
 		cfg:  cfg,
 	}
@@ -41,7 +44,7 @@ const keepaliveInterval = 15 * time.Second
 // getConn tends to use existing client connections, dialing new ones if necessary.
 // To mitigate the website fingerprinting via multiplexing in HTTP/2,
 // fewer connections will be better.
-func (d *dialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
+func (d *streamDialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	d.mu.Lock()
 	for i, cc := range d.conns {
 		if canTakeRequest(cc) {
@@ -87,7 +90,7 @@ func (d *dialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 
 const targetKey = "target"
 
-func (d *dialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
 	conn, err := d.getConn(ctx)
 	if err != nil {
 		return nil, err
@@ -106,7 +109,7 @@ func (d *dialer) Dial(ctx context.Context, target string) (transport.Stream, err
 	return &clientStream{Stream: stream, OnClose: cancel}, nil
 }
 
-func (c *dialer) Close() error {
+func (c *streamDialer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, cc := range c.conns {

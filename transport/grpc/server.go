@@ -24,8 +24,9 @@ type Server struct {
 	gs *grpc.Server
 }
 
-// Serve always return a non-nil error unless Close is called.
-func (s *Server) Serve(lis net.Listener, tlsConf *tls.Config) error {
+// Serve serves incomming connections on listener, blocking until listener fails.
+// Serve will return a non-nil error unless Close is called.
+func (s *Server) Serve(listener net.Listener, tlsConf *tls.Config) error {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -39,7 +40,7 @@ func (s *Server) Serve(lis net.Listener, tlsConf *tls.Config) error {
 	s.mu.Lock()
 	s.gs = grpcServer
 	s.mu.Unlock()
-	return grpcServer.Serve(lis)
+	return grpcServer.Serve(listener)
 }
 
 func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {

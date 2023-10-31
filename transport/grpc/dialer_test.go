@@ -14,7 +14,7 @@ import (
 	"github.com/chenen3/yeager/logger"
 )
 
-func startTunnel() (*Server, *dialer, error) {
+func startTunnel() (*Server, *streamDialer, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
@@ -33,7 +33,7 @@ func startTunnel() (*Server, *dialer, error) {
 		}
 	}()
 
-	tc := NewDialer(listener.Addr().String(), cliTLSConf)
+	tc := NewStreamDialer(listener.Addr().String(), cliTLSConf)
 	return ts, tc, nil
 }
 
