@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"sync"
 	"time"
 
@@ -93,7 +94,7 @@ const targetKey = "target"
 func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
 	conn, err := d.getConn(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("grpc conenct: " + err.Error())
 	}
 
 	client := pb.NewTunnelClient(conn)
@@ -106,7 +107,7 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		conn.Close()
 		return nil, err
 	}
-	return &clientStream{Stream: stream, OnClose: cancel}, nil
+	return toTransportStream(stream, cancel), nil
 }
 
 func (c *streamDialer) Close() error {
@@ -119,15 +120,18 @@ func (c *streamDialer) Close() error {
 }
 
 type clientStream struct {
-	// TODO: rename tunnel to transport
-	Stream  pb.Tunnel_StreamClient
-	OnClose func()
+	stream  pb.Tunnel_StreamClient
+	onClose func()
 	buf     []byte
+}
+
+func toTransportStream(cs pb.Tunnel_StreamClient, onClose func()) transport.Stream {
+	return &clientStream{stream: cs, onClose: onClose}
 }
 
 func (cs *clientStream) Read(b []byte) (n int, err error) {
 	if len(cs.buf) == 0 {
-		m, err := cs.Stream.Recv()
+		m, err := cs.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
@@ -139,19 +143,19 @@ func (cs *clientStream) Read(b []byte) (n int, err error) {
 }
 
 func (cs *clientStream) Write(b []byte) (n int, err error) {
-	if err = cs.Stream.Send(&pb.Message{Data: b}); err != nil {
+	if err = cs.stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}
 	return len(b), nil
 }
 
 func (cs *clientStream) Close() error {
-	if cs.OnClose != nil {
-		cs.OnClose()
+	if cs.onClose != nil {
+		cs.onClose()
 	}
 	return nil
 }
 
 func (cs *clientStream) CloseWrite() error {
-	return cs.Stream.CloseSend()
+	return cs.stream.CloseSend()
 }

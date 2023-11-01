@@ -3,6 +3,7 @@ package grpc
 import (
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -58,30 +59,14 @@ func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	defer targetConn.Close()
 
-	// err = flow.Relay(&serverStream{Stream: stream}, targetConn)
-	// if err != nil && !canIgnore(err) {
-	// 	slog.Error.Print(err.Error(), "addr", target)
-	// }
-
-	ss := &serverStream{Stream: stream}
+	streamRW := toReadWriter(stream)
 	go func() {
-		flow.Copy(targetConn, ss)
-		tcpConn, _ := targetConn.(*net.TCPConn)
-		tcpConn.CloseWrite()
+		flow.Copy(targetConn, streamRW)
+		targetConn.(*net.TCPConn).CloseWrite()
 	}()
-	flow.Copy(ss, targetConn)
+	flow.Copy(streamRW, targetConn)
 	return nil
 }
-
-// func canIgnore(err error) bool {
-// 	if errors.Is(err, net.ErrClosed) {
-// 		return true
-// 	}
-// 	if s, ok := status.FromError(err); ok && s.Code() == codes.Canceled {
-// 		return true
-// 	}
-// 	return false
-// }
 
 func (s *Server) Close() error {
 	s.mu.Lock()
@@ -94,12 +79,16 @@ func (s *Server) Close() error {
 	return nil
 }
 
-type serverStream struct {
+type serverStreamRW struct {
 	Stream pb.Tunnel_StreamServer
 	buf    []byte
 }
 
-func (ss *serverStream) Read(b []byte) (n int, err error) {
+func toReadWriter(stream pb.Tunnel_StreamServer) io.ReadWriter {
+	return &serverStreamRW{Stream: stream}
+}
+
+func (ss *serverStreamRW) Read(b []byte) (n int, err error) {
 	if len(ss.buf) == 0 {
 		m, err := ss.Stream.Recv()
 		if err != nil {
@@ -112,7 +101,7 @@ func (ss *serverStream) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (ss *serverStream) Write(b []byte) (n int, err error) {
+func (ss *serverStreamRW) Write(b []byte) (n int, err error) {
 	if err = ss.Stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}

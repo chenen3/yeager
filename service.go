@@ -17,7 +17,7 @@ import (
 )
 
 // StartServices starts services using the given config
-// and returns any instances that can be close.
+// and returns them for future shutdown
 func StartServices(cfg Config) ([]any, error) {
 	if len(cfg.Listen) == 0 && cfg.Proxy.Address == "" {
 		return nil, errors.New("no proxy client nor server specified in config")
@@ -33,7 +33,7 @@ func StartServices(cfg Config) ([]any, error) {
 		if cfg.Proxy.allowPrivate {
 			dialer = d
 		} else {
-			dialer = streamDialerBypassPrivate{StreamDialer: d}
+			dialer = directPrivate{StreamDialer: d}
 		}
 		services = append(services, dialer)
 
@@ -96,7 +96,7 @@ func StartServices(cfg Config) ([]any, error) {
 			var s grpc.Server
 			go func() {
 				if err := s.Serve(lis, tlsConf); err != nil {
-					logger.Error.Printf("transport server: %s", err)
+					logger.Error.Printf("grpc serve: %s", err)
 				}
 			}()
 			services = append(services, &s)
@@ -104,7 +104,7 @@ func StartServices(cfg Config) ([]any, error) {
 			var s http2.Server
 			go func() {
 				if err := s.Serve(sc.Address, tlsConf, sc.Username, sc.Password); err != nil {
-					logger.Error.Printf("transport server: %s", err)
+					logger.Error.Printf("http2 serve: %s", err)
 				}
 			}()
 			services = append(services, &s)
@@ -164,14 +164,14 @@ func private(host string) bool {
 	return false
 }
 
-// If the dialing address is private, this dialer connects directly to it
-// without going through SteamDialer
-type streamDialerBypassPrivate struct {
+// For private host, this dialer will connect directly to it
+// instead of using the StreamDialer
+type directPrivate struct {
 	transport.StreamDialer
 	direct transport.TCPStreamDialer
 }
 
-func (d streamDialerBypassPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
+func (d directPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err

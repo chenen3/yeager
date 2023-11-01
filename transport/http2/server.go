@@ -109,8 +109,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer targetConn.Close()
 	go func() {
 		flow.Copy(targetConn, r.Body)
-		tcpConn, _ := targetConn.(*net.TCPConn)
-		tcpConn.CloseWrite()
+		targetConn.(*net.TCPConn).CloseWrite()
 	}()
 	flow.Copy(&flushWriter{w}, targetConn)
 }

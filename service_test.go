@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/chenen3/yeager/echo"
 )
 
 var (
@@ -165,10 +167,8 @@ func TestSocksProxyToGRPC(t *testing.T) {
 }
 
 func TestPrivate(t *testing.T) {
-	localServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer localServer.Close()
+	es := echo.NewServer()
+	defer es.Close()
 
 	cliConf, _, err := GenerateConfig("127.0.0.1")
 	if err != nil {
@@ -178,13 +178,13 @@ func TestPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dialer := streamDialerBypassPrivate{StreamDialer: d}
+	dialer := directPrivate{StreamDialer: d}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	stream, err := dialer.Dial(ctx, localServer.Listener.Addr().String())
+	stream, err := dialer.Dial(ctx, es.Listener.Addr().String())
 	if err != nil {
 		// If dialer does not connect to localServer directly, Dial fails
-		// because no transport server is running
+		// because no server for transport is running
 		t.Fatalf("got error: %s, want nil", err)
 	}
 	stream.Close()

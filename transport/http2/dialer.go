@@ -74,7 +74,7 @@ func (c *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 	// Once the client receives the header from server, it immediately returns a response
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, errors.New("http2 request: " + err.Error())
+		return nil, errors.New("h2: " + err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, resp.Body)
