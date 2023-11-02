@@ -166,7 +166,7 @@ func TestSocksProxyToGRPC(t *testing.T) {
 	}
 }
 
-func TestPrivate(t *testing.T) {
+func TestDialPrivate(t *testing.T) {
 	es := echo.NewServer()
 	defer es.Close()
 
@@ -174,11 +174,11 @@ func TestPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := newStreamDialer(cliConf.Proxy)
+	dialer, err := newStreamDialer(cliConf.Proxy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dialer := directPrivate{StreamDialer: d}
+	dialer = bypassPrivate(dialer)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	stream, err := dialer.Dial(ctx, es.Listener.Addr().String())

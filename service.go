@@ -25,15 +25,12 @@ func StartServices(cfg Config) ([]any, error) {
 
 	var services []any
 	if cfg.Proxy.Address != "" {
-		var dialer transport.StreamDialer
-		d, err := newStreamDialer(cfg.Proxy)
+		dialer, err := newStreamDialer(cfg.Proxy)
 		if err != nil {
 			return nil, err
 		}
-		if cfg.Proxy.allowPrivate {
-			dialer = d
-		} else {
-			dialer = directPrivate{StreamDialer: d}
+		if !cfg.Proxy.allowPrivate {
+			dialer = bypassPrivate(dialer)
 		}
 		services = append(services, dialer)
 
@@ -154,24 +151,29 @@ func newStreamDialer(cc ServerConfig) (transport.StreamDialer, error) {
 	return d, nil
 }
 
-func private(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
-		return true
-	}
-	return false
-}
-
-// For private host, this dialer will connect directly to it
-// instead of using the StreamDialer
-type directPrivate struct {
+type dialerWithPrivate struct {
 	transport.StreamDialer
 	direct transport.TCPStreamDialer
 }
 
-func (d directPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
+// wraps a StreamDialer and bypass private host,
+// the returned dialer will connect directly to
+// private host instead of using the StreamDialer
+func bypassPrivate(d transport.StreamDialer) transport.StreamDialer {
+	return &dialerWithPrivate{StreamDialer: d}
+}
+
+func (d dialerWithPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
+	private := func(host string) bool {
+		if host == "localhost" {
+			return true
+		}
+		if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+			return true
+		}
+		return false
+	}
+
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err

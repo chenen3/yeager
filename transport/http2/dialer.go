@@ -71,7 +71,7 @@ func (c *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		req.Header.Set("Proxy-Authorization", makeBasicAuth(c.username, c.password))
 	}
 
-	// Once the client receives the header from server, it immediately returns a response
+	// the client returns a response immediately after receiving header from the server.
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, errors.New("h2: " + err.Error())
@@ -81,7 +81,7 @@ func (c *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		resp.Body.Close()
 		return nil, errors.New(resp.Status)
 	}
-	return &stream{rc: resp.Body, wc: pw}, nil
+	return &stream{respBody: resp.Body, reqBodyWriter: pw}, nil
 }
 
 func (c *streamDialer) Close() error {
@@ -90,21 +90,21 @@ func (c *streamDialer) Close() error {
 }
 
 type stream struct {
-	rc io.ReadCloser
-	wc *io.PipeWriter
+	respBody      io.ReadCloser
+	reqBodyWriter *io.PipeWriter
 }
 
 func (b *stream) Read(p []byte) (n int, err error) {
-	return b.rc.Read(p)
+	return b.respBody.Read(p)
 }
 
 func (b *stream) Write(p []byte) (n int, err error) {
-	return b.wc.Write(p)
+	return b.reqBodyWriter.Write(p)
 }
 
 func (b *stream) Close() error {
-	werr := b.wc.Close()
-	rerr := b.rc.Close()
+	werr := b.reqBodyWriter.Close()
+	rerr := b.respBody.Close()
 	if werr != nil {
 		return werr
 	}
@@ -112,5 +112,5 @@ func (b *stream) Close() error {
 }
 
 func (b *stream) CloseWrite() error {
-	return b.wc.Close()
+	return b.reqBodyWriter.Close()
 }

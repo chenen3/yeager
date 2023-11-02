@@ -17,6 +17,104 @@ import (
 
 var version string // set by build -ldflags
 
+func main() {
+	var flags struct {
+		configFile string
+		version    bool
+		genConfig  bool
+		ip         string
+		verbose    bool
+		pprof      bool
+	}
+	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
+	flag.BoolVar(&flags.version, "version", false, "print version")
+	flag.BoolVar(&flags.genConfig, "genconf", false, "generate config")
+	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, using with option -genconf")
+	flag.BoolVar(&flags.verbose, "verbose", false, "verbose logging")
+	flag.BoolVar(&flags.pprof, "pprof", false, "serve profiling on http://localhost:6060/debug/pprof")
+	flag.Parse()
+
+	if flags.verbose {
+		logger.Debug.SetOutput(os.Stderr)
+	}
+	if flags.version {
+		fmt.Printf("yeager version %s\n", version)
+		return
+	}
+
+	if flags.genConfig {
+		ip := flags.ip
+		if ip == "" {
+			i, err := checkIP()
+			if err != nil {
+				fmt.Printf("get public IP: %s\n", err)
+				return
+			}
+			ip = i
+		}
+		if err := genConfig(ip, "client.json", "server.json"); err != nil {
+			fmt.Println(err)
+			return
+		}
+		return
+	}
+
+	if flags.configFile == "" {
+		flag.Usage()
+		return
+	}
+	bs, err := os.ReadFile(flags.configFile)
+	if err != nil {
+		logger.Error.Printf("read config: %s", err)
+		return
+	}
+	var conf Config
+	if err = json.Unmarshal(bs, &conf); err != nil {
+		logger.Error.Printf("load config: %s", err)
+		return
+	}
+
+	// for your information
+	logger.Info.Printf("yeager starting version: %s", version)
+	for _, sc := range conf.Listen {
+		logger.Info.Printf("listen %s %s", sc.Proto, sc.Address)
+	}
+	if conf.ListenHTTP != "" {
+		logger.Info.Printf("listen HTTP proxy: %s", conf.ListenHTTP)
+	}
+	if conf.ListenSOCKS != "" {
+		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.ListenSOCKS)
+	}
+	if conf.Proxy.Address != "" {
+		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
+	}
+
+	services, err := StartServices(conf)
+	if err != nil {
+		logger.Error.Printf("start services: %s", err)
+		closeAll(services)
+		return
+	}
+
+	if flags.pprof {
+		s := http.Server{Addr: "localhost:6060"}
+		defer s.Close()
+		go func() {
+			logger.Info.Printf("starts http server %s for profiling", s.Addr)
+			if err := s.ListenAndServe(); err != http.ErrServerClosed {
+				logger.Error.Print(err)
+			}
+		}()
+	}
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
+	sig := <-ch
+	logger.Info.Printf("signal %s", sig)
+	closeAll(services)
+	logger.Info.Printf("goodbye")
+}
+
 func checkIP() (string, error) {
 	resp, err := http.Get("https://checkip.amazonaws.com")
 	if err != nil {
@@ -66,97 +164,4 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	}
 	fmt.Println("generated", cliConfOutput)
 	return nil
-}
-
-func main() {
-	var flags struct {
-		configFile string
-		version    bool
-		genConfig  bool
-		ip         string
-		debug      bool
-	}
-	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
-	flag.BoolVar(&flags.version, "version", false, "print version")
-	flag.BoolVar(&flags.genConfig, "genconf", false, "generate config")
-	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, using with option -genconf")
-	flag.BoolVar(&flags.debug, "debug", false, "debug logging")
-	flag.Parse()
-
-	if flags.version {
-		fmt.Printf("yeager version %s\n", version)
-		return
-	}
-
-	if flags.genConfig {
-		ip := flags.ip
-		if ip == "" {
-			i, err := checkIP()
-			if err != nil {
-				fmt.Printf("get public IP: %s\n", err)
-				return
-			}
-			ip = i
-		}
-		if err := genConfig(ip, "client.json", "server.json"); err != nil {
-			fmt.Println(err)
-			return
-		}
-		return
-	}
-
-	if flags.debug {
-		logger.Debug.SetOutput(os.Stderr)
-		s := http.Server{Addr: "localhost:6060"}
-		defer s.Close()
-		go func() {
-			if err := s.ListenAndServe(); err != http.ErrServerClosed {
-				logger.Error.Print(err)
-			}
-		}()
-	}
-
-	if flags.configFile == "" {
-		fmt.Println("missing option -config")
-		return
-	}
-	bs, err := os.ReadFile(flags.configFile)
-	if err != nil {
-		logger.Error.Printf("read config: %s", err)
-		return
-	}
-	var conf Config
-	if err = json.Unmarshal(bs, &conf); err != nil {
-		logger.Error.Printf("load config: %s", err)
-		return
-	}
-
-	// for your information
-	logger.Info.Printf("yeager starting version: %s", version)
-	for _, sc := range conf.Listen {
-		logger.Info.Printf("listen %s %s", sc.Proto, sc.Address)
-	}
-	if conf.ListenHTTP != "" {
-		logger.Info.Printf("listen HTTP proxy: %s", conf.ListenHTTP)
-	}
-	if conf.ListenSOCKS != "" {
-		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.ListenSOCKS)
-	}
-	if conf.Proxy.Address != "" {
-		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
-	}
-
-	services, err := StartServices(conf)
-	if err != nil {
-		logger.Error.Printf("start services: %s", err)
-		closeAll(services)
-		return
-	}
-
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	sig := <-ch
-	logger.Info.Printf("signal %s", sig)
-	closeAll(services)
-	logger.Info.Printf("goodbye")
 }
