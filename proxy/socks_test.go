@@ -8,12 +8,14 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/chenen3/yeager/transport"
 )
 
 func TestSocksProxy(t *testing.T) {
 	want := "ok"
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, want)
+		w.Write([]byte(want))
 	}))
 	defer httpSrv.Close()
 
@@ -22,11 +24,11 @@ func TestSocksProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	var s SOCKSServer
+	s := NewSOCKS5Server(new(transport.TCPStreamDialer))
 	defer s.Close()
 	go func() {
 		close(ready)
-		if e := s.Serve(lis, nil); e != nil {
+		if e := s.Serve(lis); e != nil {
 			t.Log(e)
 		}
 	}()

@@ -14,14 +14,13 @@ type Config struct {
 	Listen      []ServerConfig `json:"listen,omitempty"`
 	ListenSOCKS string         `json:"listenSOCKS,omitempty"`
 	ListenHTTP  string         `json:"listenHTTP,omitempty"`
-	Proxy       []ClientConfig `json:"proxy,omitempty"`
-	Routes      []string       `json:"routes,omitempty"`
+	Proxy       ServerConfig   `json:"proxy,omitempty"`
 }
 
 const (
 	ProtoGRPC  = "grpc"
-	ProtoQUIC  = "quic"
-	ProtoHTTP2 = "http2"
+	ProtoQUIC  = "quic" // deprecated
+	ProtoHTTP2 = "h2"
 )
 
 type ServerConfig struct {
@@ -38,6 +37,9 @@ type ServerConfig struct {
 	KeyPEM   []string `json:"keyPEM,omitempty"`
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
+
+	MaxEarlyStreams int  `json:"maxEarlyStreams,omitempty"` // h2 only
+	allowPrivate    bool // test only
 }
 
 func mergeLine(s []string) string {
@@ -78,11 +80,6 @@ func (c ServerConfig) GetCAPEM() ([]byte, error) {
 	return nil, errors.New("no PEM data nor file")
 }
 
-type ClientConfig struct {
-	Name string `json:"name"`
-	ServerConfig
-}
-
 func allocPort() int {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -117,18 +114,13 @@ func GenerateConfig(host string) (cli, srv Config, err error) {
 	cli = Config{
 		ListenSOCKS: fmt.Sprintf("127.0.0.1:%d", allocPort()),
 		ListenHTTP:  fmt.Sprintf("127.0.0.1:%d", allocPort()),
-		Proxy: []ClientConfig{
-			{
-				Name: "proxy",
-				ServerConfig: ServerConfig{
-					Address: fmt.Sprintf("%s:%d", host, tunnelPort),
-					Proto:   ProtoGRPC,
-					CAPEM:   splitLine(string(cert.RootCert)),
-					CertPEM: splitLine(string(cert.ClientCert)),
-					KeyPEM:  splitLine(string(cert.ClientKey)),
-				}},
+		Proxy: ServerConfig{
+			Address: fmt.Sprintf("%s:%d", host, tunnelPort),
+			Proto:   ProtoGRPC,
+			CAPEM:   splitLine(string(cert.RootCert)),
+			CertPEM: splitLine(string(cert.ClientCert)),
+			KeyPEM:  splitLine(string(cert.ClientKey)),
 		},
-		Routes: []string{"final,proxy"},
 	}
 	return cli, srv, nil
 }

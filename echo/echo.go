@@ -3,9 +3,10 @@ package echo
 import (
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"sync"
+
+	"github.com/chenen3/yeager/logger"
 )
 
 // Server accepts connection and writes back anything it reads.
@@ -21,7 +22,7 @@ func (s *Server) Serve() {
 		conn, err := s.Listener.Accept()
 		if err != nil {
 			if s != nil && !errors.Is(err, net.ErrClosed) {
-				slog.Error(err.Error())
+				logger.Error.Print(err)
 			}
 			return
 		}
@@ -40,7 +41,7 @@ func (e *Server) Close() error {
 	return err
 }
 
-// NewServer starts a TCP server for testing,
+// NewServer starts a local TCP server for testing,
 // it sends back whatever it receives.
 func NewServer() *Server {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

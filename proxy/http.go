@@ -1,157 +1,124 @@
 package proxy
 
+// This HTTP proxy is adapted from the httpproxy package in outline-sdk,
+// which is more intuitive and clear than mine (written with TCP server).
+// See details in https://github.com/Jigsaw-Code/outline-sdk/tree/main/x/httpproxy
+// TODO: import the original package when it is officially released.
+
 import (
 	"bufio"
-	"context"
-	"errors"
-	"fmt"
 	"io"
-	"log/slog"
-	"net"
 	"net/http"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/flow"
+	"github.com/chenen3/yeager/logger"
+	"github.com/chenen3/yeager/transport"
 )
 
-// refer to https://en.wikipedia.org/wiki/HTTP_tunnel
-type HTTPServer struct {
-	mu         sync.Mutex
-	lis        net.Listener
-	activeConn map[net.Conn]struct{}
+type httpHandler struct {
+	dialer transport.StreamDialer
 }
 
-type dialFunc func(ctx context.Context, address string) (io.ReadWriteCloser, error)
-
-var defaultDial = func(ctx context.Context, address string) (io.ReadWriteCloser, error) {
-	var d net.Dialer
-	return d.DialContext(ctx, "tcp", address)
+func NewHTTPHandler(dialer transport.StreamDialer) *httpHandler {
+	return &httpHandler{dialer: dialer}
 }
 
-// Serve serves connection accepted by lis,
-// blocks until an unexpected error is encounttered or Close is called.
-// If dial is nil, the net package's standard dialer is used.
-func (s *HTTPServer) Serve(lis net.Listener, dial dialFunc) error {
-	s.mu.Lock()
-	s.lis = lis
-	s.mu.Unlock()
-	if dial == nil {
-		dial = defaultDial
-	}
-	for {
-		conn, err := lis.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				err = nil
-			}
-			return err
-		}
-
-		s.trackConn(conn, true)
-		go s.handleConn(conn, dial)
-	}
-}
-
-func (s *HTTPServer) handleConn(conn net.Conn, dial dialFunc) {
-	defer s.trackConn(conn, false)
-	defer conn.Close()
-
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
-	dst, httpReq, err := handshake(conn)
-	if err != nil {
-		slog.Error(err.Error())
+func (h httpHandler) ServeHTTP(proxyResp http.ResponseWriter, proxyReq *http.Request) {
+	if proxyReq.Method == http.MethodConnect {
+		h.connect(proxyResp, proxyReq)
 		return
 	}
-	conn.SetDeadline(time.Time{})
+	h.forward(proxyResp, proxyReq)
+}
 
+func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Request) {
+	if proxyReq.Host == "" {
+		http.Error(proxyResp, "missing host", http.StatusBadRequest)
+		return
+	}
+	if proxyReq.URL.Port() == "" {
+		http.Error(proxyResp, "missing port in address", http.StatusBadRequest)
+		return
+	}
 	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	stream, err := dial(ctx, dst)
+	targetConn, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
-		slog.Error(fmt.Sprintf("connect %s: %s", dst, err))
+		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
+		logger.Error.Print(err)
 		return
 	}
-	defer stream.Close()
+	defer targetConn.Close()
+	logger.Debug.Printf("connect to %s, timed: %dms", proxyReq.Host, time.Since(start).Milliseconds())
 
-	if httpReq != nil {
-		if err = httpReq.Write(stream); err != nil {
-			slog.Error(err.Error())
-			return
-		}
-	}
-
-	err = flow.Relay(conn, stream)
-	if err != nil && !canIgnore(err) {
-		slog.Error(err.Error())
+	hijacker, ok := proxyResp.(http.Hijacker)
+	if !ok {
+		http.Error(proxyResp, "Failed to hijack", http.StatusInternalServerError)
 		return
 	}
-	slog.Debug("closed "+dst, durationKey, time.Since(start))
+	proxyConn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(proxyResp, "Failed to hijack connection", http.StatusInternalServerError)
+		logger.Error.Print(err)
+		return
+	}
+	defer proxyConn.Close()
+
+	// inform the client
+	_, err = proxyConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+	if err != nil {
+		logger.Error.Print(err)
+		return
+	}
+
+	go func() {
+		flow.Copy(targetConn, proxyConn)
+		// unblock subsequent read
+		targetConn.CloseWrite()
+	}()
+	flow.Copy(proxyConn, targetConn)
 }
 
-func (s *HTTPServer) trackConn(c net.Conn, add bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.activeConn == nil {
-		s.activeConn = make(map[net.Conn]struct{})
+func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Request) {
+	if proxyReq.Host == "" {
+		http.Error(proxyResp, "missing host", http.StatusBadRequest)
+		return
 	}
-	if add {
-		s.activeConn[c] = struct{}{}
-	} else {
-		delete(s.activeConn, c)
+	host := proxyReq.Host
+	if proxyReq.URL.Port() == "" {
+		host += ":80"
 	}
-}
+	targetConn, err := h.dialer.Dial(proxyReq.Context(), host)
+	if err != nil {
+		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
+		logger.Error.Print(err)
+		return
+	}
+	defer targetConn.Close()
 
-// Close close listener and all active connections
-func (s *HTTPServer) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var err error
-	if s.lis != nil {
-		err = s.lis.Close()
+	err = proxyReq.Write(targetConn)
+	if err != nil {
+		http.Error(proxyResp, "Failed to send request", http.StatusServiceUnavailable)
+		logger.Error.Print(err)
+		return
 	}
-	for c := range s.activeConn {
-		c.Close()
-		delete(s.activeConn, c)
+	targetResp, err := http.ReadResponse(bufio.NewReader(targetConn), proxyReq)
+	if err != nil {
+		http.Error(proxyResp, "Failed to read target response", http.StatusServiceUnavailable)
+		logger.Error.Print(err)
+		return
 	}
-	return err
-}
+	defer targetResp.Body.Close()
 
-// handshake reads request from conn, returns host:port address and http request, if any
-func handshake(conn net.Conn) (hostport string, httpReq *http.Request, err error) {
-	var req *http.Request
-	if req, err = http.ReadRequest(bufio.NewReader(conn)); err != nil {
-		return "", nil, err
-	}
-
-	port := req.URL.Port()
-	if req.Method == "CONNECT" {
-		if port == "" {
-			port = "443"
+	for key, values := range targetResp.Header {
+		for _, value := range values {
+			proxyResp.Header().Add(key, value)
 		}
-		// reply https proxy request
-		_, err = fmt.Fprintf(conn, "%s 200 Connection established\r\n\r\n", req.Proto)
-		if err != nil {
-			return "", nil, err
-		}
-	} else {
-		if port == "" {
-			port = "80"
-		}
-		// forward http proxy request
-		httpReq = req
 	}
-
-	hostport = net.JoinHostPort(req.URL.Hostname(), port)
-	return escape(hostport), httpReq, nil
-}
-
-// If unsanitized user input is written to a log entry,
-// a malicious user may be able to forge new log entries.
-// More detail see https://github.com/chenen3/yeager/security/code-scanning/15
-func escape(s string) string {
-	s = strings.ReplaceAll(s, "\n", "")
-	return strings.ReplaceAll(s, "\r", "")
+	_, err = io.Copy(proxyResp, targetResp.Body)
+	if err != nil {
+		http.Error(proxyResp, "Failed to write response", http.StatusServiceUnavailable)
+		logger.Error.Print(err)
+		return
+	}
 }

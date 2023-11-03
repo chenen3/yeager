@@ -3,11 +3,12 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	"io"
+	"errors"
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/tunnel/grpc/pb"
+	"github.com/chenen3/yeager/transport"
+	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
@@ -16,15 +17,19 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-type TunnelClient struct {
+type streamDialer struct {
 	addr  string
 	cfg   *tls.Config
 	mu    sync.Mutex
 	conns []*grpc.ClientConn
 }
 
-func NewTunnelClient(addr string, cfg *tls.Config) *TunnelClient {
-	return &TunnelClient{
+var _ transport.StreamDialer = (*streamDialer)(nil)
+
+// NewStreamDialer returns a transport.StreamDialer that
+// connects to the specified gRPC server address.
+func NewStreamDialer(addr string, cfg *tls.Config) *streamDialer {
+	return &streamDialer{
 		addr: addr,
 		cfg:  cfg,
 	}
@@ -40,23 +45,23 @@ const keepaliveInterval = 15 * time.Second
 // getConn tends to use existing client connections, dialing new ones if necessary.
 // To mitigate the website fingerprinting via multiplexing in HTTP/2,
 // fewer connections will be better.
-func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
-	c.mu.Lock()
-	for i, cc := range c.conns {
+func (d *streamDialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
+	d.mu.Lock()
+	for i, cc := range d.conns {
 		if canTakeRequest(cc) {
 			if i > 0 {
 				// clear dead conn
-				c.conns = c.conns[i:]
+				d.conns = d.conns[i:]
 			}
-			c.mu.Unlock()
+			d.mu.Unlock()
 			return cc, nil
 		}
 		cc.Close()
 	}
-	c.mu.Unlock()
+	d.mu.Unlock()
 
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(c.cfg)),
+		grpc.WithTransportCredentials(credentials.NewTLS(d.cfg)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1.0 * time.Second,
@@ -73,39 +78,39 @@ func (c *TunnelClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 			Timeout: 2 * time.Second,
 		}),
 	}
-	conn, err := grpc.DialContext(ctx, c.addr, opts...)
+	conn, err := grpc.DialContext(ctx, d.addr, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	c.mu.Lock()
-	c.conns = append(c.conns, conn)
-	c.mu.Unlock()
+	d.mu.Lock()
+	d.conns = append(d.conns, conn)
+	d.mu.Unlock()
 	return conn, nil
 }
 
 const targetKey = "target"
 
-func (c *TunnelClient) DialContext(ctx context.Context, dst string) (io.ReadWriteCloser, error) {
-	conn, err := c.getConn(ctx)
+func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+	conn, err := d.getConn(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("grpc conenct: " + err.Error())
 	}
 
 	client := pb.NewTunnelClient(conn)
 	// this context controls the lifetime of the stream, do not use short-lived contexts
 	sctx, cancel := context.WithCancel(context.Background())
-	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, dst))
+	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, target))
 	stream, err := client.Stream(sctx)
 	if err != nil {
 		cancel()
 		conn.Close()
 		return nil, err
 	}
-	return streamToRWC(stream, cancel), nil
+	return toTransportStream(stream, cancel), nil
 }
 
-func (c *TunnelClient) Close() error {
+func (c *streamDialer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, cc := range c.conns {
@@ -114,18 +119,17 @@ func (c *TunnelClient) Close() error {
 	return nil
 }
 
-type clientStreamWrapper struct {
+type clientStream struct {
 	stream  pb.Tunnel_StreamClient
 	onClose func()
 	buf     []byte
 }
 
-// convert client stream to io.ReadWriteCloser
-func streamToRWC(stream pb.Tunnel_StreamClient, onClose func()) *clientStreamWrapper {
-	return &clientStreamWrapper{stream: stream, onClose: onClose}
+func toTransportStream(cs pb.Tunnel_StreamClient, onClose func()) transport.Stream {
+	return &clientStream{stream: cs, onClose: onClose}
 }
 
-func (cs *clientStreamWrapper) Read(b []byte) (n int, err error) {
+func (cs *clientStream) Read(b []byte) (n int, err error) {
 	if len(cs.buf) == 0 {
 		m, err := cs.stream.Recv()
 		if err != nil {
@@ -138,16 +142,20 @@ func (cs *clientStreamWrapper) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (cs *clientStreamWrapper) Write(b []byte) (n int, err error) {
+func (cs *clientStream) Write(b []byte) (n int, err error) {
 	if err = cs.stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}
 	return len(b), nil
 }
 
-func (cs *clientStreamWrapper) Close() error {
+func (cs *clientStream) Close() error {
 	if cs.onClose != nil {
 		cs.onClose()
 	}
 	return nil
+}
+
+func (cs *clientStream) CloseWrite() error {
+	return cs.stream.CloseSend()
 }

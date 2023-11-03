@@ -5,41 +5,35 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
+	"github.com/chenen3/yeager/logger"
 )
 
-func startTunnel() (*TunnelServer, *TunnelClient, error) {
+func startTunnel() (*Server, *streamDialer, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
 	}
-	ct, err := cert.Generate("127.0.0.1")
+
+	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
 	if err != nil {
 		return nil, nil, err
 	}
-	srvTLSConf, err := cert.MakeServerTLSConfig(ct.RootCert, ct.ServerCert, ct.ServerKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	ts := new(TunnelServer)
+
+	ts := new(Server)
 	go func() {
 		e := ts.Serve(listener, srvTLSConf)
 		if e != nil && !errors.Is(e, net.ErrClosed) {
-			slog.Error(err.Error())
+			logger.Error.Print(err)
 		}
 	}()
 
-	cliTLSConf, err := cert.MakeClientTLSConfig(ct.RootCert, ct.ClientCert, ct.ClientKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	tc := NewTunnelClient(listener.Addr().String(), cliTLSConf)
+	tc := NewStreamDialer(listener.Addr().String(), cliTLSConf)
 	return ts, tc, nil
 }
 
@@ -47,28 +41,28 @@ func TestTunnel(t *testing.T) {
 	e := echo.NewServer()
 	defer e.Close()
 
-	ts, tc, err := startTunnel()
+	ts, d, err := startTunnel()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer ts.Close()
-	defer tc.Close()
+	defer d.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, e.Listener.Addr().String())
+	stream, err := d.Dial(ctx, e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rwc.Close()
+	defer stream.Close()
 	want := []byte{1}
 	got := make([]byte, len(want))
-	if _, err := rwc.Write(want); err != nil {
+	if _, err := stream.Write(want); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := io.ReadFull(rwc, got); err != nil {
+	if _, err := io.ReadFull(stream, got); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(got, want) {
@@ -80,22 +74,22 @@ func BenchmarkThroughput(b *testing.B) {
 	echo := echo.NewServer()
 	defer echo.Close()
 
-	ts, tc, err := startTunnel()
+	ts, d, err := startTunnel()
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer ts.Close()
-	defer tc.Close()
+	defer d.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := tc.DialContext(ctx, echo.Listener.Addr().String())
+	stream, err := d.Dial(ctx, echo.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer rwc.Close()
+	defer stream.Close()
 
 	const n = 1000
 	up := make([]byte, n)
@@ -107,11 +101,11 @@ func BenchmarkThroughput(b *testing.B) {
 	b.ResetTimer()
 	go func() {
 		for i := 0; i < b.N; i++ {
-			rwc.Write(up)
+			stream.Write(up)
 		}
 	}()
 	for i := 0; i < b.N; i++ {
-		io.ReadFull(rwc, down)
+		io.ReadFull(stream, down)
 	}
 	b.StopTimer()
 	elapsed := time.Since(start)
