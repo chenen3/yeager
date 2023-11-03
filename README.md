@@ -1,16 +1,16 @@
 # Yeager
 
-A proxy that helps speed up the internet connection.
+A proxy tool that helps speed up your internet connection in certain situations.
 
 Features:
-- tunneling over gRPC or HTTP2, secured by mutual TLS
-- rule-based routing
-- SOCKS and HTTP proxy
+- gRPC and HTTP2 transport
+- supports mutual TLS
+- supports HTTP proxy and SOCKS5
 
-Here is how the traffic flows:
+How it works:
 
 ```
-browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpoints
+browser request -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpoints
 ```
 
 ## As remote server
@@ -18,7 +18,7 @@ browser -> [HTTP proxy -> yeager client] -> firewall -> [yeager server] -> endpo
 1. install
     ```sh
     $ wget https://raw.githubusercontent.com/chenen3/yeager/master/install.py
-    # Please run as root
+    # requires root permission
     $ python3 install.py
     ```
     `/usr/local/etc/yeager/client.json` is generated here, which will be used later.
