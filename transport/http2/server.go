@@ -101,7 +101,17 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	targetConn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
+	host := r.Host
+	if host == pendingHost {
+		var md metadata
+		if _, err := md.ReadFrom(r.Body); err != nil {
+			logger.Error.Printf("read metadata: %s", err)
+			return
+		}
+		host = md.Hostport
+	}
+
+	targetConn, err := net.DialTimeout("tcp", host, 5*time.Second)
 	if err != nil {
 		logger.Error.Print(err)
 		return

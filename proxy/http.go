@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/logger"
@@ -40,7 +41,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		http.Error(proxyResp, "missing port in address", http.StatusBadRequest)
 		return
 	}
-	logger.Debug.Printf("connect to %s", proxyReq.Host)
+	start := time.Now()
 	targetConn, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
@@ -48,6 +49,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		return
 	}
 	defer targetConn.Close()
+	logger.Debug.Printf("connect to %s, timed: %dms", proxyReq.Host, time.Since(start).Milliseconds())
 
 	hijacker, ok := proxyResp.(http.Hijacker)
 	if !ok {

@@ -144,7 +144,7 @@ func newStreamDialer(cc ServerConfig) (transport.StreamDialer, error) {
 	case ProtoGRPC:
 		d = grpc.NewStreamDialer(cc.Address, tlsConf)
 	case ProtoHTTP2:
-		d = http2.NewStreamDialer(cc.Address, tlsConf, cc.Username, cc.Password)
+		d = http2.NewStreamDialer(cc.Address, tlsConf, cc.Username, cc.Password, cc.MaxEarlyStreams)
 	default:
 		return nil, errors.New("unsupported protocol: " + cc.Proto)
 	}

@@ -30,8 +30,8 @@ func run() (*Server, *streamDialer, error) {
 			logger.Error.Print(e)
 		}
 	}()
-	tc := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "")
-	return ts, tc, nil
+	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "", 0)
+	return ts, td, nil
 }
 
 func TestHTTP2Connect(t *testing.T) {
@@ -42,6 +42,7 @@ func TestHTTP2Connect(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ts.Close()
+	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -93,7 +94,7 @@ func TestAuth(t *testing.T) {
 	}()
 	defer ts.Close()
 
-	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, user, pass)
+	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, user, pass, 0)
 	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
@@ -146,7 +147,7 @@ func TestBadAuth(t *testing.T) {
 	}()
 	defer ts.Close()
 
-	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass")
+	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass", 0)
 	defer td.Close()
 
 	time.Sleep(time.Millisecond * 100)
@@ -157,7 +158,7 @@ func TestBadAuth(t *testing.T) {
 		t.Fatalf("expected error for mismatch auth")
 	}
 
-	td2 := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "")
+	td2 := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "", 0)
 	defer td2.Close()
 	time.Sleep(time.Millisecond * 100)
 	_, err = td2.Dial(ctx, es.Listener.Addr().String())
