@@ -86,7 +86,7 @@ func main() {
 		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.ListenSOCKS)
 	}
 	if conf.Proxy.Address != "" {
-		logger.Info.Printf("proxy server: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
+		logger.Info.Printf("transport: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
 	}
 
 	services, err := StartServices(conf)

@@ -75,7 +75,6 @@ type handler struct {
 	auth []byte
 }
 
-// works like HTTPS proxy server
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodConnect {
 		w.WriteHeader(http.StatusMethodNotAllowed)
