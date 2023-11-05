@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -61,10 +60,10 @@ func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {
 
 	streamRW := toReadWriter(stream)
 	go func() {
-		flow.Copy(targetConn, streamRW)
+		io.Copy(targetConn, streamRW)
 		targetConn.(*net.TCPConn).CloseWrite()
 	}()
-	flow.Copy(streamRW, targetConn)
+	io.Copy(streamRW, targetConn)
 	return nil
 }
 
@@ -80,17 +79,17 @@ func (s *Server) Close() error {
 }
 
 type serverStreamRW struct {
-	Stream pb.Tunnel_StreamServer
+	stream pb.Tunnel_StreamServer
 	buf    []byte
 }
 
 func toReadWriter(stream pb.Tunnel_StreamServer) io.ReadWriter {
-	return &serverStreamRW{Stream: stream}
+	return &serverStreamRW{stream: stream}
 }
 
 func (ss *serverStreamRW) Read(b []byte) (n int, err error) {
 	if len(ss.buf) == 0 {
-		m, err := ss.Stream.Recv()
+		m, err := ss.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
@@ -101,8 +100,41 @@ func (ss *serverStreamRW) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
+// WriteTo implements io.WriterTo.
+func (ss *serverStreamRW) WriteTo(w io.Writer) (written int64, err error) {
+	for {
+		msg, er := ss.stream.Recv()
+		if msg != nil && len(msg.Data) > 0 {
+			nr := len(msg.Data)
+			nw, ew := w.Write(msg.Data)
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.New("invalid write result")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
+
 func (ss *serverStreamRW) Write(b []byte) (n int, err error) {
-	if err = ss.Stream.Send(&pb.Message{Data: b}); err != nil {
+	if err = ss.stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}
 	return len(b), nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -140,6 +141,40 @@ func (cs *clientStream) Read(b []byte) (n int, err error) {
 	n = copy(b, cs.buf)
 	cs.buf = cs.buf[n:]
 	return n, nil
+}
+
+// WriteTo implements the io.WriterTo interface. 
+// It avoids unnecessary buffering.
+func (cs *clientStream) WriteTo(w io.Writer) (written int64, err error) {
+	for {
+		msg, er := cs.stream.Recv()
+		if msg != nil && len(msg.Data) > 0 {
+			nr := len(msg.Data)
+			nw, ew := w.Write(msg.Data)
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.New("invalid write result")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
 }
 
 func (cs *clientStream) Write(b []byte) (n int, err error) {

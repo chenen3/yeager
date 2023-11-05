@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
 )
@@ -70,10 +69,10 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 	defer targetConn.Close()
 
 	go func() {
-		flow.Copy(targetConn, proxyConn)
+		io.Copy(targetConn, proxyConn)
 		targetConn.CloseWrite()
 	}()
-	flow.Copy(proxyConn, targetConn)
+	io.Copy(proxyConn, targetConn)
 }
 
 func (s *socks5Server) trackConn(c net.Conn, add bool) {

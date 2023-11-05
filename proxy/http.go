@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
 )
@@ -72,11 +71,11 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	}
 
 	go func() {
-		flow.Copy(targetConn, proxyConn)
+		io.Copy(targetConn, proxyConn)
 		// unblock subsequent read
 		targetConn.CloseWrite()
 	}()
-	flow.Copy(proxyConn, targetConn)
+	io.Copy(proxyConn, targetConn)
 }
 
 func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Request) {
