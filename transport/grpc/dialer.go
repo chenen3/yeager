@@ -108,7 +108,7 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		conn.Close()
 		return nil, err
 	}
-	return toTransportStream(stream, cancel), nil
+	return &clientStream{stream: stream, cancel: cancel}, nil
 }
 
 func (c *streamDialer) Close() error {
@@ -120,34 +120,53 @@ func (c *streamDialer) Close() error {
 	return nil
 }
 
+// clientStream implements transport.Stream.
+// It also implements io.WriterTo and io.ReaderFrom as optimizations
+// so io.Copy can avoid allocating unnecessary buffers.
 type clientStream struct {
-	stream  pb.Tunnel_StreamClient
-	onClose func()
-	buf     []byte
+	stream pb.Tunnel_StreamClient
+	cancel func()
+	buf    []byte
 }
 
-func toTransportStream(cs pb.Tunnel_StreamClient, onClose func()) transport.Stream {
-	return &clientStream{stream: cs, onClose: onClose}
-}
+var _ transport.Stream = (*clientStream)(nil)
+var _ io.WriterTo = (*clientStream)(nil)
+var _ io.ReaderFrom = (*clientStream)(nil)
 
-func (cs *clientStream) Read(b []byte) (n int, err error) {
-	if len(cs.buf) == 0 {
-		m, err := cs.stream.Recv()
+func (c *clientStream) Read(b []byte) (n int, err error) {
+	if len(c.buf) == 0 {
+		m, err := c.stream.Recv()
 		if err != nil {
 			return 0, err
 		}
-		cs.buf = m.Data
+		c.buf = m.Data
 	}
-	n = copy(b, cs.buf)
-	cs.buf = cs.buf[n:]
+	n = copy(b, c.buf)
+	c.buf = c.buf[n:]
 	return n, nil
 }
 
-// WriteTo implements the io.WriterTo interface. 
-// It avoids unnecessary buffering.
-func (cs *clientStream) WriteTo(w io.Writer) (written int64, err error) {
+func (c *clientStream) Write(b []byte) (n int, err error) {
+	if err = c.stream.Send(&pb.Message{Data: b}); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+func (c *clientStream) Close() error {
+	if c.cancel != nil {
+		c.cancel()
+	}
+	return nil
+}
+
+func (c *clientStream) CloseWrite() error {
+	return c.stream.CloseSend()
+}
+
+func (c *clientStream) WriteTo(w io.Writer) (written int64, err error) {
 	for {
-		msg, er := cs.stream.Recv()
+		msg, er := c.stream.Recv()
 		if msg != nil && len(msg.Data) > 0 {
 			nr := len(msg.Data)
 			nw, ew := w.Write(msg.Data)
@@ -177,20 +196,32 @@ func (cs *clientStream) WriteTo(w io.Writer) (written int64, err error) {
 	return written, err
 }
 
-func (cs *clientStream) Write(b []byte) (n int, err error) {
-	if err = cs.stream.Send(&pb.Message{Data: b}); err != nil {
-		return 0, err
-	}
-	return len(b), nil
+var bufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 16*1024)
+		return &buf
+	},
 }
 
-func (cs *clientStream) Close() error {
-	if cs.onClose != nil {
-		cs.onClose()
+func (c *clientStream) ReadFrom(r io.Reader) (n int64, err error) {
+	buf := bufPool.Get().(*[]byte)
+	for {
+		nr, er := r.Read(*buf)
+		if nr > 0 {
+			ew := c.stream.Send(&pb.Message{Data: (*buf)[:nr]})
+			if ew != nil {
+				err = ew
+				break
+			}
+			n += int64(nr)
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
 	}
-	return nil
-}
-
-func (cs *clientStream) CloseWrite() error {
-	return cs.stream.CloseSend()
+	bufPool.Put(buf)
+	return n, err
 }

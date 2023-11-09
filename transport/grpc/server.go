@@ -58,12 +58,12 @@ func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	defer targetConn.Close()
 
-	streamRW := toReadWriter(stream)
+	ss := &serverStream{stream}
 	go func() {
-		io.Copy(targetConn, streamRW)
+		ss.WriteTo(targetConn)
 		targetConn.(*net.TCPConn).CloseWrite()
 	}()
-	io.Copy(streamRW, targetConn)
+	ss.ReadFrom(targetConn)
 	return nil
 }
 
@@ -78,32 +78,18 @@ func (s *Server) Close() error {
 	return nil
 }
 
-type serverStreamRW struct {
-	stream pb.Tunnel_StreamServer
-	buf    []byte
+// serverStream implements io.WriterTo and io.ReaderFrom as optimizations
+// so copying to or from it can avoid allocating unnecessary buffers.
+type serverStream struct {
+	pb.Tunnel_StreamServer
 }
 
-func toReadWriter(stream pb.Tunnel_StreamServer) io.ReadWriter {
-	return &serverStreamRW{stream: stream}
-}
+var _ io.WriterTo = (*serverStream)(nil)
+var _ io.ReaderFrom = (*serverStream)(nil)
 
-func (ss *serverStreamRW) Read(b []byte) (n int, err error) {
-	if len(ss.buf) == 0 {
-		m, err := ss.stream.Recv()
-		if err != nil {
-			return 0, err
-		}
-		ss.buf = m.Data
-	}
-	n = copy(b, ss.buf)
-	ss.buf = ss.buf[n:]
-	return n, nil
-}
-
-// WriteTo implements io.WriterTo.
-func (ss *serverStreamRW) WriteTo(w io.Writer) (written int64, err error) {
+func (ss *serverStream) WriteTo(w io.Writer) (written int64, err error) {
 	for {
-		msg, er := ss.stream.Recv()
+		msg, er := ss.Recv()
 		if msg != nil && len(msg.Data) > 0 {
 			nr := len(msg.Data)
 			nw, ew := w.Write(msg.Data)
@@ -133,9 +119,25 @@ func (ss *serverStreamRW) WriteTo(w io.Writer) (written int64, err error) {
 	return written, err
 }
 
-func (ss *serverStreamRW) Write(b []byte) (n int, err error) {
-	if err = ss.stream.Send(&pb.Message{Data: b}); err != nil {
-		return 0, err
+func (ss *serverStream) ReadFrom(r io.Reader) (n int64, err error) {
+	buf := bufPool.Get().(*[]byte)
+	for {
+		nr, er := r.Read(*buf)
+		if nr > 0 {
+			n += int64(nr)
+			ew := ss.Send(&pb.Message{Data: (*buf)[:nr]})
+			if ew != nil {
+				err = ew
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
 	}
-	return len(b), nil
+	bufPool.Put(buf)
+	return n, err
 }

@@ -193,12 +193,12 @@ func (s *stream) Write(p []byte) (n int, err error) {
 }
 
 func (s *stream) Close() error {
-	werr := s.reqBodyWriter.Close()
-	rerr := s.respBody.Close()
-	if werr != nil {
-		return werr
+	errReq := s.reqBodyWriter.Close()
+	errResp := s.respBody.Close()
+	if errReq != nil {
+		return errReq
 	}
-	return rerr
+	return errResp
 }
 
 func (s *stream) CloseWrite() error {
