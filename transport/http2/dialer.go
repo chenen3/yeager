@@ -112,7 +112,8 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (_ transport.Str
 	return earlyStream, nil
 }
 
-// dial returns a stream available for transport.
+// dial connects to peer server and returns a stream available for transport.
+// It compatible with Caddy's forward proxy.
 func (d *streamDialer) dial(target string) (transport.Stream, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
@@ -144,7 +145,9 @@ func (d *streamDialer) dial(target string) (transport.Stream, error) {
 
 const pendingHost = "pending"
 
-// dialEarly returns a stream expecting metadata.
+// dialEarly connects to peer server without sending target host in header,
+// and returns a stream expecting the target host.
+// It is an optimization for dialing.
 func (d *streamDialer) dialEarly() (transport.Stream, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
