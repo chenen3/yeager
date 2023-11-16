@@ -87,6 +87,7 @@ type serverStream struct {
 var _ io.WriterTo = (*serverStream)(nil)
 var _ io.ReaderFrom = (*serverStream)(nil)
 
+// WriteTo uses buffer received from grpc stream, instead of allocating a new one
 func (ss *serverStream) WriteTo(w io.Writer) (written int64, err error) {
 	for {
 		msg, er := ss.Recv()

@@ -41,13 +41,13 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		return
 	}
 	start := time.Now()
-	targetConn, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
+	targetStream, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
 		logger.Error.Print(err)
 		return
 	}
-	defer targetConn.Close()
+	defer targetStream.Close()
 	logger.Debug.Printf("connect to %s, timed: %dms", proxyReq.Host, time.Since(start).Milliseconds())
 
 	hijacker, ok := proxyResp.(http.Hijacker)
@@ -71,11 +71,11 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	}
 
 	go func() {
-		io.Copy(targetConn, proxyConn)
+		io.Copy(targetStream, proxyConn)
 		// unblock subsequent read
-		targetConn.CloseWrite()
+		targetStream.CloseWrite()
 	}()
-	io.Copy(proxyConn, targetConn)
+	io.Copy(proxyConn, targetStream)
 }
 
 func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Request) {

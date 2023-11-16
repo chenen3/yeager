@@ -164,6 +164,7 @@ func (c *clientStream) CloseWrite() error {
 	return c.stream.CloseSend()
 }
 
+// WriteTo uses buffer received from grpc stream, instead of allocating a new one
 func (c *clientStream) WriteTo(w io.Writer) (written int64, err error) {
 	for {
 		msg, er := c.stream.Recv()
