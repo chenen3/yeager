@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
 )
@@ -205,6 +206,14 @@ func (s *stream) Close() error {
 
 func (s *stream) CloseWrite() error {
 	return s.writer.Close()
+}
+
+func (s *stream) ReadFrom(r io.Reader) (n int64, err error) {
+	return flow.Copy(s, r)
+}
+
+func (s *stream) WriteTo(w io.Writer) (written int64, err error) {
+	return flow.Copy(w, s)
 }
 
 type metadata struct {
