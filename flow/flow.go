@@ -50,15 +50,15 @@ func Copy(dst io.Writer, src io.Reader) (written int64, err error) {
 
 // Relay copies data in both directions between a and b,
 // blocks until one of them completes.
-func Relay(a, b io.ReadWriter) error {
-	c := make(chan error, 2)
-	go func() {
-		_, err := Copy(a, b)
-		c <- err
-	}()
-	go func() {
-		_, err := Copy(b, a)
-		c <- err
-	}()
-	return <-c
-}
+// func Relay(a, b io.ReadWriter) error {
+// 	c := make(chan error, 2)
+// 	go func() {
+// 		_, err := Copy(a, b)
+// 		c <- err
+// 	}()
+// 	go func() {
+// 		_, err := Copy(b, a)
+// 		c <- err
+// 	}()
+// 	return <-c
+// }

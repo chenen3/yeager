@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"time"
 
@@ -22,25 +22,25 @@ type streamDialer struct {
 	password string
 	client   *http.Client
 
-	seats        chan struct{}
-	earlyStreams chan transport.Stream
+	quota      chan struct{}
+	preStreams chan transport.Stream // pre-created streams
 }
 
 var _ transport.StreamDialer = (*streamDialer)(nil)
 
 // NewStreamDialer returns a transport.StreamDialer that
 // connects to the specified HTTP2 server address.
-// The maxEarlyStream parameter specifies the maximum number of streams to dial early.
-// This can save the caller a round trip time if a suitable value is given.
-func NewStreamDialer(addr string, cfg *tls.Config, username, password string, maxEarlyStream int) *streamDialer {
+// The maxPreConnect parameter specifies the maximum number of streams that
+// can create for future use. Given zero or negative value means do not pre-connect.
+func NewStreamDialer(addr string, cfg *tls.Config, username, password string, maxPreConnect int) *streamDialer {
 	d := &streamDialer{
 		addr:     addr,
 		username: username,
 		password: password,
 	}
-	if maxEarlyStream > 0 {
-		d.seats = make(chan struct{}, maxEarlyStream)
-		d.earlyStreams = make(chan transport.Stream, maxEarlyStream)
+	if maxPreConnect > 0 {
+		d.quota = make(chan struct{}, maxPreConnect)
+		d.preStreams = make(chan transport.Stream, maxPreConnect)
 	}
 
 	// mitigate website fingerprinting via multiplexing of HTTP/2 ,
@@ -61,9 +61,9 @@ func NewStreamDialer(addr string, cfg *tls.Config, username, password string, ma
 	return d
 }
 
-func makeBasicAuth(username, password string) string {
+func basicAuth(username, password string) string {
 	auth := username + ":" + password
-	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 func (d *streamDialer) Dial(ctx context.Context, target string) (_ transport.Stream, err error) {
@@ -73,48 +73,46 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (_ transport.Str
 		}
 	}()
 
-	if cap(d.earlyStreams) == 0 {
-		return d.dial(target)
+	if cap(d.preStreams) == 0 {
+		return d.connect(target)
 	}
 
-	// Dialing early so subsequent callers don't have to wait hundreds of milliseconds.
-	// To avoid flooding the server, only dial after getting a seat
-	tryDialEarly := func() {
+	// create stream for future use,
+	// so subsequent callers don't have to wait hundreds of milliseconds.
+	// To conserve resources, only do this when a quota is available.
+	tryPreConnect := func() {
 		select {
-		case d.seats <- struct{}{}:
+		case d.quota <- struct{}{}:
 		default:
 			return
 		}
-		s, e := d.dialEarly()
+		stream, e := d.preConnect()
 		if e != nil {
-			<-d.seats
+			<-d.quota
 			logger.Error.Printf("h2 dial early: %s", e)
 			return
 		}
-		d.earlyStreams <- s
+		d.preStreams <- stream
 	}
-	go tryDialEarly()
+	go tryPreConnect()
 
-	var earlyStream transport.Stream
 	select {
-	case earlyStream = <-d.earlyStreams:
-		<-d.seats
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case stream := <-d.preStreams:
+		<-d.quota
+		_, err = (&metadata{target}).WriteTo(stream)
+		if err != nil {
+			stream.Close()
+			return nil, fmt.Errorf("send metadata: %s", err)
+		}
+		return stream, nil
 	default:
-		return d.dial(target)
+		return d.connect(target)
 	}
-	_, err = (&metadata{target}).WriteTo(earlyStream)
-	if err != nil {
-		earlyStream.Close()
-		return nil, fmt.Errorf("send metadata: %s", err)
-	}
-	return earlyStream, nil
 }
 
-// dial connects to peer server and returns a stream available for transport.
+// connect to proxy server and returns a stream available for transport.
 // It compatible with Caddy's forward proxy.
-func (d *streamDialer) dial(target string) (transport.Stream, error) {
+func (d *streamDialer) connect(target string) (transport.Stream, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
 		Method: http.MethodConnect,
@@ -127,7 +125,7 @@ func (d *streamDialer) dial(target string) (transport.Stream, error) {
 	}
 	req.Header.Set("User-Agent", "Chrome/115.0.0.0")
 	if d.username != "" {
-		req.Header.Set("Proxy-Authorization", makeBasicAuth(d.username, d.password))
+		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(d.username, d.password))
 	}
 
 	// the client returns a response immediately after receiving header from the server.
@@ -136,19 +134,21 @@ func (d *streamDialer) dial(target string) (transport.Stream, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		return nil, errors.New(resp.Status)
+		defer resp.Body.Close()
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect, status code: %s", resp.Status)
+		}
+		return nil, fmt.Errorf("failed to connect, response: %q", dump)
 	}
-	return &stream{respBody: resp.Body, reqBodyWriter: pw}, nil
+	return &stream{writer: pw, reader: resp.Body}, nil
 }
 
 const pendingHost = "pending"
 
-// dialEarly connects to peer server without sending target host in header,
-// and returns a stream expecting the target host.
-// It is an optimization for dialing.
-func (d *streamDialer) dialEarly() (transport.Stream, error) {
+// preConnect connects to proxy server without sending target host in header,
+// and returns a stream expecting that target host.
+func (d *streamDialer) preConnect() (transport.Stream, error) {
 	pr, pw := io.Pipe()
 	req := &http.Request{
 		Method: http.MethodConnect,
@@ -161,7 +161,7 @@ func (d *streamDialer) dialEarly() (transport.Stream, error) {
 	}
 	req.Header.Set("User-Agent", "Chrome/115.0.0.0")
 	if d.username != "" {
-		req.Header.Set("Proxy-Authorization", makeBasicAuth(d.username, d.password))
+		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(d.username, d.password))
 	}
 
 	// the client returns a response immediately after receiving header from the server.
@@ -170,11 +170,14 @@ func (d *streamDialer) dialEarly() (transport.Stream, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		return nil, errors.New(resp.Status)
+		defer resp.Body.Close()
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect, status code: %s", resp.Status)
+		}
+		return nil, fmt.Errorf("failed to connect, response: %q", dump)
 	}
-	return &stream{respBody: resp.Body, reqBodyWriter: pw}, nil
+	return &stream{writer: pw, reader: resp.Body}, nil
 }
 
 func (d *streamDialer) Close() error {
@@ -183,29 +186,25 @@ func (d *streamDialer) Close() error {
 }
 
 type stream struct {
-	respBody      io.ReadCloser
-	reqBodyWriter *io.PipeWriter
+	writer *io.PipeWriter
+	reader io.ReadCloser
 }
 
 func (s *stream) Read(p []byte) (n int, err error) {
-	return s.respBody.Read(p)
+	return s.reader.Read(p)
 }
 
 func (s *stream) Write(p []byte) (n int, err error) {
-	return s.reqBodyWriter.Write(p)
+	return s.writer.Write(p)
 }
 
 func (s *stream) Close() error {
-	errReq := s.reqBodyWriter.Close()
-	errResp := s.respBody.Close()
-	if errReq != nil {
-		return errReq
-	}
-	return errResp
+	s.writer.Close()
+	return s.reader.Close()
 }
 
 func (s *stream) CloseWrite() error {
-	return s.reqBodyWriter.Close()
+	return s.writer.Close()
 }
 
 type metadata struct {

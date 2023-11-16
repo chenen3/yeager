@@ -98,13 +98,11 @@ func StartServices(cfg Config) ([]any, error) {
 			}()
 			services = append(services, &s)
 		case ProtoHTTP2:
-			var s http2.Server
-			go func() {
-				if err := s.Serve(sc.Address, tlsConf, sc.Username, sc.Password); err != nil {
-					logger.Error.Printf("http2 serve: %s", err)
-				}
-			}()
-			services = append(services, &s)
+			s, err := http2.StartServer(sc.Address, tlsConf, sc.Username, sc.Password)
+			if err != nil {
+				logger.Error.Printf("http2 serve: %s", err)
+			}
+			services = append(services, s)
 		}
 	}
 	return services, nil
@@ -144,7 +142,7 @@ func newStreamDialer(cc ServerConfig) (transport.StreamDialer, error) {
 	case ProtoGRPC:
 		d = grpc.NewStreamDialer(cc.Address, tlsConf)
 	case ProtoHTTP2:
-		d = http2.NewStreamDialer(cc.Address, tlsConf, cc.Username, cc.Password, cc.MaxEarlyStreams)
+		d = http2.NewStreamDialer(cc.Address, tlsConf, cc.Username, cc.Password, cc.MaxPreConnect)
 	default:
 		return nil, errors.New("unsupported protocol: " + cc.Proto)
 	}

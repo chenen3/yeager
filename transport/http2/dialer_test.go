@@ -5,15 +5,15 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
-	"github.com/chenen3/yeager/logger"
 )
 
-func run() (*Server, *streamDialer, error) {
+func run() (*http.Server, *streamDialer, error) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
@@ -24,12 +24,10 @@ func run() (*Server, *streamDialer, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	ts := new(Server)
-	go func() {
-		if e := ts.Serve(lis.Addr().String(), srvTLSConf, "", ""); e != nil {
-			logger.Error.Print(e)
-		}
-	}()
+	ts, err := StartServer(lis.Addr().String(), srvTLSConf, "", "")
+	if err != nil {
+		return nil, nil, err
+	}
 	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "", 0)
 	return ts, td, nil
 }
@@ -86,12 +84,10 @@ func TestAuth(t *testing.T) {
 	}
 
 	user, pass := "u", "p"
-	ts := new(Server)
-	go func() {
-		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
-			logger.Error.Print(e)
-		}
-	}()
+	ts, err := StartServer(lis.Addr().String(), srvTLSConf, user, pass)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer ts.Close()
 
 	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, user, pass, 0)
@@ -138,13 +134,10 @@ func TestBadAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	user, pass := "u", "p"
-	ts := new(Server)
-	go func() {
-		if e := ts.Serve(lis.Addr().String(), srvTLSConf, user, pass); e != nil {
-			logger.Error.Print(e)
-		}
-	}()
+	ts, err := StartServer(lis.Addr().String(), srvTLSConf, "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer ts.Close()
 
 	td := NewStreamDialer(lis.Addr().String(), cliTLSConf, "fakeuser", "fakepass", 0)

@@ -1,74 +1,41 @@
 package http2
 
 import (
-	"context"
 	"crypto/subtle"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/logger"
-	"golang.org/x/net/http2"
 )
 
-type Server struct {
-	mu  sync.Mutex
-	lis net.Listener
-}
-
-// Serve blocks until closed, or error occurs.
-func (s *Server) Serve(address string, cfg *tls.Config, username, password string) error {
-	cfg.NextProtos = []string{http2.NextProtoTLS}
-	lis, err := net.Listen("tcp", address)
+// StartServer starts and returns a new HTTP/2 Server for forward proxying.
+// The caller should call Close when finished, to shut it down.
+func StartServer(addr string, cfg *tls.Config, username, password string) (*http.Server, error) {
+	cfg.NextProtos = []string{"h2"}
+	lis, err := tls.Listen("tcp", addr, cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	s.mu.Lock()
-	s.lis = lis
-	s.mu.Unlock()
-	h2s := &http2.Server{IdleTimeout: 10 * time.Minute}
 	var h handler
 	if username != "" {
-		h.auth = []byte(makeBasicAuth(username, password))
+		h.auth = []byte("Basic " + basicAuth(username, password))
 	}
-	for {
-		conn, err := lis.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				err = nil
-			}
-			return err
+	s := &http.Server{
+		Handler:     h,
+		IdleTimeout: 10 * time.Minute,
+	}
+	go func() {
+		err := s.Serve(lis)
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error.Print(err)
 		}
-
-		tlsConn := tls.Server(conn, cfg)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err = tlsConn.HandshakeContext(ctx)
-		cancel()
-		if err != nil {
-			logger.Error.Printf("tls handshake: %s", err)
-			tlsConn.Close()
-			continue
-		}
-
-		go h2s.ServeConn(tlsConn, &http2.ServeConnOpts{
-			Handler: h,
-		})
-	}
-}
-
-func (s *Server) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.lis != nil {
-		return s.lis.Close()
-	}
-	return nil
+	}()
+	return s, nil
 }
 
 type handler struct {
@@ -76,6 +43,10 @@ type handler struct {
 }
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.ProtoMajor != 2 {
+		w.WriteHeader(http.StatusHTTPVersionNotSupported)
+		return
+	}
 	if r.Method != http.MethodConnect {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -86,7 +57,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(h.auth) != 0 {
 		auth := r.Header.Get("Proxy-Authorization")
-		const prefix = "Basic "
+		prefix := "Basic "
 		if len(auth) <= len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) ||
 			subtle.ConstantTimeCompare([]byte(auth[len(prefix):]), h.auth[len(prefix):]) != 1 {
 			w.WriteHeader(http.StatusProxyAuthRequired)
@@ -103,6 +74,8 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	if host == pendingHost {
 		var md metadata
+		// TODO: setting a read timeout avoids blocking forever,
+		// but affects the client's pre-created stream.
 		if _, err := md.ReadFrom(r.Body); err != nil {
 			logger.Error.Printf("read metadata: %s", err)
 			return

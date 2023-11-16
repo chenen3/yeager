@@ -38,8 +38,8 @@ type ServerConfig struct {
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
 
-	MaxEarlyStreams int  `json:"maxEarlyStreams,omitempty"` // h2 only
-	allowPrivate    bool // test only
+	MaxPreConnect int  `json:"maxPreConnect,omitempty"` // h2 only
+	allowPrivate  bool // test only
 }
 
 func mergeLine(s []string) string {

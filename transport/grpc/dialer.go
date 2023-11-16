@@ -108,7 +108,7 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		conn.Close()
 		return nil, err
 	}
-	return &clientStream{stream: stream, cancel: cancel}, nil
+	return &clientStream{stream: stream, onClose: cancel}, nil
 }
 
 func (c *streamDialer) Close() error {
@@ -124,9 +124,9 @@ func (c *streamDialer) Close() error {
 // It also implements io.WriterTo and io.ReaderFrom as optimizations
 // so io.Copy can avoid allocating unnecessary buffers.
 type clientStream struct {
-	stream pb.Tunnel_StreamClient
-	cancel func()
-	buf    []byte
+	stream  pb.Tunnel_StreamClient
+	onClose func()
+	buf     []byte
 }
 
 var _ transport.Stream = (*clientStream)(nil)
@@ -154,8 +154,8 @@ func (c *clientStream) Write(b []byte) (n int, err error) {
 }
 
 func (c *clientStream) Close() error {
-	if c.cancel != nil {
-		c.cancel()
+	if c.onClose != nil {
+		c.onClose()
 	}
 	return nil
 }
