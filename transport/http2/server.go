@@ -66,24 +66,12 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+	// client is waiting for response header
 	if f, ok := w.(http.Flusher); ok {
-		// client is waiting for this header
 		f.Flush()
 	}
 
-	host := r.Host
-	if host == pendingHost {
-		var md metadata
-		// TODO: setting a read timeout avoids blocking forever,
-		// but affects the client's pre-created stream.
-		if _, err := md.ReadFrom(r.Body); err != nil {
-			logger.Error.Printf("read metadata: %s", err)
-			return
-		}
-		host = md.Hostport
-	}
-
-	targetConn, err := net.DialTimeout("tcp", host, 5*time.Second)
+	targetConn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
 	if err != nil {
 		logger.Error.Print(err)
 		return

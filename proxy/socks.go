@@ -61,18 +61,18 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	logger.Debug.Printf("connect to %s", addr)
-	targetConn, err := s.dialer.Dial(ctx, addr)
+	stream, err := s.dialer.Dial(ctx, addr)
 	if err != nil {
 		logger.Error.Printf("connect %s: %s", addr, err)
 		return
 	}
-	defer targetConn.Close()
+	defer stream.Close()
 
 	go func() {
-		io.Copy(targetConn, proxyConn)
-		targetConn.CloseWrite()
+		io.Copy(stream, proxyConn)
+		stream.CloseWrite()
 	}()
-	io.Copy(proxyConn, targetConn)
+	io.Copy(proxyConn, stream)
 }
 
 func (s *socks5Server) trackConn(c net.Conn, add bool) {
