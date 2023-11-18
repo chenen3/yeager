@@ -36,11 +36,6 @@ func NewStreamDialer(addr string, cfg *tls.Config) *streamDialer {
 	}
 }
 
-func canTakeRequest(cc *grpc.ClientConn) bool {
-	s := cc.GetState()
-	return s != connectivity.Shutdown && s != connectivity.TransientFailure
-}
-
 const keepaliveInterval = 15 * time.Second
 
 // getConn tends to use existing client connections, dialing new ones if necessary.
@@ -49,7 +44,7 @@ const keepaliveInterval = 15 * time.Second
 func (d *streamDialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	d.mu.Lock()
 	for i, cc := range d.conns {
-		if canTakeRequest(cc) {
+		if s := cc.GetState(); s != connectivity.Shutdown && s != connectivity.TransientFailure {
 			if i > 0 {
 				// clear dead conn
 				d.conns = d.conns[i:]

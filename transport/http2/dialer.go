@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"time"
 
 	"github.com/chenen3/yeager/flow"
@@ -39,7 +38,7 @@ func NewStreamDialer(addr string, cfg *tls.Config, username, password string) *s
 	d.client = &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout:   5 * time.Second,
+				Timeout:   10 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			TLSClientConfig:     cfg,
@@ -59,15 +58,11 @@ func basicAuth(username, password string) string {
 
 func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
 	pr, pw := io.Pipe()
-	req := &http.Request{
-		Method: http.MethodConnect,
-		// For client requests, the URL's Host specifies the server to connect to
-		URL:           &url.URL{Scheme: "https", Host: d.addr},
-		Host:          target,
-		Header:        make(http.Header),
-		Body:          pr,
-		ContentLength: -1,
+	req, err := http.NewRequestWithContext(ctx, http.MethodConnect, "https://"+d.addr, pr)
+	if err != nil {
+		return nil, err
 	}
+	req.Host = target
 	if d.username != "" {
 		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(d.username, d.password))
 	}
