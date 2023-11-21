@@ -12,7 +12,7 @@ import (
 	"github.com/chenen3/yeager/logger"
 )
 
-// StartServer starts and returns a new HTTP/2 Server for forward proxying.
+// StartServer creates and starts HTTP/2 Server for forward proxying.
 // The caller should call Close when finished, to shut it down.
 func StartServer(addr string, cfg *tls.Config, username, password string) (*http.Server, error) {
 	cfg.NextProtos = []string{"h2"}

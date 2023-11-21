@@ -89,19 +89,19 @@ func main() {
 		logger.Info.Printf("transport: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
 	}
 
-	services, err := StartServices(conf)
+	stop, err := start(conf)
 	if err != nil {
-		logger.Error.Printf("start services: %s", err)
-		closeAll(services)
+		logger.Error.Printf("start service: %s", err)
 		return
 	}
+	defer stop()
 
 	if flags.pprof {
-		s := http.Server{Addr: "localhost:6060"}
-		defer s.Close()
+		srv := http.Server{Addr: "localhost:6060"}
+		defer srv.Close()
 		go func() {
-			logger.Info.Printf("starts http server %s for profiling", s.Addr)
-			if err := s.ListenAndServe(); err != http.ErrServerClosed {
+			logger.Info.Printf("starts http server %s for profiling", srv.Addr)
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 				logger.Error.Print(err)
 			}
 		}()
@@ -111,8 +111,6 @@ func main() {
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	sig := <-ch
 	logger.Info.Printf("signal %s", sig)
-	closeAll(services)
-	logger.Info.Printf("goodbye")
 }
 
 func checkIP() (string, error) {

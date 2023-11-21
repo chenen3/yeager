@@ -18,6 +18,7 @@ type StreamDialer interface {
 	Dial(ctx context.Context, address string) (Stream, error)
 }
 
+// TCPStreamDialer implements StreamDialer with the standard net.Dialer
 type TCPStreamDialer struct {
 	dialer net.Dialer
 }

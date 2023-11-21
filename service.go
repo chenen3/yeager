@@ -16,23 +16,39 @@ import (
 	"github.com/chenen3/yeager/transport/http2"
 )
 
-// StartServices starts services using the given config
-// and returns them for future shutdown
-func StartServices(cfg Config) ([]any, error) {
+// start the service specified by config.
+// The caller should call stop when finished.
+func start(cfg Config) (stop func(), err error) {
+	var toClose []io.Closer
+	stop = func() {
+		for _, c := range toClose {
+			e := c.Close()
+			if e != nil {
+				logger.Error.Print(e)
+			}
+		}
+	}
+	defer func() {
+		if err != nil {
+			stop()
+		}
+	}()
+
 	if len(cfg.Listen) == 0 && cfg.Proxy.Address == "" {
-		return nil, errors.New("no proxy client nor server specified in config")
+		return nil, errors.New("missing client or server config")
 	}
 
-	var services []any
 	if cfg.Proxy.Address != "" {
 		dialer, err := newStreamDialer(cfg.Proxy)
 		if err != nil {
 			return nil, err
 		}
+		if v, ok := dialer.(io.Closer); ok {
+			toClose = append(toClose, v)
+		}
 		if !cfg.Proxy.allowPrivate {
 			dialer = bypassPrivate(dialer)
 		}
-		services = append(services, dialer)
 
 		if cfg.ListenHTTP != "" {
 			listener, err := net.Listen("tcp", cfg.ListenHTTP)
@@ -46,7 +62,7 @@ func StartServices(cfg Config) ([]any, error) {
 					logger.Error.Printf("serve http proxy: %s", err)
 				}
 			}()
-			services = append(services, s)
+			toClose = append(toClose, s)
 		}
 
 		if cfg.ListenSOCKS != "" {
@@ -61,7 +77,7 @@ func StartServices(cfg Config) ([]any, error) {
 					logger.Error.Printf("serve socks proxy: %s", err)
 				}
 			}()
-			services = append(services, ss)
+			toClose = append(toClose, ss)
 		}
 	}
 
@@ -96,26 +112,16 @@ func StartServices(cfg Config) ([]any, error) {
 					logger.Error.Printf("grpc serve: %s", err)
 				}
 			}()
-			services = append(services, &s)
+			toClose = append(toClose, &s)
 		case ProtoHTTP2:
 			s, err := http2.StartServer(sc.Address, tlsConf, sc.Username, sc.Password)
 			if err != nil {
 				logger.Error.Printf("http2 serve: %s", err)
 			}
-			services = append(services, s)
+			toClose = append(toClose, s)
 		}
 	}
-	return services, nil
-}
-
-func closeAll(services []any) {
-	for _, s := range services {
-		if c, ok := s.(io.Closer); ok {
-			if err := c.Close(); err != nil {
-				logger.Error.Print(err)
-			}
-		}
-	}
+	return stop, nil
 }
 
 func newStreamDialer(cc ServerConfig) (transport.StreamDialer, error) {

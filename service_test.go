@@ -13,41 +13,29 @@ import (
 	"github.com/chenen3/yeager/echo"
 )
 
-var (
-	httpListen  string
-	socksListen string
-)
-
-func runTestServer() (clients, servers []any, listenHTTP, listenSOCKS string) {
-	cliConf, srvConf, err := GenerateConfig("127.0.0.1")
-	if err != nil {
-		panic(err)
-	}
-
-	srvClosers, err := StartServices(srvConf)
-	if err != nil {
-		panic(err)
-	}
-
-	cliConf.Proxy.allowPrivate = true
-	cliClosers, err := StartServices(cliConf)
-	if err != nil {
-		panic(err)
-	}
-
-	return cliClosers, srvClosers, cliConf.ListenHTTP, cliConf.ListenSOCKS
-}
-
 func TestHttpProxyToGRPC(t *testing.T) {
-	clients, servers, listenHTTP, _ := runTestServer()
-	defer closeAll(clients)
-	defer closeAll(servers)
+	cc, sc, err := GenerateConfig("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop, err := start(cc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
+	stop, err = start(sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "1")
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("http://" + listenHTTP)
+	pu, err := url.Parse("http://" + cc.ListenHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,30 +65,31 @@ func TestHttpProxyToGRPC(t *testing.T) {
 }
 
 func TestHttpsProxyToHTTP2(t *testing.T) {
-	cliConf, srvConf, err := GenerateConfig("127.0.0.1")
+	cc, sc, err := GenerateConfig("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cliConf.Proxy.Proto = ProtoHTTP2
-	srvConf.Listen[0].Proto = ProtoHTTP2
-	srvClosers, err := StartServices(srvConf)
+
+	cc.Proxy.Proto = ProtoHTTP2
+	stop, err := start(cc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cliConf.Proxy.allowPrivate = true
-	cliClosers, err := StartServices(cliConf)
+	defer stop()
+
+	sc.Listen[0].Proto = ProtoHTTP2
+	stop, err = start(sc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeAll(cliClosers)
-	defer closeAll(srvClosers)
+	defer stop()
 
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "1")
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("http://" + cliConf.ListenHTTP)
+	pu, err := url.Parse("http://" + cc.ListenHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,15 +118,27 @@ func TestHttpsProxyToHTTP2(t *testing.T) {
 }
 
 func TestSocksProxyToGRPC(t *testing.T) {
-	clients, servers, _, listenSOCKS := runTestServer()
-	defer closeAll(clients)
-	defer closeAll(servers)
+	cc, sc, err := GenerateConfig("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop, err := start(cc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	stop, err = start(sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "1")
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("socks5://" + listenSOCKS)
+	pu, err := url.Parse("socks5://" + cc.ListenSOCKS)
 	if err != nil {
 		t.Fatal(err)
 	}
