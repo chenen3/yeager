@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/logger"
 )
 
-// StartServer creates and starts HTTP/2 Server for forward proxying.
+// NewServer creates and starts HTTP/2 Server for forward proxying.
 // The caller should call Close when finished, to shut it down.
-func StartServer(addr string, cfg *tls.Config, username, password string) (*http.Server, error) {
+func NewServer(addr string, cfg *tls.Config, username, password string) (*http.Server, error) {
 	cfg.NextProtos = []string{"h2"}
 	lis, err := tls.Listen("tcp", addr, cfg)
 	if err != nil {
@@ -78,10 +77,10 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer targetConn.Close()
 	go func() {
-		flow.Copy(targetConn, r.Body)
+		bufferedCopy(targetConn, r.Body)
 		targetConn.(*net.TCPConn).CloseWrite()
 	}()
-	flow.Copy(&flushWriter{w}, targetConn)
+	bufferedCopy(&flushWriter{w}, targetConn)
 }
 
 type flushWriter struct {

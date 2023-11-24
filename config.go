@@ -11,32 +11,30 @@ import (
 )
 
 type Config struct {
-	Listen      []ServerConfig `json:"listen,omitempty"`
-	ListenSOCKS string         `json:"listenSOCKS,omitempty"`
-	ListenHTTP  string         `json:"listenHTTP,omitempty"`
-	Proxy       ServerConfig   `json:"proxy,omitempty"`
+	Listen      []TransportConfig `json:"listen,omitempty"`
+	ListenSOCKS string            `json:"listenSOCKS,omitempty"`
+	ListenHTTP  string            `json:"listenHTTP,omitempty"`
+	Proxy       TransportConfig   `json:"proxy,omitempty"`
 }
 
 const (
 	ProtoGRPC  = "grpc"
-	ProtoQUIC  = "quic" // deprecated
 	ProtoHTTP2 = "h2"
 )
 
-type ServerConfig struct {
-	Proto   string `json:"proto"`
-	Address string `json:"address"`
-
-	// not required when using mutual TLS
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-
+type TransportConfig struct {
+	Proto    string   `json:"proto"`
+	Address  string   `json:"address"`
 	CertFile string   `json:"certFile,omitempty"`
 	CertPEM  []string `json:"certPEM,omitempty"`
 	KeyFile  string   `json:"keyFile,omitempty"`
 	KeyPEM   []string `json:"keyPEM,omitempty"`
 	CAFile   string   `json:"caFile,omitempty"`
 	CAPEM    []string `json:"caPEM,omitempty"`
+
+	// not required when using mutual TLS
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 
 	allowPrivate bool // test only
 }
@@ -49,7 +47,7 @@ func splitLine(s string) []string {
 	return strings.Split(strings.TrimSpace(s), "\n")
 }
 
-func (c ServerConfig) GetCertPEM() ([]byte, error) {
+func (c TransportConfig) GetCertPEM() ([]byte, error) {
 	if c.CertPEM != nil {
 		return []byte(mergeLine(c.CertPEM)), nil
 	}
@@ -59,7 +57,7 @@ func (c ServerConfig) GetCertPEM() ([]byte, error) {
 	return nil, errors.New("no PEM data nor file")
 }
 
-func (c ServerConfig) GetKeyPEM() ([]byte, error) {
+func (c TransportConfig) GetKeyPEM() ([]byte, error) {
 	if c.KeyPEM != nil {
 		return []byte(mergeLine(c.KeyPEM)), nil
 	}
@@ -69,7 +67,7 @@ func (c ServerConfig) GetKeyPEM() ([]byte, error) {
 	return nil, errors.New("no PEM data nor file")
 }
 
-func (c ServerConfig) GetCAPEM() ([]byte, error) {
+func (c TransportConfig) GetCAPEM() ([]byte, error) {
 	if c.CAPEM != nil {
 		return []byte(mergeLine(c.CAPEM)), nil
 	}
@@ -97,7 +95,7 @@ func GenerateConfig(host string) (cli, srv Config, err error) {
 	tunnelPort := allocPort()
 
 	srv = Config{
-		Listen: []ServerConfig{
+		Listen: []TransportConfig{
 			{
 				Address: fmt.Sprintf("0.0.0.0:%d", tunnelPort),
 				Proto:   ProtoGRPC,
@@ -111,7 +109,7 @@ func GenerateConfig(host string) (cli, srv Config, err error) {
 	cli = Config{
 		ListenSOCKS: fmt.Sprintf("127.0.0.1:%d", allocPort()),
 		ListenHTTP:  fmt.Sprintf("127.0.0.1:%d", allocPort()),
-		Proxy: ServerConfig{
+		Proxy: TransportConfig{
 			Address: fmt.Sprintf("%s:%d", host, tunnelPort),
 			Proto:   ProtoGRPC,
 			CAPEM:   splitLine(string(cert.RootCert)),

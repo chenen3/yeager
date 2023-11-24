@@ -43,7 +43,6 @@ var rawConf = `
 }
 `
 
-// intentionally enter a new line to test whether the program can deal with this scenario
 var testCAPEM = `
 -----BEGIN CERTIFICATE-----
 MIIBqTCCAU6gAwIBAgIRAJxLfwUAHU2937LQPprCcXwwCgYIKoZIzj0EAwIwJDEQ
@@ -62,7 +61,7 @@ func TestConfig(t *testing.T) {
 	want := Config{
 		ListenSOCKS: "127.0.0.1:1081",
 		ListenHTTP:  "127.0.0.1:8081",
-		Listen: []ServerConfig{
+		Listen: []TransportConfig{
 			{
 				Proto:    "grpc",
 				Address:  "127.0.0.1:10812",
@@ -71,7 +70,7 @@ func TestConfig(t *testing.T) {
 				CAFile:   "/path/to/ca-cert.pem",
 			},
 		},
-		Proxy: ServerConfig{
+		Proxy: TransportConfig{
 			Proto:    "grpc",
 			Address:  "127.0.0.1:9000",
 			CertFile: "/path/to/client-cert.pem",

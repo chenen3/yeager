@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -19,10 +20,10 @@ import (
 // start the service specified by config.
 // The caller should call stop when finished.
 func start(cfg Config) (stop func(), err error) {
-	var toClose []io.Closer
+	var closeFuncs []func() error
 	stop = func() {
-		for _, c := range toClose {
-			e := c.Close()
+		for _, close := range closeFuncs {
+			e := close()
 			if e != nil {
 				logger.Error.Print(e)
 			}
@@ -44,7 +45,7 @@ func start(cfg Config) (stop func(), err error) {
 			return nil, err
 		}
 		if v, ok := dialer.(io.Closer); ok {
-			toClose = append(toClose, v)
+			closeFuncs = append(closeFuncs, v.Close)
 		}
 		if !cfg.Proxy.allowPrivate {
 			dialer = bypassPrivate(dialer)
@@ -62,7 +63,7 @@ func start(cfg Config) (stop func(), err error) {
 					logger.Error.Printf("serve http proxy: %s", err)
 				}
 			}()
-			toClose = append(toClose, s)
+			closeFuncs = append(closeFuncs, s.Close)
 		}
 
 		if cfg.ListenSOCKS != "" {
@@ -77,7 +78,7 @@ func start(cfg Config) (stop func(), err error) {
 					logger.Error.Printf("serve socks proxy: %s", err)
 				}
 			}()
-			toClose = append(toClose, ss)
+			closeFuncs = append(closeFuncs, ss.Close)
 		}
 	}
 
@@ -106,51 +107,51 @@ func start(cfg Config) (stop func(), err error) {
 			if err != nil {
 				return nil, err
 			}
-			var s grpc.Server
-			go func() {
-				if err := s.Serve(lis, tlsConf); err != nil {
-					logger.Error.Printf("grpc serve: %s", err)
-				}
-			}()
-			toClose = append(toClose, &s)
+			s := grpc.NewServer(lis, tlsConf)
+			closeFuncs = append(closeFuncs, func() error {
+				s.Stop()
+				return nil
+			})
 		case ProtoHTTP2:
-			s, err := http2.StartServer(sc.Address, tlsConf, sc.Username, sc.Password)
+			s, err := http2.NewServer(sc.Address, tlsConf, sc.Username, sc.Password)
 			if err != nil {
-				logger.Error.Printf("http2 serve: %s", err)
+				return nil, err
 			}
-			toClose = append(toClose, s)
+			closeFuncs = append(closeFuncs, s.Close)
 		}
 	}
 	return stop, nil
 }
 
-func newStreamDialer(cc ServerConfig) (transport.StreamDialer, error) {
-	hasAuth := cc.Username != "" && cc.Password != ""
-	certPEM, err := cc.GetCertPEM()
-	if err != nil && !hasAuth {
-		return nil, fmt.Errorf("read certificate: %s", err)
-	}
-	keyPEM, err := cc.GetKeyPEM()
-	if err != nil && !hasAuth {
-		return nil, fmt.Errorf("read key: %s", err)
-	}
-	caPEM, err := cc.GetCAPEM()
-	if err != nil && !hasAuth {
-		return nil, fmt.Errorf("read CA: %s", err)
-	}
-	tlsConf, err := cert.ClientTLSConfig(caPEM, certPEM, keyPEM)
-	if err != nil && !hasAuth {
-		return nil, fmt.Errorf("make tls conf: %s", err)
+func newStreamDialer(t TransportConfig) (transport.StreamDialer, error) {
+	var tlsConf *tls.Config
+	if t.Proto != ProtoHTTP2 || t.Username == "" || t.Password == "" {
+		certPEM, err := t.GetCertPEM()
+		if err != nil {
+			return nil, fmt.Errorf("read certificate: %s", err)
+		}
+		keyPEM, err := t.GetKeyPEM()
+		if err != nil {
+			return nil, fmt.Errorf("read key: %s", err)
+		}
+		caPEM, err := t.GetCAPEM()
+		if err != nil {
+			return nil, fmt.Errorf("read CA: %s", err)
+		}
+		tlsConf, err = cert.ClientTLSConfig(caPEM, certPEM, keyPEM)
+		if err != nil {
+			return nil, fmt.Errorf("make tls conf: %s", err)
+		}
 	}
 
 	var d transport.StreamDialer
-	switch cc.Proto {
+	switch t.Proto {
 	case ProtoGRPC:
-		d = grpc.NewStreamDialer(cc.Address, tlsConf)
+		d = grpc.NewStreamDialer(t.Address, tlsConf)
 	case ProtoHTTP2:
-		d = http2.NewStreamDialer(cc.Address, tlsConf, cc.Username, cc.Password)
+		d = http2.NewStreamDialer(t.Address, tlsConf, t.Username, t.Password)
 	default:
-		return nil, errors.New("unsupported protocol: " + cc.Proto)
+		return nil, errors.New("unsupported transport protocol: " + t.Proto)
 	}
 	return d, nil
 }

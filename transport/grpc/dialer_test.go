@@ -3,7 +3,6 @@ package grpc
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"net"
 	"testing"
@@ -11,10 +10,10 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
-	"github.com/chenen3/yeager/logger"
+	"google.golang.org/grpc"
 )
 
-func startTunnel() (*Server, *streamDialer, error) {
+func startTunnel() (*grpc.Server, *streamDialer, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
@@ -25,14 +24,7 @@ func startTunnel() (*Server, *streamDialer, error) {
 		return nil, nil, err
 	}
 
-	ts := new(Server)
-	go func() {
-		e := ts.Serve(listener, srvTLSConf)
-		if e != nil && !errors.Is(e, net.ErrClosed) {
-			logger.Error.Print(err)
-		}
-	}()
-
+	ts := NewServer(listener, srvTLSConf)
 	tc := NewStreamDialer(listener.Addr().String(), cliTLSConf)
 	return ts, tc, nil
 }
@@ -40,19 +32,24 @@ func startTunnel() (*Server, *streamDialer, error) {
 func TestTunnel(t *testing.T) {
 	e := echo.NewServer()
 	defer e.Close()
-
-	ts, d, err := startTunnel()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ts.Close()
-	defer d.Close()
+	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := NewServer(listener, srvTLSConf)
+	defer ts.Stop()
+	td := NewStreamDialer(listener.Addr().String(), cliTLSConf)
+	defer td.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := d.Dial(ctx, e.Listener.Addr().String())
+	stream, err := td.Dial(ctx, e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,18 +71,24 @@ func BenchmarkThroughput(b *testing.B) {
 	echo := echo.NewServer()
 	defer echo.Close()
 
-	ts, d, err := startTunnel()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ts.Close()
-	defer d.Close()
+	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	if err != nil {
+		b.Fatal(err)
+	}
+	ts := NewServer(listener, srvTLSConf)
+	defer ts.Stop()
+	td := NewStreamDialer(listener.Addr().String(), cliTLSConf)
+	defer td.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := d.Dial(ctx, echo.Listener.Addr().String())
+	stream, err := td.Dial(ctx, echo.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}

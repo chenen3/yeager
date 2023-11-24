@@ -5,9 +5,9 @@ import (
 	"errors"
 	"io"
 	"net"
-	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -17,17 +17,10 @@ import (
 
 const idleTimeout = 10 * time.Minute
 
-// Server is a GRPC tunnel server, its zero value is ready to use
-type Server struct {
-	pb.UnimplementedTunnelServer
-	mu sync.Mutex
-	gs *grpc.Server
-}
-
-// Serve serves incomming connections on listener, blocking until listener fails.
-// Serve will return a non-nil error unless Close is called.
-func (s *Server) Serve(listener net.Listener, tlsConf *tls.Config) error {
-	grpcServer := grpc.NewServer(
+// NewServer creates and starts a gRPC server.
+// The caller should call Stop when finished.
+func NewServer(listener net.Listener, tlsConf *tls.Config) *grpc.Server {
+	s := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConf)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: idleTimeout,
@@ -36,14 +29,21 @@ func (s *Server) Serve(listener net.Listener, tlsConf *tls.Config) error {
 			MinTime: keepaliveInterval,
 		}),
 	)
-	pb.RegisterTunnelServer(grpcServer, s)
-	s.mu.Lock()
-	s.gs = grpcServer
-	s.mu.Unlock()
-	return grpcServer.Serve(listener)
+	pb.RegisterTunnelServer(s, handler{})
+	go func() {
+		err := s.Serve(listener)
+		if err != nil {
+			logger.Error.Print(err)
+		}
+	}()
+	return s
 }
 
-func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {
+type handler struct {
+	pb.UnimplementedTunnelServer
+}
+
+func (handler) Stream(stream pb.Tunnel_StreamServer) error {
 	if stream.Context().Err() != nil {
 		return stream.Context().Err()
 	}
@@ -64,17 +64,6 @@ func (s *Server) Stream(stream pb.Tunnel_StreamServer) error {
 		targetConn.(*net.TCPConn).CloseWrite()
 	}()
 	ss.ReadFrom(targetConn)
-	return nil
-}
-
-func (s *Server) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.gs == nil {
-		return nil
-	}
-	// stopping GRPC server will close all active connections and listener
-	s.gs.Stop()
 	return nil
 }
 

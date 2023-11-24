@@ -4,14 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/flow"
 	"github.com/chenen3/yeager/transport"
 )
 
@@ -110,9 +111,51 @@ func (s *stream) CloseWrite() error {
 }
 
 func (s *stream) ReadFrom(r io.Reader) (n int64, err error) {
-	return flow.Copy(s, r)
+	return bufferedCopy(s.writer, r)
 }
 
 func (s *stream) WriteTo(w io.Writer) (written int64, err error) {
-	return flow.Copy(w, s)
+	return bufferedCopy(w, s.reader)
+}
+
+var bufPool = sync.Pool{
+	New: func() any {
+		// refer to 16KB maxPlaintext in crypto/tls/common.go
+		b := make([]byte, 16*1024)
+		return &b
+	},
+}
+
+// uses buffer pool to copy data from src to dst.
+func bufferedCopy(dst io.Writer, src io.Reader) (written int64, err error) {
+	buf := bufPool.Get().(*[]byte)
+	for {
+		nr, er := src.Read(*buf)
+		if nr > 0 {
+			nw, ew := dst.Write((*buf)[0:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.New("invalid write result")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	bufPool.Put(buf)
+	return written, err
 }

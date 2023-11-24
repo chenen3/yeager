@@ -24,7 +24,7 @@ func run() (*http.Server, *streamDialer, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	ts, err := StartServer(lis.Addr().String(), srvTLSConf, "", "")
+	ts, err := NewServer(lis.Addr().String(), srvTLSConf, "", "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -84,7 +84,7 @@ func TestAuth(t *testing.T) {
 	}
 
 	user, pass := "u", "p"
-	ts, err := StartServer(lis.Addr().String(), srvTLSConf, user, pass)
+	ts, err := NewServer(lis.Addr().String(), srvTLSConf, user, pass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestBadAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ts, err := StartServer(lis.Addr().String(), srvTLSConf, "u", "p")
+	ts, err := NewServer(lis.Addr().String(), srvTLSConf, "u", "p")
 	if err != nil {
 		t.Fatal(err)
 	}
