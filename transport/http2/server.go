@@ -80,14 +80,14 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		bufferedCopy(targetConn, r.Body)
 		targetConn.(*net.TCPConn).CloseWrite()
 	}()
-	bufferedCopy(&flushWriter{w}, targetConn)
+	bufferedCopy(flushWriter{w}, targetConn)
 }
 
 type flushWriter struct {
 	http.ResponseWriter
 }
 
-func (w *flushWriter) Write(b []byte) (int, error) {
+func (w flushWriter) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()

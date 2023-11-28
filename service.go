@@ -48,7 +48,7 @@ func start(cfg Config) (stop func(), err error) {
 			closeFuncs = append(closeFuncs, v.Close)
 		}
 		if !cfg.Proxy.allowPrivate {
-			dialer = bypassPrivate(dialer)
+			dialer = directPrivate(dialer)
 		}
 
 		if cfg.ListenHTTP != "" {
@@ -103,11 +103,10 @@ func start(cfg Config) (stop func(), err error) {
 
 		switch sc.Proto {
 		case ProtoGRPC:
-			lis, err := net.Listen("tcp", sc.Address)
+			s, err := grpc.NewServer(sc.Address, tlsConf)
 			if err != nil {
 				return nil, err
 			}
-			s := grpc.NewServer(lis, tlsConf)
 			closeFuncs = append(closeFuncs, func() error {
 				s.Stop()
 				return nil
@@ -123,18 +122,18 @@ func start(cfg Config) (stop func(), err error) {
 	return stop, nil
 }
 
-func newStreamDialer(t TransportConfig) (transport.StreamDialer, error) {
+func newStreamDialer(c TransportConfig) (transport.StreamDialer, error) {
 	var tlsConf *tls.Config
-	if t.Proto != ProtoHTTP2 || t.Username == "" || t.Password == "" {
-		certPEM, err := t.GetCertPEM()
+	if c.Proto != ProtoHTTP2 || c.Username == "" || c.Password == "" {
+		certPEM, err := c.GetCertPEM()
 		if err != nil {
 			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := t.GetKeyPEM()
+		keyPEM, err := c.GetKeyPEM()
 		if err != nil {
 			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := t.GetCAPEM()
+		caPEM, err := c.GetCAPEM()
 		if err != nil {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
@@ -145,13 +144,13 @@ func newStreamDialer(t TransportConfig) (transport.StreamDialer, error) {
 	}
 
 	var d transport.StreamDialer
-	switch t.Proto {
+	switch c.Proto {
 	case ProtoGRPC:
-		d = grpc.NewStreamDialer(t.Address, tlsConf)
+		d = grpc.NewStreamDialer(c.Address, tlsConf)
 	case ProtoHTTP2:
-		d = http2.NewStreamDialer(t.Address, tlsConf, t.Username, t.Password)
+		d = http2.NewStreamDialer(c.Address, tlsConf, c.Username, c.Password)
 	default:
-		return nil, errors.New("unsupported transport protocol: " + t.Proto)
+		return nil, errors.New("unsupported transport protocol: " + c.Proto)
 	}
 	return d, nil
 }
@@ -161,15 +160,14 @@ type dialerWithPrivate struct {
 	direct transport.TCPStreamDialer
 }
 
-// wraps a StreamDialer and bypass private host,
-// the returned dialer will connect directly to
-// private host instead of using the StreamDialer
-func bypassPrivate(d transport.StreamDialer) transport.StreamDialer {
+// For private address, the returned dialer connects directly to it
+// rather than through the transport
+func directPrivate(d transport.StreamDialer) transport.StreamDialer {
 	return &dialerWithPrivate{StreamDialer: d}
 }
 
 func (d dialerWithPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
-	private := func(host string) bool {
+	isPrivate := func(host string) bool {
 		if host == "localhost" {
 			return true
 		}
@@ -183,7 +181,7 @@ func (d dialerWithPrivate) Dial(ctx context.Context, address string) (transport.
 	if err != nil {
 		return nil, err
 	}
-	if private(host) {
+	if isPrivate(host) {
 		return d.direct.Dial(ctx, address)
 	}
 	return d.StreamDialer.Dial(ctx, address)

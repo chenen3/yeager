@@ -126,7 +126,7 @@ var bufPool = sync.Pool{
 	},
 }
 
-// uses buffer pool to copy data from src to dst.
+// copy data from src to dst using buffer from pool
 func bufferedCopy(dst io.Writer, src io.Reader) (written int64, err error) {
 	buf := bufPool.Get().(*[]byte)
 	for {

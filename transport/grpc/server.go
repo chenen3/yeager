@@ -19,9 +19,13 @@ const idleTimeout = 10 * time.Minute
 
 // NewServer creates and starts a gRPC server.
 // The caller should call Stop when finished.
-func NewServer(listener net.Listener, tlsConf *tls.Config) *grpc.Server {
+func NewServer(addr string, config *tls.Config) (*grpc.Server, error) {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
 	s := grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(tlsConf)),
+		grpc.Creds(credentials.NewTLS(config)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: idleTimeout,
 		}),
@@ -29,21 +33,21 @@ func NewServer(listener net.Listener, tlsConf *tls.Config) *grpc.Server {
 			MinTime: keepaliveInterval,
 		}),
 	)
-	pb.RegisterTunnelServer(s, handler{})
+	pb.RegisterTunnelServer(s, service{})
 	go func() {
 		err := s.Serve(listener)
 		if err != nil {
 			logger.Error.Print(err)
 		}
 	}()
-	return s
+	return s, nil
 }
 
-type handler struct {
+type service struct {
 	pb.UnimplementedTunnelServer
 }
 
-func (handler) Stream(stream pb.Tunnel_StreamServer) error {
+func (service) Stream(stream pb.Tunnel_StreamServer) error {
 	if stream.Context().Err() != nil {
 		return stream.Context().Err()
 	}

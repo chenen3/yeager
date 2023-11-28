@@ -10,24 +10,7 @@ import (
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
-	"google.golang.org/grpc"
 )
-
-func startTunnel() (*grpc.Server, *streamDialer, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ts := NewServer(listener, srvTLSConf)
-	tc := NewStreamDialer(listener.Addr().String(), cliTLSConf)
-	return ts, tc, nil
-}
 
 func TestTunnel(t *testing.T) {
 	e := echo.NewServer()
@@ -36,13 +19,18 @@ func TestTunnel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	listener.Close()
+	addr := listener.Addr().String()
 	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := NewServer(listener, srvTLSConf)
+	ts, err := NewServer(addr, srvTLSConf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer ts.Stop()
-	td := NewStreamDialer(listener.Addr().String(), cliTLSConf)
+	td := NewStreamDialer(addr, cliTLSConf)
 	defer td.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)
@@ -75,13 +63,18 @@ func BenchmarkThroughput(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	listener.Close()
+	addr := listener.Addr().String()
 	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
 	if err != nil {
 		b.Fatal(err)
 	}
-	ts := NewServer(listener, srvTLSConf)
+	ts, err := NewServer(addr, srvTLSConf)
+	if err != nil {
+		b.Fatal(err)
+	}
 	defer ts.Stop()
-	td := NewStreamDialer(listener.Addr().String(), cliTLSConf)
+	td := NewStreamDialer(addr, cliTLSConf)
 	defer td.Close()
 	// the tunnel server may not started yet
 	time.Sleep(time.Millisecond)

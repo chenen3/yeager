@@ -179,7 +179,7 @@ func TestDialPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dialer = bypassPrivate(dialer)
+	dialer = directPrivate(dialer)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	stream, err := dialer.Dial(ctx, es.Listener.Addr().String())
