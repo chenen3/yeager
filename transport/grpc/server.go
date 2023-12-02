@@ -62,7 +62,7 @@ func (service) Stream(stream pb.Tunnel_StreamServer) error {
 	}
 	defer targetConn.Close()
 
-	ss := &serverStream{stream}
+	ss := serverStream{stream}
 	go func() {
 		ss.WriteTo(targetConn)
 		targetConn.(*net.TCPConn).CloseWrite()
@@ -77,11 +77,11 @@ type serverStream struct {
 	pb.Tunnel_StreamServer
 }
 
-var _ io.WriterTo = (*serverStream)(nil)
-var _ io.ReaderFrom = (*serverStream)(nil)
+var _ io.WriterTo = serverStream{}
+var _ io.ReaderFrom = serverStream{}
 
 // WriteTo uses buffer received from grpc stream, instead of allocating a new one
-func (ss *serverStream) WriteTo(w io.Writer) (written int64, err error) {
+func (ss serverStream) WriteTo(w io.Writer) (written int64, err error) {
 	for {
 		msg, er := ss.Recv()
 		if msg != nil && len(msg.Data) > 0 {
@@ -113,7 +113,7 @@ func (ss *serverStream) WriteTo(w io.Writer) (written int64, err error) {
 	return written, err
 }
 
-func (ss *serverStream) ReadFrom(r io.Reader) (n int64, err error) {
+func (ss serverStream) ReadFrom(r io.Reader) (n int64, err error) {
 	buf := bufPool.Get().(*[]byte)
 	for {
 		nr, er := r.Read(*buf)

@@ -25,7 +25,7 @@ type streamDialer struct {
 
 var _ transport.StreamDialer = (*streamDialer)(nil)
 
-// NewStreamDialer creates a Transport.StreamDialer which issues CONNECT to HTTP/2 server.
+// NewStreamDialer creates a transport.StreamDialer which issues CONNECT to HTTP/2 server.
 // It compatible with Caddy's forward proxy.
 func NewStreamDialer(addr string, cfg *tls.Config, username, password string) *streamDialer {
 	d := &streamDialer{

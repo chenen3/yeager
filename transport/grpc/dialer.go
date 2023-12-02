@@ -27,8 +27,9 @@ type streamDialer struct {
 
 var _ transport.StreamDialer = (*streamDialer)(nil)
 
-// NewStreamDialer returns a transport.StreamDialer that
+// NewStreamDialer creates a transport.StreamDialer that
 // connects to the specified gRPC server address.
+// The caller should call Close when finished, to close the underlying connections.
 func NewStreamDialer(addr string, cfg *tls.Config) *streamDialer {
 	return &streamDialer{
 		addr: addr,
