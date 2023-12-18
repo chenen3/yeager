@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/logger"
@@ -20,18 +21,14 @@ import (
 // start the service specified by config.
 // The caller should call stop when finished.
 func start(cfg Config) (stop func(), err error) {
-	var closeFuncs []func() error
-	stop = func() {
-		for _, close := range closeFuncs {
-			e := close()
-			if e != nil {
-				logger.Error.Print(e)
-			}
-		}
-	}
+	var onStop []func() error
 	defer func() {
 		if err != nil {
-			stop()
+			for _, f := range onStop {
+				if e := f(); e != nil {
+					logger.Error.Print(e)
+				}
+			}
 		}
 	}()
 
@@ -45,10 +42,7 @@ func start(cfg Config) (stop func(), err error) {
 			return nil, err
 		}
 		if v, ok := dialer.(io.Closer); ok {
-			closeFuncs = append(closeFuncs, v.Close)
-		}
-		if !cfg.Proxy.allowPrivate {
-			dialer = directPrivate(dialer)
+			onStop = append(onStop, v.Close)
 		}
 
 		if cfg.ListenHTTP != "" {
@@ -63,7 +57,7 @@ func start(cfg Config) (stop func(), err error) {
 					logger.Error.Printf("serve http proxy: %s", err)
 				}
 			}()
-			closeFuncs = append(closeFuncs, s.Close)
+			onStop = append(onStop, s.Close)
 		}
 
 		if cfg.ListenSOCKS != "" {
@@ -78,7 +72,7 @@ func start(cfg Config) (stop func(), err error) {
 					logger.Error.Printf("serve socks proxy: %s", err)
 				}
 			}()
-			closeFuncs = append(closeFuncs, ss.Close)
+			onStop = append(onStop, ss.Close)
 		}
 	}
 
@@ -107,7 +101,7 @@ func start(cfg Config) (stop func(), err error) {
 			if err != nil {
 				return nil, err
 			}
-			closeFuncs = append(closeFuncs, func() error {
+			onStop = append(onStop, func() error {
 				s.Stop()
 				return nil
 			})
@@ -116,7 +110,15 @@ func start(cfg Config) (stop func(), err error) {
 			if err != nil {
 				return nil, err
 			}
-			closeFuncs = append(closeFuncs, s.Close)
+			onStop = append(onStop, s.Close)
+		}
+	}
+
+	stop = func() {
+		for _, f := range onStop {
+			if e := f(); e != nil {
+				logger.Error.Print(e)
+			}
 		}
 	}
 	return stop, nil
@@ -152,6 +154,9 @@ func newStreamDialer(c TransportConfig) (transport.StreamDialer, error) {
 	default:
 		return nil, errors.New("unsupported transport protocol: " + c.Proto)
 	}
+	if !c.allowPrivate {
+		d = directPrivate(d)
+	}
 	return d, nil
 }
 
@@ -166,7 +171,14 @@ func directPrivate(d transport.StreamDialer) transport.StreamDialer {
 	return &dialerWithPrivate{StreamDialer: d}
 }
 
-func (d dialerWithPrivate) Dial(ctx context.Context, address string) (transport.Stream, error) {
+func (d dialerWithPrivate) Dial(ctx context.Context, address string) (stream transport.Stream, err error) {
+	start := time.Now()
+	defer func() {
+		if err == nil {
+			logger.Debug.Printf("connected to %s, timed: %dms", address, time.Since(start).Milliseconds())
+		}
+	}()
+
 	isPrivate := func(host string) bool {
 		if host == "localhost" {
 			return true

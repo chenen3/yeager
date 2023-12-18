@@ -60,7 +60,6 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	logger.Debug.Printf("connect to %s", addr)
 	stream, err := s.dialer.Dial(ctx, addr)
 	if err != nil {
 		logger.Error.Printf("connect %s: %s", addr, err)

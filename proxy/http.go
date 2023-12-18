@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
@@ -40,7 +39,6 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		http.Error(proxyResp, "missing port in address", http.StatusBadRequest)
 		return
 	}
-	start := time.Now()
 	stream, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
@@ -48,7 +46,6 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 		return
 	}
 	defer stream.Close()
-	logger.Debug.Printf("connect to %s, timed: %dms", proxyReq.Host, time.Since(start).Milliseconds())
 
 	hijacker, ok := proxyResp.(http.Hijacker)
 	if !ok {
@@ -104,7 +101,7 @@ func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	targetResp, err := http.ReadResponse(bufio.NewReader(targetConn), proxyReq)
 	if err != nil {
 		http.Error(proxyResp, "Failed to read target response", http.StatusServiceUnavailable)
-		logger.Error.Print(err)
+		logger.Error.Printf("read target response: %s", err)
 		return
 	}
 	defer targetResp.Body.Close()
@@ -116,8 +113,7 @@ func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	}
 	_, err = io.Copy(proxyResp, targetResp.Body)
 	if err != nil {
-		http.Error(proxyResp, "Failed to write response", http.StatusServiceUnavailable)
-		logger.Error.Print(err)
+		logger.Error.Printf("write response: %s", err)
 		return
 	}
 }

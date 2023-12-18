@@ -20,7 +20,6 @@ var rawConf = `
 		}
 	],
 	"proxy": {
-		"name": "proxy",
 		"proto": "grpc",
 		"address": "127.0.0.1:9000",
 		"certFile": "/path/to/client-cert.pem",

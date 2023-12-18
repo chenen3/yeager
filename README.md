@@ -84,7 +84,7 @@ $ ./yeager -config client.json
 SOCKS server address is 127.0.0.1:1080, HTTP proxy server address is 127.0.0.1:8080
 
 ### Running with launchd on macOS
-> Let yeager run in the background and start automatically when the system starts
+> Let yeager run in the background when the operating system starts
 
 Copy `client.json` to `/usr/local/etc/yeager.json`
 
