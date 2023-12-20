@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -60,7 +60,7 @@ func TestConfig(t *testing.T) {
 	want := Config{
 		ListenSOCKS: "127.0.0.1:1081",
 		ListenHTTP:  "127.0.0.1:8081",
-		Listen: []TransportConfig{
+		Listen: []Transport{
 			{
 				Proto:    "grpc",
 				Address:  "127.0.0.1:10812",
@@ -69,13 +69,13 @@ func TestConfig(t *testing.T) {
 				CAFile:   "/path/to/ca-cert.pem",
 			},
 		},
-		Proxy: TransportConfig{
+		Proxy: Transport{
 			Proto:    "grpc",
 			Address:  "127.0.0.1:9000",
 			CertFile: "/path/to/client-cert.pem",
 			KeyFile:  "/path/to/client-key.pem",
 			CAFile:   "/path/to/ca-cert.pem",
-			CAPEM:    splitLine(testCAPEM),
+			CAPEM:    splitLines(testCAPEM),
 		},
 	}
 	var got Config

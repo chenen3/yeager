@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
+	"github.com/chenen3/yeager/config"
 )
 
 func run() (*http.Server, *streamDialer, error) {
@@ -20,7 +20,7 @@ func run() (*http.Server, *streamDialer, error) {
 	}
 	lis.Close()
 
-	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	cliTLSConf, srvTLSConf, err := config.MutualTLS("127.0.0.1")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -78,7 +78,7 @@ func TestAuth(t *testing.T) {
 	}
 	lis.Close()
 
-	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	cliTLSConf, srvTLSConf, err := config.MutualTLS("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestBadAuth(t *testing.T) {
 	}
 	lis.Close()
 
-	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	cliTLSConf, srvTLSConf, err := config.MutualTLS("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}

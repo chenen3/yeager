@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/logger"
 )
 
@@ -68,13 +69,13 @@ func main() {
 		logger.Error.Printf("read config: %s", err)
 		return
 	}
-	var conf Config
+	var conf config.Config
 	if err = json.Unmarshal(bs, &conf); err != nil {
 		logger.Error.Printf("load config: %s", err)
 		return
 	}
 
-	// for your information
+	// FYI
 	logger.Info.Printf("yeager starting version: %s", version)
 	for _, sc := range conf.Listen {
 		logger.Info.Printf("listen %s %s", sc.Proto, sc.Address)
@@ -134,7 +135,7 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 		return fmt.Errorf("file %s already exists, operation aborted", cliConfOutput)
 	}
 
-	cliConf, srvConf, err := GenerateConfig(host)
+	cliConf, srvConf, err := config.Generate(host)
 	if err != nil {
 		return fmt.Errorf("failed to generate config: %s", err)
 	}

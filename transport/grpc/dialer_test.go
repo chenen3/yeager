@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/cert"
 	"github.com/chenen3/yeager/echo"
+	"github.com/chenen3/yeager/config"
 )
 
 func TestTunnel(t *testing.T) {
@@ -21,7 +21,7 @@ func TestTunnel(t *testing.T) {
 	}
 	listener.Close()
 	addr := listener.Addr().String()
-	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	cliTLSConf, srvTLSConf, err := config.MutualTLS("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func BenchmarkThroughput(b *testing.B) {
 	}
 	listener.Close()
 	addr := listener.Addr().String()
-	cliTLSConf, srvTLSConf, err := cert.MutualTLSConfig("127.0.0.1")
+	cliTLSConf, srvTLSConf, err := config.MutualTLS("127.0.0.1")
 	if err != nil {
 		b.Fatal(err)
 	}

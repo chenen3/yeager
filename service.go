@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/chenen3/yeager/cert"
+	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/proxy"
 	"github.com/chenen3/yeager/transport"
@@ -20,7 +20,7 @@ import (
 
 // start the service specified by config.
 // The caller should call stop when finished.
-func start(cfg Config) (stop func(), err error) {
+func start(cfg config.Config) (stop func(), err error) {
 	var onStop []func() error
 	defer func() {
 		if err != nil {
@@ -76,28 +76,27 @@ func start(cfg Config) (stop func(), err error) {
 		}
 	}
 
-	for _, sc := range cfg.Listen {
-		sc := sc
-		certPEM, err := sc.GetCertPEM()
+	for _, t := range cfg.Listen {
+		certPEM, err := t.Cert()
 		if err != nil {
 			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := sc.GetKeyPEM()
+		keyPEM, err := t.Key()
 		if err != nil {
 			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := sc.GetCAPEM()
+		caPEM, err := t.CA()
 		if err != nil {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
-		tlsConf, err := cert.ServerTLSConfig(caPEM, certPEM, keyPEM)
+		tlsConf, err := config.NewServerTLS(caPEM, certPEM, keyPEM)
 		if err != nil {
 			return nil, err
 		}
 
-		switch sc.Proto {
-		case ProtoGRPC:
-			s, err := grpc.NewServer(sc.Address, tlsConf)
+		switch t.Proto {
+		case config.ProtoGRPC:
+			s, err := grpc.NewServer(t.Address, tlsConf)
 			if err != nil {
 				return nil, err
 			}
@@ -105,8 +104,8 @@ func start(cfg Config) (stop func(), err error) {
 				s.Stop()
 				return nil
 			})
-		case ProtoHTTP2:
-			s, err := http2.NewServer(sc.Address, tlsConf, sc.Username, sc.Password)
+		case config.ProtoHTTP2:
+			s, err := http2.NewServer(t.Address, tlsConf, t.Username, t.Password)
 			if err != nil {
 				return nil, err
 			}
@@ -124,22 +123,22 @@ func start(cfg Config) (stop func(), err error) {
 	return stop, nil
 }
 
-func newStreamDialer(c TransportConfig) (transport.StreamDialer, error) {
+func newStreamDialer(c config.Transport) (transport.StreamDialer, error) {
 	var tlsConf *tls.Config
-	if c.Proto != ProtoHTTP2 || c.Username == "" || c.Password == "" {
-		certPEM, err := c.GetCertPEM()
+	if c.Proto != config.ProtoHTTP2 || c.Username == "" || c.Password == "" {
+		certPEM, err := c.Cert()
 		if err != nil {
 			return nil, fmt.Errorf("read certificate: %s", err)
 		}
-		keyPEM, err := c.GetKeyPEM()
+		keyPEM, err := c.Key()
 		if err != nil {
 			return nil, fmt.Errorf("read key: %s", err)
 		}
-		caPEM, err := c.GetCAPEM()
+		caPEM, err := c.CA()
 		if err != nil {
 			return nil, fmt.Errorf("read CA: %s", err)
 		}
-		tlsConf, err = cert.ClientTLSConfig(caPEM, certPEM, keyPEM)
+		tlsConf, err = config.NewClientTLS(caPEM, certPEM, keyPEM)
 		if err != nil {
 			return nil, fmt.Errorf("make tls conf: %s", err)
 		}
@@ -147,14 +146,14 @@ func newStreamDialer(c TransportConfig) (transport.StreamDialer, error) {
 
 	var d transport.StreamDialer
 	switch c.Proto {
-	case ProtoGRPC:
+	case config.ProtoGRPC:
 		d = grpc.NewStreamDialer(c.Address, tlsConf)
-	case ProtoHTTP2:
+	case config.ProtoHTTP2:
 		d = http2.NewStreamDialer(c.Address, tlsConf, c.Username, c.Password)
 	default:
 		return nil, errors.New("unsupported transport protocol: " + c.Proto)
 	}
-	if !c.allowPrivate {
+	if !c.AllowPrivate {
 		d = directPrivate(d)
 	}
 	return d, nil
@@ -171,11 +170,11 @@ func directPrivate(d transport.StreamDialer) transport.StreamDialer {
 	return &dialerWithPrivate{StreamDialer: d}
 }
 
-func (d dialerWithPrivate) Dial(ctx context.Context, address string) (stream transport.Stream, err error) {
+func (d dialerWithPrivate) Dial(ctx context.Context, addr string) (stream transport.Stream, err error) {
 	start := time.Now()
 	defer func() {
 		if err == nil {
-			logger.Debug.Printf("connected to %s, timed: %dms", address, time.Since(start).Milliseconds())
+			logger.Debug.Printf("connected to %s, timed: %dms", addr, time.Since(start).Milliseconds())
 		}
 	}()
 
@@ -189,12 +188,12 @@ func (d dialerWithPrivate) Dial(ctx context.Context, address string) (stream tra
 		return false
 	}
 
-	host, _, err := net.SplitHostPort(address)
+	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
 	if isPrivate(host) {
-		return d.direct.Dial(ctx, address)
+		return d.direct.Dial(ctx, addr)
 	}
-	return d.StreamDialer.Dial(ctx, address)
+	return d.StreamDialer.Dial(ctx, addr)
 }

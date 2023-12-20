@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/echo"
+	"github.com/chenen3/yeager/config"
 )
 
 func TestHttpProxyToGRPC(t *testing.T) {
-	cc, sc, err := GenerateConfig("127.0.0.1")
+	cc, sc, err := config.Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,19 +66,19 @@ func TestHttpProxyToGRPC(t *testing.T) {
 }
 
 func TestHttpsProxyToHTTP2(t *testing.T) {
-	cc, sc, err := GenerateConfig("127.0.0.1")
+	cc, sc, err := config.Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cc.Proxy.Proto = ProtoHTTP2
+	cc.Proxy.Proto = config.ProtoHTTP2
 	stop, err := start(cc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 
-	sc.Listen[0].Proto = ProtoHTTP2
+	sc.Listen[0].Proto = config.ProtoHTTP2
 	stop, err = start(sc)
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +119,7 @@ func TestHttpsProxyToHTTP2(t *testing.T) {
 }
 
 func TestSocksProxyToGRPC(t *testing.T) {
-	cc, sc, err := GenerateConfig("127.0.0.1")
+	cc, sc, err := config.Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestDialPrivate(t *testing.T) {
 	es := echo.NewServer()
 	defer es.Close()
 
-	cliConf, _, err := GenerateConfig("127.0.0.1")
+	cliConf, _, err := config.Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}

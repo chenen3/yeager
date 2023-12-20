@@ -1,4 +1,4 @@
-package cert
+package config
 
 import (
 	"bytes"
@@ -8,18 +8,18 @@ import (
 	"time"
 )
 
-func TestGenerateCertificate(t *testing.T) {
-	certInfo, err := Generate("127.0.0.1")
+func TestNewCertificate(t *testing.T) {
+	certInfo, err := newCert("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	pool := x509.NewCertPool()
-	ok := pool.AppendCertsFromPEM(certInfo.RootCert)
+	ok := pool.AppendCertsFromPEM(certInfo.rootCert)
 	if !ok {
 		t.Fatal("failed to parse root certificate")
 	}
 
-	cert, err := tls.X509KeyPair(certInfo.ServerCert, certInfo.ServerKey)
+	cert, err := tls.X509KeyPair(certInfo.serverCert, certInfo.serverKey)
 	if err != nil {
 		t.Error(err)
 		return
@@ -40,7 +40,7 @@ func TestGenerateCertificate(t *testing.T) {
 
 	want := []byte{1}
 	go func() {
-		cert, er := tls.X509KeyPair(certInfo.ClientCert, certInfo.ClientKey)
+		cert, er := tls.X509KeyPair(certInfo.clientCert, certInfo.clientKey)
 		if er != nil {
 			t.Error(er)
 			return

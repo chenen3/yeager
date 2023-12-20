@@ -1,4 +1,4 @@
-package cert
+package config
 
 import (
 	"crypto/ecdsa"
@@ -16,44 +16,44 @@ import (
 	"time"
 )
 
-// Cert certificate and key in PEM format
-type Cert struct {
-	RootCert   []byte
-	RootKey    []byte
-	ServerCert []byte
-	ServerKey  []byte
-	ClientCert []byte
-	ClientKey  []byte
+// TLS certificate and key in PEM format
+type cert struct {
+	rootCert   []byte
+	rootKey    []byte
+	serverCert []byte
+	serverKey  []byte
+	clientCert []byte
+	clientKey  []byte
 }
 
-// Generate generate TLS certificates for mutual authentication
-func Generate(host string) (*Cert, error) {
-	rootCert, rootKey, err := makeRootCA()
+// newCert create TLS certificates for mutual authentication
+func newCert(host string) (*cert, error) {
+	rootCert, rootKey, err := newRootCA()
 	if err != nil {
 		return nil, err
 	}
 
-	serverCert, serverKey, err := makeCertificate(host, rootCert, rootKey)
+	serverCert, serverKey, err := signCert(host, rootCert, rootKey)
 	if err != nil {
 		return nil, err
 	}
 
-	clientCert, clientKey, err := makeCertificate(host, rootCert, rootKey)
+	clientCert, clientKey, err := signCert(host, rootCert, rootKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Cert{
-		RootCert:   rootCert,
-		RootKey:    rootKey,
-		ServerCert: serverCert,
-		ServerKey:  serverKey,
-		ClientCert: clientCert,
-		ClientKey:  clientKey,
+	return &cert{
+		rootCert:   rootCert,
+		rootKey:    rootKey,
+		serverCert: serverCert,
+		serverKey:  serverKey,
+		clientCert: clientCert,
+		clientKey:  clientKey,
 	}, nil
 }
 
-func makeRootCA() (certPEM, keyPEM []byte, err error) {
+func newRootCA() (certPEM, keyPEM []byte, err error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -91,7 +91,7 @@ func makeRootCA() (certPEM, keyPEM []byte, err error) {
 	return certPEM, keyPEM, nil
 }
 
-func makeCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, keyPEM []byte, err error) {
+func signCert(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, keyPEM []byte, err error) {
 	cb, _ := pem.Decode(rootCertPEM)
 	rootCert, err := x509.ParseCertificate(cb.Bytes)
 	if err != nil {
@@ -152,8 +152,8 @@ func makeCertificate(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, keyP
 	return certPEM, keyPEM, nil
 }
 
-// ServerTLSConfig make server-side TLS config for mutual authentication
-func ServerTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
+// NewServerTLS creates server-side TLS config for mutual authentication
+func NewServerTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	pool := x509.NewCertPool()
 	ok := pool.AppendCertsFromPEM(caPEM)
 	if !ok {
@@ -174,8 +174,8 @@ func ServerTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	return conf, nil
 }
 
-// ClientTLSConfig make client-side TLS config for mutual authentication
-func ClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
+// NewClientTLS creates client-side TLS config for mutual authentication
+func NewClientTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
 		return nil, errors.New("parse root certificate")
@@ -195,17 +195,17 @@ func ClientTLSConfig(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	return conf, nil
 }
 
-// helper function
-func MutualTLSConfig(host string) (clientTLS, serverTLS *tls.Config, err error) {
-	cert, err := Generate(host)
+// MutualTLS creates client and server TLS config for mutual authentication
+func MutualTLS(host string) (clientTLS, serverTLS *tls.Config, err error) {
+	cert, err := newCert(host)
 	if err != nil {
 		return
 	}
-	clientTLS, err = ClientTLSConfig(cert.RootCert, cert.ClientCert, cert.ClientKey)
+	clientTLS, err = NewClientTLS(cert.rootCert, cert.clientCert, cert.clientKey)
 	if err != nil {
 		return
 	}
-	serverTLS, err = ServerTLSConfig(cert.RootCert, cert.ServerCert, cert.ServerKey)
+	serverTLS, err = NewServerTLS(cert.rootCert, cert.serverCert, cert.serverKey)
 	if err != nil {
 		return
 	}

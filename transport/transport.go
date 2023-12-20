@@ -25,7 +25,7 @@ type TCPStreamDialer struct {
 
 var _ StreamDialer = (*TCPStreamDialer)(nil)
 
-func (d *TCPStreamDialer) Dial(ctx context.Context, address string) (Stream, error) {
+func (d TCPStreamDialer) Dial(ctx context.Context, address string) (Stream, error) {
 	conn, err := d.dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return nil, err
