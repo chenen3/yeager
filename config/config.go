@@ -9,10 +9,11 @@ import (
 )
 
 type Config struct {
-	Listen      []Transport `json:"listen,omitempty"`
-	ListenSOCKS string      `json:"listenSOCKS,omitempty"`
-	ListenHTTP  string      `json:"listenHTTP,omitempty"`
-	Proxy       Transport   `json:"proxy,omitempty"`
+	Listen []Transport `json:"listen,omitempty"`
+
+	Transport  Transport `json:"transport,omitempty"`
+	SOCKSProxy string    `json:"socks_proxy,omitempty"`
+	HTTPProxy  string    `json:"http_proxy,omitempty"`
 }
 
 const (
@@ -21,14 +22,14 @@ const (
 )
 
 type Transport struct {
-	Proto    string   `json:"proto"`
+	Protocol string   `json:"protocol"`
 	Address  string   `json:"address"`
-	CertFile string   `json:"certFile,omitempty"`
-	CertPEM  []string `json:"certPEM,omitempty"`
-	KeyFile  string   `json:"keyFile,omitempty"`
-	KeyPEM   []string `json:"keyPEM,omitempty"`
-	CAFile   string   `json:"caFile,omitempty"`
-	CAPEM    []string `json:"caPEM,omitempty"`
+	CertFile string   `json:"cert_file,omitempty"`
+	CertPEM  []string `json:"cert_pem,omitempty"`
+	KeyFile  string   `json:"key_file,omitempty"`
+	KeyPEM   []string `json:"key_pem,omitempty"`
+	CAFile   string   `json:"ca_file,omitempty"`
+	CAPEM    []string `json:"ca_pem,omitempty"`
 
 	// not required when using mutual TLS
 	Username string `json:"username,omitempty"`
@@ -95,24 +96,24 @@ func Generate(host string) (cli, srv Config, err error) {
 	srv = Config{
 		Listen: []Transport{
 			{
-				Address: fmt.Sprintf("0.0.0.0:%d", tunnelPort),
-				Proto:   ProtoGRPC,
-				CAPEM:   splitLines(string(cert.rootCert)),
-				CertPEM: splitLines(string(cert.serverCert)),
-				KeyPEM:  splitLines(string(cert.serverKey)),
+				Address:  fmt.Sprintf("0.0.0.0:%d", tunnelPort),
+				Protocol: ProtoGRPC,
+				CAPEM:    splitLines(string(cert.rootCert)),
+				CertPEM:  splitLines(string(cert.serverCert)),
+				KeyPEM:   splitLines(string(cert.serverKey)),
 			},
 		},
 	}
 
 	cli = Config{
-		ListenSOCKS: fmt.Sprintf("127.0.0.1:%d", chosePort()),
-		ListenHTTP:  fmt.Sprintf("127.0.0.1:%d", chosePort()),
-		Proxy: Transport{
-			Address: fmt.Sprintf("%s:%d", host, tunnelPort),
-			Proto:   ProtoGRPC,
-			CAPEM:   splitLines(string(cert.rootCert)),
-			CertPEM: splitLines(string(cert.clientCert)),
-			KeyPEM:  splitLines(string(cert.clientKey)),
+		SOCKSProxy: fmt.Sprintf("127.0.0.1:%d", chosePort()),
+		HTTPProxy:  fmt.Sprintf("127.0.0.1:%d", chosePort()),
+		Transport: Transport{
+			Address:  fmt.Sprintf("%s:%d", host, tunnelPort),
+			Protocol: ProtoGRPC,
+			CAPEM:    splitLines(string(cert.rootCert)),
+			CertPEM:  splitLines(string(cert.clientCert)),
+			KeyPEM:   splitLines(string(cert.clientKey)),
 		},
 	}
 	return cli, srv, nil

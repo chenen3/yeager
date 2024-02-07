@@ -96,7 +96,6 @@ func (s *socks5Server) Close() error {
 	}
 	for c := range s.activeConn {
 		c.Close()
-		delete(s.activeConn, c)
 	}
 	return err
 }

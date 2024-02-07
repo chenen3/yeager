@@ -51,12 +51,13 @@ func (service) Stream(stream pb.Tunnel_StreamServer) error {
 	if stream.Context().Err() != nil {
 		return stream.Context().Err()
 	}
-	targets := metadata.ValueFromIncomingContext(stream.Context(), targetKey)
-	if len(targets) == 0 {
+	v := metadata.ValueFromIncomingContext(stream.Context(), targetKey)
+	if len(v) == 0 {
 		return errors.New("missing target")
 	}
+	target := v[0]
 
-	targetConn, err := net.DialTimeout("tcp", targets[0], 5*time.Second)
+	targetConn, err := net.DialTimeout("tcp", target, 5*time.Second)
 	if err != nil {
 		return err
 	}

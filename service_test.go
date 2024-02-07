@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/echo"
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/echo"
 )
 
 func TestHttpProxyToGRPC(t *testing.T) {
@@ -36,7 +36,7 @@ func TestHttpProxyToGRPC(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("http://" + cc.ListenHTTP)
+	pu, err := url.Parse("http://" + cc.HTTPProxy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,14 +71,14 @@ func TestHttpsProxyToHTTP2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cc.Proxy.Proto = config.ProtoHTTP2
+	cc.Transport.Protocol = config.ProtoHTTP2
 	stop, err := start(cc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 
-	sc.Listen[0].Proto = config.ProtoHTTP2
+	sc.Listen[0].Protocol = config.ProtoHTTP2
 	stop, err = start(sc)
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestHttpsProxyToHTTP2(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("http://" + cc.ListenHTTP)
+	pu, err := url.Parse("http://" + cc.HTTPProxy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestSocksProxyToGRPC(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	pu, err := url.Parse("socks5://" + cc.ListenSOCKS)
+	pu, err := url.Parse("socks5://" + cc.SOCKSProxy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestDialPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dialer, err := newStreamDialer(cliConf.Proxy)
+	dialer, err := newStreamDialer(cliConf.Transport)
 	if err != nil {
 		t.Fatal(err)
 	}

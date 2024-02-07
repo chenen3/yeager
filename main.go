@@ -25,14 +25,14 @@ func main() {
 		genConfig  bool
 		ip         string
 		verbose    bool
-		pprof      bool
+		pprofHTTP  string
 	}
 	flag.StringVar(&flags.configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&flags.version, "version", false, "print version")
 	flag.BoolVar(&flags.genConfig, "genconf", false, "generate config")
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, using with option -genconf")
 	flag.BoolVar(&flags.verbose, "verbose", false, "verbose logging")
-	flag.BoolVar(&flags.pprof, "pprof", false, "serve profiling on http://localhost:6060/debug/pprof")
+	flag.StringVar(&flags.pprofHTTP, "pprof_http", "localhost:6060", "serve HTTP at host:port for profiling")
 	flag.Parse()
 
 	if flags.verbose {
@@ -75,21 +75,7 @@ func main() {
 		return
 	}
 
-	// FYI
-	logger.Info.Printf("yeager starting version: %s", version)
-	for _, sc := range conf.Listen {
-		logger.Info.Printf("listen %s %s", sc.Proto, sc.Address)
-	}
-	if conf.ListenHTTP != "" {
-		logger.Info.Printf("listen HTTP proxy: %s", conf.ListenHTTP)
-	}
-	if conf.ListenSOCKS != "" {
-		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.ListenSOCKS)
-	}
-	if conf.Proxy.Address != "" {
-		logger.Info.Printf("transport: %s %s", conf.Proxy.Proto, conf.Proxy.Address)
-	}
-
+	logger.Info.Printf("starting yeager %s", version)
 	stop, err := start(conf)
 	if err != nil {
 		logger.Error.Printf("start service: %s", err)
@@ -97,21 +83,29 @@ func main() {
 	}
 	defer stop()
 
-	if flags.pprof {
-		srv := http.Server{Addr: "localhost:6060"}
-		defer srv.Close()
+	for _, sc := range conf.Listen {
+		logger.Info.Printf("listen %s %s", sc.Protocol, sc.Address)
+	}
+	if conf.HTTPProxy != "" {
+		logger.Info.Printf("listen HTTP proxy: %s", conf.HTTPProxy)
+	}
+	if conf.SOCKSProxy != "" {
+		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.SOCKSProxy)
+	}
+	if conf.Transport.Address != "" {
+		logger.Info.Printf("transport: %s %s", conf.Transport.Protocol, conf.Transport.Address)
+	}
+
+	if flags.pprofHTTP != "" {
 		go func() {
-			logger.Info.Printf("starts http server %s for profiling", srv.Addr)
-			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-				logger.Error.Print(err)
-			}
+			logger.Info.Println(http.ListenAndServe(flags.pprofHTTP, nil))
 		}()
 	}
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	sig := <-ch
-	logger.Info.Printf("signal %s", sig)
+	logger.Info.Printf("received %s", sig)
 }
 
 func checkIP() (string, error) {
@@ -150,9 +144,9 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	}
 	fmt.Println("generated", srvConfOutput)
 
-	cliConf.Proxy.Address = fmt.Sprintf("%s:%d", host, port)
-	cliConf.ListenSOCKS = "127.0.0.1:1080"
-	cliConf.ListenHTTP = "127.0.0.1:8080"
+	cliConf.Transport.Address = fmt.Sprintf("%s:%d", host, port)
+	cliConf.SOCKSProxy = "127.0.0.1:1080"
+	cliConf.HTTPProxy = "127.0.0.1:8080"
 	bs, err = json.MarshalIndent(cliConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)

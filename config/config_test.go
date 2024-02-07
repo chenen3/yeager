@@ -8,24 +8,22 @@ import (
 
 var rawConf = `
 {
-	"listenSOCKS": "127.0.0.1:1081",
-	"listenHTTP": "127.0.0.1:8081",
 	"listen": [
 		{
-			"proto": "grpc",
+			"protocol": "grpc",
 			"address": "127.0.0.1:10812",
-			"certFile": "/path/to/server-cert.pem",
-			"keyFile": "/path/to/server-key.pem",
-			"caFile": "/path/to/ca-cert.pem"
+			"cert_file": "/path/to/server-cert.pem",
+			"key_file": "/path/to/server-key.pem",
+			"ca_file": "/path/to/ca-cert.pem"
 		}
 	],
-	"proxy": {
-		"proto": "grpc",
+	"transport": {
+		"protocol": "grpc",
 		"address": "127.0.0.1:9000",
-		"certFile": "/path/to/client-cert.pem",
-		"keyFile": "/path/to/client-key.pem",
-		"caFile": "/path/to/ca-cert.pem",
-		"caPEM": [
+		"cert_file": "/path/to/client-cert.pem",
+		"key_file": "/path/to/client-key.pem",
+		"ca_file": "/path/to/ca-cert.pem",
+		"ca_pem": [
 			"-----BEGIN CERTIFICATE-----",
 			"MIIBqTCCAU6gAwIBAgIRAJxLfwUAHU2937LQPprCcXwwCgYIKoZIzj0EAwIwJDEQ",
 			"MA4GA1UEChMHQWNtZSBDbzEQMA4GA1UEAxMHUm9vdCBDQTAeFw0yMjA2MDIwMzQ5",
@@ -38,7 +36,9 @@ var rawConf = `
 			"9CSvf08poZFV5wIhAIl57HSDW2ZjOwHytOMdhVtuIZh8H17jbSHEBoviv+Tl",
 			"-----END CERTIFICATE-----"
 		]
-	}
+	},
+	"socks_proxy": "127.0.0.1:1081",
+	"http_proxy": "127.0.0.1:8081"
 }
 `
 
@@ -58,25 +58,25 @@ eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+
 
 func TestConfig(t *testing.T) {
 	want := Config{
-		ListenSOCKS: "127.0.0.1:1081",
-		ListenHTTP:  "127.0.0.1:8081",
 		Listen: []Transport{
 			{
-				Proto:    "grpc",
+				Protocol: "grpc",
 				Address:  "127.0.0.1:10812",
 				CertFile: "/path/to/server-cert.pem",
 				KeyFile:  "/path/to/server-key.pem",
 				CAFile:   "/path/to/ca-cert.pem",
 			},
 		},
-		Proxy: Transport{
-			Proto:    "grpc",
+		Transport: Transport{
+			Protocol: "grpc",
 			Address:  "127.0.0.1:9000",
 			CertFile: "/path/to/client-cert.pem",
 			KeyFile:  "/path/to/client-key.pem",
 			CAFile:   "/path/to/ca-cert.pem",
 			CAPEM:    splitLines(testCAPEM),
 		},
+		SOCKSProxy: "127.0.0.1:1081",
+		HTTPProxy:  "127.0.0.1:8081",
 	}
 	var got Config
 	if err := json.Unmarshal([]byte(rawConf), &got); err != nil {

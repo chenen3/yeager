@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenen3/yeager/echo"
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/echo"
 )
 
 func TestTunnel(t *testing.T) {

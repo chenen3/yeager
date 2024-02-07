@@ -32,12 +32,12 @@ func start(cfg config.Config) (stop func(), err error) {
 		}
 	}()
 
-	if len(cfg.Listen) == 0 && cfg.Proxy.Address == "" {
+	if len(cfg.Listen) == 0 && cfg.Transport.Address == "" {
 		return nil, errors.New("missing client or server config")
 	}
 
-	if cfg.Proxy.Address != "" {
-		dialer, err := newStreamDialer(cfg.Proxy)
+	if cfg.Transport.Address != "" {
+		dialer, err := newStreamDialer(cfg.Transport)
 		if err != nil {
 			return nil, err
 		}
@@ -45,8 +45,8 @@ func start(cfg config.Config) (stop func(), err error) {
 			onStop = append(onStop, v.Close)
 		}
 
-		if cfg.ListenHTTP != "" {
-			listener, err := net.Listen("tcp", cfg.ListenHTTP)
+		if cfg.HTTPProxy != "" {
+			listener, err := net.Listen("tcp", cfg.HTTPProxy)
 			if err != nil {
 				return nil, err
 			}
@@ -60,8 +60,8 @@ func start(cfg config.Config) (stop func(), err error) {
 			onStop = append(onStop, s.Close)
 		}
 
-		if cfg.ListenSOCKS != "" {
-			listener, err := net.Listen("tcp", cfg.ListenSOCKS)
+		if cfg.SOCKSProxy != "" {
+			listener, err := net.Listen("tcp", cfg.SOCKSProxy)
 			if err != nil {
 				return nil, err
 			}
@@ -94,7 +94,7 @@ func start(cfg config.Config) (stop func(), err error) {
 			return nil, err
 		}
 
-		switch t.Proto {
+		switch t.Protocol {
 		case config.ProtoGRPC:
 			s, err := grpc.NewServer(t.Address, tlsConf)
 			if err != nil {
@@ -125,7 +125,7 @@ func start(cfg config.Config) (stop func(), err error) {
 
 func newStreamDialer(c config.Transport) (transport.StreamDialer, error) {
 	var tlsConf *tls.Config
-	if c.Proto != config.ProtoHTTP2 || c.Username == "" || c.Password == "" {
+	if c.Protocol != config.ProtoHTTP2 || c.Username == "" || c.Password == "" {
 		certPEM, err := c.Cert()
 		if err != nil {
 			return nil, fmt.Errorf("read certificate: %s", err)
@@ -145,13 +145,13 @@ func newStreamDialer(c config.Transport) (transport.StreamDialer, error) {
 	}
 
 	var d transport.StreamDialer
-	switch c.Proto {
+	switch c.Protocol {
 	case config.ProtoGRPC:
 		d = grpc.NewStreamDialer(c.Address, tlsConf)
 	case config.ProtoHTTP2:
 		d = http2.NewStreamDialer(c.Address, tlsConf, c.Username, c.Password)
 	default:
-		return nil, errors.New("unsupported transport protocol: " + c.Proto)
+		return nil, errors.New("unsupported transport protocol: " + c.Protocol)
 	}
 	if !c.AllowPrivate {
 		d = directPrivate(d)

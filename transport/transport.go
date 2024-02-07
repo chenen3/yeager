@@ -6,15 +6,14 @@ import (
 	"net"
 )
 
-// Stream is the interface that wraps io.ReadWriteCloser and CloseWrite method
 type Stream interface {
 	io.ReadWriteCloser
-	// close the write end of the stream, signal EOF and unblock subsequent reads
+	// close the write end of the stream, unblock subsequent reads
 	CloseWrite() error
 }
 
 type StreamDialer interface {
-	// Dial connect to the host:port address and returns stream for future read/write
+	// Dial connects to the host:port address using the provided context
 	Dial(ctx context.Context, address string) (Stream, error)
 }
 

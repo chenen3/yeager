@@ -1,9 +1,8 @@
 package proxy
 
-// This HTTP proxy is adapted from the httpproxy package in outline-sdk,
+// This HTTP proxy is adapted from the httpproxy library in outline-sdk,
 // which is more intuitive and clear than mine (written with TCP server).
 // See details in https://github.com/Jigsaw-Code/outline-sdk/tree/main/x/httpproxy
-// TODO: import the original package when it is officially released.
 
 import (
 	"bufio"
