@@ -91,7 +91,7 @@ const targetKey = "target"
 func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
 	conn, err := d.getConn(ctx)
 	if err != nil {
-		return nil, errors.New("grpc conenct: " + err.Error())
+		return nil, errors.New("grpc connect: " + err.Error())
 	}
 
 	client := pb.NewTunnelClient(conn)
