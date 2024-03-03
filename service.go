@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/chenen3/yeager/config"
 	"github.com/chenen3/yeager/logger"
@@ -171,13 +170,7 @@ func directPrivate(d transport.StreamDialer) transport.StreamDialer {
 }
 
 func (d dialerWithPrivate) Dial(ctx context.Context, addr string) (stream transport.Stream, err error) {
-	start := time.Now()
-	defer func() {
-		if err == nil {
-			logger.Debug.Printf("connected to %s, timed: %dms", addr, time.Since(start).Milliseconds())
-		}
-	}()
-
+	logger.Debug.Printf("connected to %s", addr)
 	isPrivate := func(host string) bool {
 		if host == "localhost" {
 			return true
