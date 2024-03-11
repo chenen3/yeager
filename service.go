@@ -108,6 +108,8 @@ func start(cfg config.Config) (stop func(), err error) {
 				return nil, err
 			}
 			onStop = append(onStop, s.Close)
+		default:
+			return nil, errors.New("unknown protocol: " + t.Protocol)
 		}
 	}
 
