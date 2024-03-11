@@ -34,8 +34,6 @@ type Transport struct {
 	// not required when using mutual TLS
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
-
-	AllowPrivate bool // test only
 }
 
 func mergeLines(s []string) string {
@@ -76,7 +74,7 @@ func (t Transport) CA() ([]byte, error) {
 	return nil, errors.New("no PEM data nor file")
 }
 
-func chosePort() int {
+func anyPort() int {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
@@ -91,7 +89,7 @@ func Generate(host string) (cli, srv Config, err error) {
 	if err != nil {
 		return
 	}
-	tunnelPort := chosePort()
+	tunnelPort := anyPort()
 
 	srv = Config{
 		Listen: []Transport{
@@ -106,8 +104,8 @@ func Generate(host string) (cli, srv Config, err error) {
 	}
 
 	cli = Config{
-		SOCKSProxy: fmt.Sprintf("127.0.0.1:%d", chosePort()),
-		HTTPProxy:  fmt.Sprintf("127.0.0.1:%d", chosePort()),
+		SOCKSProxy: fmt.Sprintf("127.0.0.1:%d", anyPort()),
+		HTTPProxy:  fmt.Sprintf("127.0.0.1:%d", anyPort()),
 		Transport: Transport{
 			Address:  fmt.Sprintf("%s:%d", host, tunnelPort),
 			Protocol: ProtoGRPC,

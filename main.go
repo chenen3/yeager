@@ -32,7 +32,7 @@ func main() {
 	flag.BoolVar(&flags.genConfig, "genconf", false, "generate config")
 	flag.StringVar(&flags.ip, "ip", "", "IP for the certificate, using with option -genconf")
 	flag.BoolVar(&flags.verbose, "verbose", false, "verbose logging")
-	flag.StringVar(&flags.pprofHTTP, "pprof_http", "localhost:6060", "serve HTTP at host:port for profiling")
+	flag.StringVar(&flags.pprofHTTP, "pprof_http", "", "serve HTTP at host:port for profiling")
 	flag.Parse()
 
 	if flags.verbose {

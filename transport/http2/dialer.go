@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
 )
 
@@ -80,6 +81,7 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		}
 		return nil, fmt.Errorf("failed to connect, response: %q", dump)
 	}
+	logger.Debug.Printf("connected to %s", target)
 	return &stream{writer: pw, reader: resp.Body}, nil
 }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"io"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
-	"github.com/chenen3/yeager/echo"
 )
 
 func TestHttpProxyToGRPC(t *testing.T) {
@@ -166,28 +164,4 @@ func TestSocksProxyToGRPC(t *testing.T) {
 	if string(bs) != "1" {
 		t.Fatalf("want 1, got %s", bs)
 	}
-}
-
-func TestDialPrivate(t *testing.T) {
-	es := echo.NewServer()
-	defer es.Close()
-
-	cliConf, _, err := config.Generate("127.0.0.1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dialer, err := newStreamDialer(cliConf.Transport)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dialer = directPrivate(dialer)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	stream, err := dialer.Dial(ctx, es.Listener.Addr().String())
-	if err != nil {
-		// If dialer does not connect to localServer directly, Dial fails
-		// because no server for transport is running
-		t.Fatalf("got error: %s, want nil", err)
-	}
-	stream.Close()
 }

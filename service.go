@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -152,41 +151,5 @@ func newStreamDialer(c config.Transport) (transport.StreamDialer, error) {
 	default:
 		return nil, errors.New("unsupported transport protocol: " + c.Protocol)
 	}
-	if !c.AllowPrivate {
-		d = directPrivate(d)
-	}
 	return d, nil
-}
-
-type dialerWithPrivate struct {
-	transport.StreamDialer
-	direct transport.TCPStreamDialer
-}
-
-// For private address, the returned dialer connects directly to it
-// rather than through the transport
-func directPrivate(d transport.StreamDialer) transport.StreamDialer {
-	return &dialerWithPrivate{StreamDialer: d}
-}
-
-func (d dialerWithPrivate) Dial(ctx context.Context, addr string) (stream transport.Stream, err error) {
-	logger.Debug.Printf("connected to %s", addr)
-	isPrivate := func(host string) bool {
-		if host == "localhost" {
-			return true
-		}
-		if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
-			return true
-		}
-		return false
-	}
-
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-	if isPrivate(host) {
-		return d.direct.Dial(ctx, addr)
-	}
-	return d.StreamDialer.Dial(ctx, addr)
 }
