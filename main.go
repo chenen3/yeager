@@ -83,19 +83,6 @@ func main() {
 	}
 	defer stop()
 
-	for _, sc := range conf.Listen {
-		logger.Info.Printf("listen %s %s", sc.Protocol, sc.Address)
-	}
-	if conf.HTTPProxy != "" {
-		logger.Info.Printf("listen HTTP proxy: %s", conf.HTTPProxy)
-	}
-	if conf.SOCKSProxy != "" {
-		logger.Info.Printf("listen SOCKS5 proxy: %s", conf.SOCKSProxy)
-	}
-	if conf.Transport.Address != "" {
-		logger.Info.Printf("transport: %s %s", conf.Transport.Protocol, conf.Transport.Address)
-	}
-
 	if flags.pprofHTTP != "" {
 		go func() {
 			logger.Info.Println(http.ListenAndServe(flags.pprofHTTP, nil))

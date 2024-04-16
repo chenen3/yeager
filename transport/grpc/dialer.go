@@ -119,8 +119,8 @@ func (c *streamDialer) Close() error {
 }
 
 // clientStream implements transport.Stream.
-// It also implements io.WriterTo and io.ReaderFrom as optimizations
-// so io.Copy can avoid allocating unnecessary buffers.
+// To improve efficiency, clientStream implements both io.WriterTo and io.ReaderFrom.
+// This enables io.Copy to transfer data directly, eliminating the need for extra buffer allocation.
 type clientStream struct {
 	stream  pb.Tunnel_StreamClient
 	onClose func()

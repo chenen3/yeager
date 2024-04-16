@@ -11,9 +11,11 @@ import (
 type Config struct {
 	Listen []Transport `json:"listen,omitempty"`
 
-	Transport  Transport `json:"transport,omitempty"`
-	SOCKSProxy string    `json:"socks_proxy,omitempty"`
-	HTTPProxy  string    `json:"http_proxy,omitempty"`
+	Transport Transport `json:"transport,omitempty"`
+	// candidate transport for automatic switching
+	Transports []Transport `json:"transports,omitempty"`
+	SOCKSProxy string      `json:"socks_proxy,omitempty"`
+	HTTPProxy  string      `json:"http_proxy,omitempty"`
 }
 
 const (

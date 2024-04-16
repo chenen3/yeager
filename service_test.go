@@ -17,6 +17,8 @@ func TestHttpProxyToGRPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Intentionally start the client before the server
+	// to observe the behavior of the client when the server is unavailable
 	stop, err := start(cc)
 	if err != nil {
 		t.Fatal(err)
