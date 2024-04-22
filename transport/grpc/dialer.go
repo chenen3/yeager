@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenen3/yeager/logger"
 	"github.com/chenen3/yeager/transport"
 	"github.com/chenen3/yeager/transport/grpc/pb"
 	"google.golang.org/grpc"
@@ -105,7 +104,7 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		conn.Close()
 		return nil, err
 	}
-	logger.Debug.Printf("connected to %s", target)
+	// logger.Debug.Printf("connected to %s", target)
 	return &clientStream{stream: stream, onClose: cancel}, nil
 }
 

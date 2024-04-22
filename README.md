@@ -1,11 +1,7 @@
 # Yeager
 
 A proxy tool that helps speed up your internet connection in certain situations.
-
-Features:
-- gRPC and HTTP/2 transport
-- supports mutual TLS
-- supports HTTP proxy and SOCKS5
+The tool provides HTTP and SOCKS5 proxy as entry points and supports gRPC/HTTP2/Shadowsocks transport.
 
 How it works:
 

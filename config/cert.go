@@ -152,8 +152,8 @@ func signCert(host string, rootCertPEM, rootKeyPEM []byte) (certPEM, keyPEM []by
 	return certPEM, keyPEM, nil
 }
 
-// NewServerTLS creates server-side TLS config for mutual authentication
-func NewServerTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
+// newServerTLS creates server-side TLS config for mutual authentication
+func newServerTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	pool := x509.NewCertPool()
 	ok := pool.AppendCertsFromPEM(caPEM)
 	if !ok {
@@ -174,8 +174,8 @@ func NewServerTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	return conf, nil
 }
 
-// NewClientTLS creates client-side TLS config for mutual authentication
-func NewClientTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
+// newClientTLS creates client-side TLS config for mutual authentication
+func newClientTLS(caPEM, certPEM, keyPEM []byte) (*tls.Config, error) {
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caPEM); !ok {
 		return nil, errors.New("parse root certificate")
@@ -201,11 +201,11 @@ func MutualTLS(host string) (clientTLS, serverTLS *tls.Config, err error) {
 	if err != nil {
 		return
 	}
-	clientTLS, err = NewClientTLS(cert.rootCert, cert.clientCert, cert.clientKey)
+	clientTLS, err = newClientTLS(cert.rootCert, cert.clientCert, cert.clientKey)
 	if err != nil {
 		return
 	}
-	serverTLS, err = NewServerTLS(cert.rootCert, cert.serverCert, cert.serverKey)
+	serverTLS, err = newServerTLS(cert.rootCert, cert.serverCert, cert.serverKey)
 	if err != nil {
 		return
 	}

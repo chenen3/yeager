@@ -17,19 +17,20 @@ type httpHandler struct {
 	dialer transport.StreamDialer
 }
 
+// NewHTTPHandler creates a http.Handler that acts as a web proxy to reach the destination using the given dialer.
 func NewHTTPHandler(dialer transport.StreamDialer) *httpHandler {
 	return &httpHandler{dialer: dialer}
 }
 
-func (h httpHandler) ServeHTTP(proxyResp http.ResponseWriter, proxyReq *http.Request) {
+func (h *httpHandler) ServeHTTP(proxyResp http.ResponseWriter, proxyReq *http.Request) {
 	if proxyReq.Method == http.MethodConnect {
-		h.connect(proxyResp, proxyReq)
+		h.serveHTTPConnect(proxyResp, proxyReq)
 		return
 	}
-	h.forward(proxyResp, proxyReq)
+	h.serveHTTPForward(proxyResp, proxyReq)
 }
 
-func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Request) {
+func (h *httpHandler) serveHTTPConnect(proxyResp http.ResponseWriter, proxyReq *http.Request) {
 	if proxyReq.Host == "" {
 		http.Error(proxyResp, "missing host", http.StatusBadRequest)
 		return
@@ -60,11 +61,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	defer proxyConn.Close()
 
 	// inform the client
-	_, err = proxyConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-	if err != nil {
-		logger.Error.Print(err)
-		return
-	}
+	proxyConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 
 	go func() {
 		io.Copy(stream, proxyConn)
@@ -74,7 +71,7 @@ func (h httpHandler) connect(proxyResp http.ResponseWriter, proxyReq *http.Reque
 	io.Copy(proxyConn, stream)
 }
 
-func (h httpHandler) forward(proxyResp http.ResponseWriter, proxyReq *http.Request) {
+func (h *httpHandler) serveHTTPForward(proxyResp http.ResponseWriter, proxyReq *http.Request) {
 	if proxyReq.Host == "" {
 		http.Error(proxyResp, "missing host", http.StatusBadRequest)
 		return

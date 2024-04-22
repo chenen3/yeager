@@ -22,6 +22,8 @@ type socks5Server struct {
 	dialer     transport.StreamDialer
 }
 
+// NewSOCKS5Server creates a SOCKS5 server.
+// The dialer is used to connect to the destination.
 func NewSOCKS5Server(dialer transport.StreamDialer) *socks5Server {
 	return &socks5Server{dialer: dialer}
 }
@@ -122,7 +124,7 @@ func handshake(rw io.ReadWriter) (addr string, err error) {
 		return "", err
 	}
 	if version := buf[0]; version != 0x05 {
-		return "", errors.New("unsupported verison")
+		return "", fmt.Errorf("unsupported verison number: %d", version)
 	}
 	nmethods := buf[1]
 	if _, err = io.ReadFull(rw, buf[:nmethods]); err != nil {

@@ -1,10 +1,10 @@
 package config
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"strings"
 )
 
@@ -12,30 +12,32 @@ type Config struct {
 	Listen []Transport `json:"listen,omitempty"`
 
 	Transport Transport `json:"transport,omitempty"`
-	// candidate transport for automatic switching
+	// alternative transport for automatic switching
 	Transports []Transport `json:"transports,omitempty"`
 	SOCKSProxy string      `json:"socks_proxy,omitempty"`
 	HTTPProxy  string      `json:"http_proxy,omitempty"`
 }
 
 const (
-	ProtoGRPC  = "grpc"
-	ProtoHTTP2 = "h2"
+	ProtoGRPC        = "grpc"
+	ProtoHTTP2       = "h2"
+	ProtoShadowsocks = "ss"
 )
 
 type Transport struct {
-	Protocol string   `json:"protocol"`
-	Address  string   `json:"address"`
-	CertFile string   `json:"cert_file,omitempty"`
+	Protocol string   `json:"protocol,omitempty"`
+	Address  string   `json:"address,omitempty"`
 	CertPEM  []string `json:"cert_pem,omitempty"`
-	KeyFile  string   `json:"key_file,omitempty"`
 	KeyPEM   []string `json:"key_pem,omitempty"`
-	CAFile   string   `json:"ca_file,omitempty"`
 	CAPEM    []string `json:"ca_pem,omitempty"`
 
-	// not required when using mutual TLS
+	// for h2
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
+
+	// for shadowsocks
+	Cipher string `json:"cipher,omitempty"`
+	Secret string `json:"secret,omitempty"`
 }
 
 func mergeLines(s []string) string {
@@ -46,34 +48,36 @@ func splitLines(s string) []string {
 	return strings.Split(strings.TrimSpace(s), "\n")
 }
 
-func (t Transport) Cert() ([]byte, error) {
-	if t.CertPEM != nil {
-		return []byte(mergeLines(t.CertPEM)), nil
+func (t Transport) ClientTLS() (*tls.Config, error) {
+	if t.CertPEM == nil {
+		return nil, errors.New("no certificate")
 	}
-	if t.CertFile != "" {
-		return os.ReadFile(t.CertFile)
+	cert := []byte(mergeLines(t.CertPEM))
+	if t.KeyPEM == nil {
+		return nil, errors.New("no key")
 	}
-	return nil, errors.New("no PEM data nor file")
+	key := []byte(mergeLines(t.KeyPEM))
+	if t.CAPEM == nil {
+		return nil, errors.New("no CA")
+	}
+	ca := []byte(mergeLines(t.CAPEM))
+	return newClientTLS(ca, cert, key)
 }
 
-func (t Transport) Key() ([]byte, error) {
-	if t.KeyPEM != nil {
-		return []byte(mergeLines(t.KeyPEM)), nil
+func (t Transport) ServerTLS() (*tls.Config, error) {
+	if t.CertPEM == nil {
+		return nil, errors.New("no certificate")
 	}
-	if t.KeyFile != "" {
-		return os.ReadFile(t.KeyFile)
+	cert := []byte(mergeLines(t.CertPEM))
+	if t.KeyPEM == nil {
+		return nil, errors.New("no key")
 	}
-	return nil, errors.New("no PEM data nor file")
-}
-
-func (t Transport) CA() ([]byte, error) {
-	if t.CAPEM != nil {
-		return []byte(mergeLines(t.CAPEM)), nil
+	key := []byte(mergeLines(t.KeyPEM))
+	if t.CAPEM == nil {
+		return nil, errors.New("no CA")
 	}
-	if t.CAFile != "" {
-		return os.ReadFile(t.CAFile)
-	}
-	return nil, errors.New("no PEM data nor file")
+	ca := []byte(mergeLines(t.CAPEM))
+	return newServerTLS(ca, cert, key)
 }
 
 func anyPort() int {

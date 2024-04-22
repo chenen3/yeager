@@ -8,21 +8,9 @@ import (
 
 var rawConf = `
 {
-	"listen": [
-		{
-			"protocol": "grpc",
-			"address": "127.0.0.1:10812",
-			"cert_file": "/path/to/server-cert.pem",
-			"key_file": "/path/to/server-key.pem",
-			"ca_file": "/path/to/ca-cert.pem"
-		}
-	],
 	"transport": {
 		"protocol": "grpc",
 		"address": "127.0.0.1:9000",
-		"cert_file": "/path/to/client-cert.pem",
-		"key_file": "/path/to/client-key.pem",
-		"ca_file": "/path/to/ca-cert.pem",
 		"ca_pem": [
 			"-----BEGIN CERTIFICATE-----",
 			"MIIBqTCCAU6gAwIBAgIRAJxLfwUAHU2937LQPprCcXwwCgYIKoZIzj0EAwIwJDEQ",
@@ -58,21 +46,9 @@ eJTckgWQMAoGCCqGSM49BAMCA0kAMEYCIQDRq8M7FRrZuJRBkKoaT4NyANX0TXM+
 
 func TestConfig(t *testing.T) {
 	want := Config{
-		Listen: []Transport{
-			{
-				Protocol: "grpc",
-				Address:  "127.0.0.1:10812",
-				CertFile: "/path/to/server-cert.pem",
-				KeyFile:  "/path/to/server-key.pem",
-				CAFile:   "/path/to/ca-cert.pem",
-			},
-		},
 		Transport: Transport{
 			Protocol: "grpc",
 			Address:  "127.0.0.1:9000",
-			CertFile: "/path/to/client-cert.pem",
-			KeyFile:  "/path/to/client-key.pem",
-			CAFile:   "/path/to/ca-cert.pem",
 			CAPEM:    splitLines(testCAPEM),
 		},
 		SOCKSProxy: "127.0.0.1:1081",
