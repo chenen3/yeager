@@ -17,21 +17,21 @@ import (
 )
 
 type streamDialer struct {
-	addr     string
-	username string
-	password string
-	client   *http.Client
+	proxyAddress string
+	username     string
+	password     string
+	client       *http.Client
 }
 
 var _ transport.StreamDialer = (*streamDialer)(nil)
 
-// NewStreamDialer creates a transport.StreamDialer which issues CONNECT to HTTP/2 server.
-// It compatible with Caddy's forward proxy.
+// NewStreamDialer returns a new transport.StreamDialer that dials through the provided
+// proxy server's address.
 func NewStreamDialer(addr string, cfg *tls.Config, username, password string) *streamDialer {
 	d := &streamDialer{
-		addr:     addr,
-		username: username,
-		password: password,
+		proxyAddress: addr,
+		username:     username,
+		password:     password,
 	}
 
 	// mitigate website fingerprinting via multiplexing of HTTP/2 ,
@@ -57,13 +57,13 @@ func basicAuth(username, password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+func (d *streamDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
 	pr, pw := io.Pipe()
-	req, err := http.NewRequestWithContext(ctx, http.MethodConnect, "https://"+d.addr, pr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodConnect, "https://"+d.proxyAddress, pr)
 	if err != nil {
 		return nil, err
 	}
-	req.Host = target
+	req.Host = address
 	if d.username != "" {
 		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(d.username, d.password))
 	}
@@ -80,7 +80,6 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 		}
 		return nil, fmt.Errorf("failed to connect, response: %q", dump)
 	}
-	// logger.Debug.Printf("connected to %s", target)
 	return &stream{writer: pw, reader: resp.Body}, nil
 }
 

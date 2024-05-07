@@ -120,8 +120,6 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate config: %s", err)
 	}
-	port := 57175
-	srvConf.Listen[0].Address = fmt.Sprintf("0.0.0.0:%d", port)
 	bs, err := json.MarshalIndent(srvConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %s", err)
@@ -131,9 +129,6 @@ func genConfig(host, cliConfOutput, srvConfOutput string) error {
 	}
 	fmt.Println("generated", srvConfOutput)
 
-	cliConf.Transport.Address = fmt.Sprintf("%s:%d", host, port)
-	cliConf.SOCKSProxy = "127.0.0.1:1080"
-	cliConf.HTTPProxy = "127.0.0.1:8080"
 	bs, err = json.MarshalIndent(cliConf, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal client config: %s", err)

@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,11 +13,44 @@ import (
 	"github.com/chenen3/yeager/config"
 )
 
+func localAddr() string {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(err)
+	}
+	ln.Close()
+	return ln.Addr().String()
+}
+
 func TestProxyToGRPC(t *testing.T) {
 	cc, sc, err := config.Generate("127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	httpProxyAddr := localAddr()
+	socks5ProxyAddr := localAddr()
+	grpcAddr := localAddr()
+	for i := range cc.Listen {
+		switch cc.Listen[i].Protocol {
+		case config.ProtoHTTP:
+			cc.Listen[i].Address = httpProxyAddr
+		case config.ProtoSOCKS5:
+			cc.Listen[i].Address = socks5ProxyAddr
+		}
+	}
+	for i := range cc.Transport {
+		if cc.Transport[i].Protocol == config.ProtoGRPC {
+			cc.Transport[i].Address = grpcAddr
+		}
+	}
+
+	for i := range sc.Listen {
+		if sc.Listen[i].Protocol == config.ProtoGRPC {
+			sc.Listen[i].Address = grpcAddr
+		}
+	}
+
 	stop, err := start(cc)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +68,7 @@ func TestProxyToGRPC(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("https2grpc", func(t *testing.T) {
-		pu, err := url.Parse("http://" + cc.HTTPProxy)
+		pu, err := url.Parse("http://" + httpProxyAddr)
 		if err != nil {
 			t.Error(err)
 			return
@@ -68,7 +102,7 @@ func TestProxyToGRPC(t *testing.T) {
 
 	// how it works: client request -> socks proxy -> grpc client -> grpc server -> http test server
 	t.Run("socks2grpc", func(t *testing.T) {
-		pu, err := url.Parse("socks5://" + cc.SOCKSProxy)
+		pu, err := url.Parse("socks5://" + socks5ProxyAddr)
 		if err != nil {
 			t.Error(err)
 			return

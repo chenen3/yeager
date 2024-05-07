@@ -5,7 +5,7 @@ import (
 
 	"github.com/chenen3/yeager/transport"
 
-	otransport "github.com/Jigsaw-Code/outline-sdk/transport"
+	sdk "github.com/Jigsaw-Code/outline-sdk/transport"
 	"github.com/Jigsaw-Code/outline-sdk/transport/shadowsocks"
 )
 
@@ -24,7 +24,7 @@ func NewStreamDialer(address, cipherName, secret string) (*streamDialer, error) 
 	if err != nil {
 		return nil, err
 	}
-	endpoint := &otransport.StreamDialerEndpoint{Dialer: &otransport.TCPDialer{}, Address: address}
+	endpoint := &sdk.StreamDialerEndpoint{Dialer: &sdk.TCPDialer{}, Address: address}
 	dialer, err := shadowsocks.NewStreamDialer(endpoint, key)
 	if err != nil {
 		return nil, err

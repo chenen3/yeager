@@ -22,8 +22,9 @@ type socks5Server struct {
 	dialer     transport.StreamDialer
 }
 
-// NewSOCKS5Server creates a SOCKS5 server.
-// The dialer is used to connect to the destination.
+// NewSOCKS5Server returns a new SOCKS5 proxy server that intends
+// to be a local proxy and does not require authentication.
+// The call should call Close when finished.
 func NewSOCKS5Server(dialer transport.StreamDialer) *socks5Server {
 	return &socks5Server{dialer: dialer}
 }

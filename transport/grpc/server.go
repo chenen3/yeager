@@ -17,7 +17,7 @@ import (
 
 const idleTimeout = 10 * time.Minute
 
-// NewServer creates and starts a gRPC server.
+// NewServer starts a gRPC server for forword proxy.
 // The caller should call Stop when finished.
 func NewServer(addr string, config *tls.Config) (*grpc.Server, error) {
 	listener, err := net.Listen("tcp", addr)
@@ -51,24 +51,24 @@ func (service) Stream(stream pb.Tunnel_StreamServer) error {
 	if stream.Context().Err() != nil {
 		return stream.Context().Err()
 	}
-	v := metadata.ValueFromIncomingContext(stream.Context(), targetKey)
+	v := metadata.ValueFromIncomingContext(stream.Context(), addressKey)
 	if len(v) == 0 {
-		return errors.New("missing target")
+		return errors.New("missing address")
 	}
-	target := v[0]
+	address := v[0]
 
-	targetConn, err := net.DialTimeout("tcp", target, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 	if err != nil {
 		return err
 	}
-	defer targetConn.Close()
+	defer conn.Close()
 
 	ss := serverStream{stream}
 	go func() {
-		ss.WriteTo(targetConn)
-		targetConn.(*net.TCPConn).CloseWrite()
+		ss.WriteTo(conn)
+		conn.(*net.TCPConn).CloseWrite()
 	}()
-	ss.ReadFrom(targetConn)
+	ss.ReadFrom(conn)
 	return nil
 }
 

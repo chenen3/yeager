@@ -11,8 +11,8 @@ import (
 	"github.com/chenen3/yeager/logger"
 )
 
-// NewServer creates and starts HTTP/2 Server for forward proxying.
-// The caller should call Close when finished, to shut it down.
+// NewServer starts a HTTP/2 Server for forward proxying.
+// The caller should call Close when finished.
 func NewServer(addr string, cfg *tls.Config, username, password string) (*http.Server, error) {
 	cfg.NextProtos = []string{"h2"}
 	lis, err := tls.Listen("tcp", addr, cfg)
@@ -70,17 +70,17 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	targetConn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
 	if err != nil {
 		logger.Error.Print(err)
 		return
 	}
-	defer targetConn.Close()
+	defer conn.Close()
 	go func() {
-		bufferedCopy(targetConn, r.Body)
-		targetConn.(*net.TCPConn).CloseWrite()
+		bufferedCopy(conn, r.Body)
+		conn.(*net.TCPConn).CloseWrite()
 	}()
-	bufferedCopy(flushWriter{w}, targetConn)
+	bufferedCopy(flushWriter{w}, conn)
 }
 
 type flushWriter struct {

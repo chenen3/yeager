@@ -17,7 +17,8 @@ type httpHandler struct {
 	dialer transport.StreamDialer
 }
 
-// NewHTTPHandler creates a http.Handler that acts as a web proxy to reach the destination using the given dialer.
+// NewHTTPHandler creates a http.Handler that acts as a web proxy
+// to reach the destination using the given dialer.
 func NewHTTPHandler(dialer transport.StreamDialer) *httpHandler {
 	return &httpHandler{dialer: dialer}
 }

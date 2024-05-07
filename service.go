@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"sync"
@@ -33,70 +32,71 @@ func start(cfg config.Config) (stop func(), err error) {
 		}
 	}()
 
-	var trans []config.Transport
-	if cfg.Transport.Address != "" {
-		trans = append(trans, cfg.Transport)
+	if len(cfg.Transport) == 0 && len(cfg.Listen) == 0 {
+		return nil, errors.New("missing client and server config")
 	}
-	for _, t := range cfg.Transports {
-		if t.Address != "" {
-			trans = append(trans, t)
+
+	var dialer transport.StreamDialer
+	getDialer := func() (transport.StreamDialer, error) {
+		if dialer != nil {
+			return dialer, nil
 		}
-	}
-
-	if len(trans) == 0 && len(cfg.Listen) == 0 {
-		return nil, errors.New("missing client or server config")
-	}
-
-	if len(trans) > 0 {
-		dialer, err := newStreamDialers(trans)
+		if len(cfg.Transport) == 0 {
+			return nil, errors.New("missing transport config")
+		}
+		d, err := newStreamDialers(cfg.Transport)
 		if err != nil {
 			return nil, err
 		}
-		if v, ok := dialer.(io.Closer); ok {
+		if v, ok := d.(io.Closer); ok {
 			onStop = append(onStop, v.Close)
 		}
+		dialer = d
+		return dialer, nil
+	}
 
-		if cfg.HTTPProxy != "" {
-			listener, err := net.Listen("tcp", cfg.HTTPProxy)
+	for _, c := range cfg.Listen {
+		switch c.Protocol {
+		case config.ProtoHTTP:
+			dialer, err := getDialer()
+			if err != nil {
+				return nil, err
+			}
+			listener, err := net.Listen("tcp", c.Address)
 			if err != nil {
 				return nil, err
 			}
 			s := &http.Server{Handler: proxy.NewHTTPHandler(dialer)}
 			go func() {
-				logger.Info.Printf("listen HTTP %s", cfg.HTTPProxy)
 				err := s.Serve(listener)
 				if err != nil && err != http.ErrServerClosed {
 					logger.Error.Printf("serve http: %s", err)
 				}
 			}()
 			onStop = append(onStop, s.Close)
-		}
-
-		if cfg.SOCKSProxy != "" {
-			listener, err := net.Listen("tcp", cfg.SOCKSProxy)
+		case config.ProtoSOCKS5:
+			dialer, err := getDialer()
 			if err != nil {
 				return nil, err
 			}
-			ss := proxy.NewSOCKS5Server(dialer)
+			listener, err := net.Listen("tcp", c.Address)
+			if err != nil {
+				return nil, err
+			}
+			s := proxy.NewSOCKS5Server(dialer)
 			go func() {
-				logger.Info.Printf("listen SOCKS5 %s", cfg.SOCKSProxy)
-				err := ss.Serve(listener)
+				err := s.Serve(listener)
 				if err != nil {
-					logger.Error.Printf("serve socks: %s", err)
+					logger.Error.Printf("serve socks5: %s", err)
 				}
 			}()
-			onStop = append(onStop, ss.Close)
-		}
-	}
-
-	for _, t := range cfg.Listen {
-		tlsConf, err := t.ServerTLS()
-		if err != nil {
-			return nil, err
-		}
-		switch t.Protocol {
+			onStop = append(onStop, s.Close)
 		case config.ProtoGRPC:
-			s, err := grpc.NewServer(t.Address, tlsConf)
+			tlsConf, err := c.ServerTLS()
+			if err != nil {
+				return nil, err
+			}
+			s, err := grpc.NewServer(c.Address, tlsConf)
 			if err != nil {
 				return nil, err
 			}
@@ -105,15 +105,19 @@ func start(cfg config.Config) (stop func(), err error) {
 				return nil
 			})
 		case config.ProtoHTTP2:
-			s, err := http2.NewServer(t.Address, tlsConf, t.Username, t.Password)
+			tlsConf, err := c.ServerTLS()
+			if err != nil {
+				return nil, err
+			}
+			s, err := http2.NewServer(c.Address, tlsConf, c.Username, c.Password)
 			if err != nil {
 				return nil, err
 			}
 			onStop = append(onStop, s.Close)
 		default:
-			return nil, errors.New("unknown protocol: " + t.Protocol)
+			return nil, errors.New("unknown protocol: " + c.Protocol)
 		}
-		logger.Info.Printf("listen %s %s", t.Protocol, t.Address)
+		logger.Info.Printf("listen %s %s", c.Protocol, c.Address)
 	}
 
 	stop = func() {
@@ -126,7 +130,7 @@ func start(cfg config.Config) (stop func(), err error) {
 	return stop, nil
 }
 
-func newStreamDialer(c config.Transport) (transport.StreamDialer, error) {
+func newStreamDialer(c config.ServerConfig) (transport.StreamDialer, error) {
 	var dialer transport.StreamDialer
 	switch c.Protocol {
 	case config.ProtoGRPC:
@@ -158,63 +162,37 @@ func newStreamDialer(c config.Transport) (transport.StreamDialer, error) {
 }
 
 type dialerGroup struct {
-	configs []config.Transport
-
-	ticker    *time.Ticker
-	mu        sync.RWMutex
-	transport config.Transport
-	dialer    transport.StreamDialer
+	transports []config.ServerConfig
+	ticker     *time.Ticker
+	mu         sync.RWMutex
+	transport  config.ServerConfig
+	dialer     transport.StreamDialer
 }
 
-// newStreamDialers create a stream dialer for transport config.
-// If there are multiple transports, it creates a dialer group to
-// perform periodic health checks and switch dialer if necessary.
-func newStreamDialers(configs []config.Transport) (transport.StreamDialer, error) {
-	if len(configs) == 0 {
+// newStreamDialers returns a new stream dialer.
+// Given multiple transport config, it creates a dialer group to
+// perform periodic health checks and switch server if necessary.
+func newStreamDialers(transports []config.ServerConfig) (transport.StreamDialer, error) {
+	if len(transports) == 0 {
 		return nil, errors.New("missing transport config")
 	}
-	if len(configs) == 1 {
-		return newStreamDialer(configs[0])
+	if len(transports) == 1 {
+		return newStreamDialer(transports[0])
 	}
 
 	g := &dialerGroup{
-		configs: configs,
-		ticker:  time.NewTicker(15 * time.Second),
+		transports: transports,
+		ticker:     time.NewTicker(15 * time.Second),
 	}
 	go g.healthCheck()
 	return g, nil
-}
-
-// pick an available transport, prioritizing low latency
-func pickTransport(ts []config.Transport) (config.Transport, error) {
-	var picked config.Transport
-	timed := math.MaxInt
-	// following connection test may take a while.
-	for _, t := range ts {
-		start := time.Now()
-		c, e := net.DialTimeout("tcp", t.Address, 5*time.Second)
-		if e != nil {
-			logger.Debug.Printf("health check: %s", e)
-			continue
-		}
-		defer c.Close()
-		du := time.Since(start)
-		if int(du) < timed {
-			picked = t
-			timed = int(du)
-		}
-		logger.Debug.Printf("health check %s, latency %dms", t.Address, du.Milliseconds())
-	}
-	if picked.Address == "" {
-		return config.Transport{}, errors.New("no healthy transport")
-	}
-	return picked, nil
 }
 
 func (g *dialerGroup) healthCheck() {
 	for range g.ticker.C {
 		conn, err := net.DialTimeout("tcp", g.transport.Address, 5*time.Second)
 		if err != nil {
+			logger.Debug.Printf("health check: %s", err)
 			g.pick()
 			continue
 		}
@@ -222,33 +200,51 @@ func (g *dialerGroup) healthCheck() {
 	}
 }
 
+// pick a healthy proxy server and set up the dialer, prioritizing low latency
 func (g *dialerGroup) pick() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	// if current transport is fine, return early
+	// If the current proxy server is working, don't change.
 	conn, err := net.DialTimeout("tcp", g.transport.Address, 5*time.Second)
 	if err == nil {
 		conn.Close()
 		return
 	}
 
-	tr, err := pickTransport(g.configs)
-	if err != nil {
-		logger.Error.Println(err)
+	var transport config.ServerConfig
+	var min int
+	for _, t := range g.transports {
+		start := time.Now()
+		c, e := net.DialTimeout("tcp", t.Address, 5*time.Second)
+		if e != nil {
+			logger.Debug.Printf("tcp ping: %s", e)
+			continue
+		}
+		defer c.Close()
+		latency := time.Since(start)
+		if min == 0 || int(latency) < min {
+			transport = t
+			min = int(latency)
+		}
+		logger.Debug.Printf("tcp ping %s, latency %dms", t.Address, latency.Milliseconds())
+	}
+	if transport.Address == "" {
+		logger.Error.Println("no healthy proxy server")
 		return
 	}
-	d, err := newStreamDialer(tr)
+
+	d, err := newStreamDialer(transport)
 	if err != nil {
 		logger.Error.Printf("new stream dialer: %s", err)
 		return
 	}
-	g.transport = tr
 	if v, ok := g.dialer.(io.Closer); ok {
 		v.Close()
 	}
 	g.dialer = d
-	logger.Info.Printf("pick transport %s %s", tr.Protocol, tr.Address)
+	g.transport = transport
+	logger.Info.Printf("pick transport: %s %s", transport.Protocol, transport.Address)
 }
 
 // implements interface transport.StreamDialer

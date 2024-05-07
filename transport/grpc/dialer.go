@@ -19,22 +19,19 @@ import (
 )
 
 type streamDialer struct {
-	addr  string
-	cfg   *tls.Config
-	mu    sync.Mutex
-	conns []*grpc.ClientConn
+	proxyAddress string
+	cfg          *tls.Config
+	mu           sync.Mutex
+	conns        []*grpc.ClientConn
 }
 
 var _ transport.StreamDialer = (*streamDialer)(nil)
 
-// NewStreamDialer creates a transport.StreamDialer that
-// connects to the specified gRPC server address.
-// The caller should call Close when finished, to close the underlying connections.
+// NewStreamDialer returns a new transport.StreamDialer that dials
+// through the provided proxy server's address. The caller should
+// call Close when finished, to close the underlying grpc connections.
 func NewStreamDialer(addr string, cfg *tls.Config) *streamDialer {
-	return &streamDialer{
-		addr: addr,
-		cfg:  cfg,
-	}
+	return &streamDialer{proxyAddress: addr, cfg: cfg}
 }
 
 const keepaliveInterval = 15 * time.Second
@@ -75,7 +72,7 @@ func (d *streamDialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 			Timeout: 2 * time.Second,
 		}),
 	}
-	conn, err := grpc.DialContext(ctx, d.addr, opts...)
+	conn, err := grpc.DialContext(ctx, d.proxyAddress, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,9 +83,9 @@ func (d *streamDialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-const targetKey = "target"
+const addressKey = "address"
 
-func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Stream, error) {
+func (d *streamDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
 	conn, err := d.getConn(ctx)
 	if err != nil {
 		return nil, errors.New("grpc connect: " + err.Error())
@@ -97,14 +94,13 @@ func (d *streamDialer) Dial(ctx context.Context, target string) (transport.Strea
 	client := pb.NewTunnelClient(conn)
 	// this context controls the lifetime of the stream, do not use short-lived contexts
 	sctx, cancel := context.WithCancel(context.Background())
-	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(targetKey, target))
+	sctx = metadata.NewOutgoingContext(sctx, metadata.Pairs(addressKey, address))
 	stream, err := client.Stream(sctx)
 	if err != nil {
 		cancel()
 		conn.Close()
 		return nil, err
 	}
-	// logger.Debug.Printf("connected to %s", target)
 	return &clientStream{stream: stream, onClose: cancel}, nil
 }
 
