@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,7 +45,7 @@ func start(cfg config.Config) (stop func(), err error) {
 		if len(cfg.Transport) == 0 {
 			return nil, errors.New("missing transport config")
 		}
-		d, err := newStreamDialers(cfg.Transport)
+		d, err := newStreamDialers(cfg.Transport, cfg.NoProxy)
 		if err != nil {
 			return nil, err
 		}
@@ -167,23 +168,29 @@ type dialerGroup struct {
 	mu         sync.RWMutex
 	transport  config.ServerConfig
 	dialer     transport.StreamDialer
+	noProxy    *noProxyConfig
 }
 
 // newStreamDialers returns a new stream dialer.
 // Given multiple transport config, it creates a dialer group to
 // perform periodic health checks and switch server if necessary.
-func newStreamDialers(transports []config.ServerConfig) (transport.StreamDialer, error) {
+func newStreamDialers(transports []config.ServerConfig, noProxy string) (transport.StreamDialer, error) {
 	if len(transports) == 0 {
 		return nil, errors.New("missing transport config")
 	}
+
+	g := &dialerGroup{noProxy: parseNoProxy(noProxy)}
 	if len(transports) == 1 {
-		return newStreamDialer(transports[0])
+		d, err := newStreamDialer(transports[0])
+		if err != nil {
+			return nil, err
+		}
+		g.dialer = d
+		return g, nil
 	}
 
-	g := &dialerGroup{
-		transports: transports,
-		ticker:     time.NewTicker(15 * time.Second),
-	}
+	g.transports = transports
+	g.ticker = time.NewTicker(15 * time.Second)
 	go g.healthCheck()
 	return g, nil
 }
@@ -251,6 +258,15 @@ func (g *dialerGroup) pick() {
 func (g *dialerGroup) Dial(ctx context.Context, address string) (transport.Stream, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
+	if g.noProxy.contains(address) {
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return nil, err
+		}
+		logger.Debug.Printf("connected to %s, no proxy", address)
+		return conn.(*net.TCPConn), nil
+	}
 	if g.dialer == nil {
 		g.mu.RUnlock()
 		g.pick()
@@ -267,9 +283,119 @@ func (g *dialerGroup) Dial(ctx context.Context, address string) (transport.Strea
 func (g *dialerGroup) Close() error {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	g.ticker.Stop()
+	if g.ticker != nil {
+		g.ticker.Stop()
+	}
 	if v, ok := g.dialer.(io.Closer); ok {
 		return v.Close()
 	}
 	return nil
+}
+
+type noProxyConfig struct {
+	ipMatchers     []matcher
+	domainMatchers []matcher
+}
+
+func parseNoProxy(noProxy string) *noProxyConfig {
+	var cfg noProxyConfig
+	for _, p := range strings.Split(noProxy, ",") {
+		p = strings.ToLower(strings.TrimSpace(p))
+		if len(p) == 0 {
+			continue
+		}
+
+		if p == "*" {
+			cfg.ipMatchers = []matcher{allMatch{}}
+			cfg.domainMatchers = []matcher{allMatch{}}
+			break
+		}
+
+		// IP/CIDR
+		if _, pnet, err := net.ParseCIDR(p); err == nil {
+			cfg.ipMatchers = append(cfg.ipMatchers, cidrMatch{cidr: pnet})
+			continue
+		}
+
+		// IP
+		if pip := net.ParseIP(p); pip != nil {
+			cfg.ipMatchers = append(cfg.ipMatchers, ipMatch{ip: pip})
+			continue
+		}
+
+		// domain name
+		phost := strings.TrimPrefix(p, "*.")
+		cfg.domainMatchers = append(cfg.domainMatchers, domainMatch{host: phost})
+	}
+	return &cfg
+}
+
+func (c *noProxyConfig) contains(addr string) bool {
+	if len(addr) == 0 || len(c.ipMatchers)+len(c.domainMatchers) == 0 {
+		return false
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+
+	if ip != nil {
+		for _, m := range c.ipMatchers {
+			if m.match("", ip) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, m := range c.domainMatchers {
+		if m.match(host, nil) {
+			return true
+		}
+	}
+	return false
+}
+
+// matcher represents the matching rule for a given value in the NO_PROXY list
+type matcher interface {
+	// match returns true if the host or ip are allowed
+	match(host string, ip net.IP) bool
+}
+
+// allMatch matches on all possible inputs
+type allMatch struct{}
+
+func (a allMatch) match(host string, ip net.IP) bool {
+	return true
+}
+
+type cidrMatch struct {
+	cidr *net.IPNet
+}
+
+func (m cidrMatch) match(host string, ip net.IP) bool {
+	return m.cidr.Contains(ip)
+}
+
+type ipMatch struct {
+	ip net.IP
+}
+
+func (m ipMatch) match(host string, ip net.IP) bool {
+	return m.ip.Equal(ip)
+}
+
+// domainMatch matches a domain name and all subdomains.
+// For example "foo.com" matches "foo.com" and "bar.foo.com", but not "xfoo.com"
+type domainMatch struct {
+	host string
+}
+
+func (m domainMatch) match(host string, ip net.IP) bool {
+	before, found := strings.CutSuffix(host, m.host)
+	if !found {
+		return false
+	}
+	return before == "" || before[len(before)-1] == '.'
 }

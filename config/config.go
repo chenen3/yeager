@@ -10,6 +10,15 @@ import (
 type Config struct {
 	Listen    []ServerConfig `json:"listen,omitempty"`    // supports http, socks5, grpc and h2 protocols
 	Transport []ServerConfig `json:"transport,omitempty"` // supports grpc, h2 and shadowsocks protocols
+
+	// NoProxy specifies a string that contains comma-separated values
+	// specifying hosts that should be excluded from proxying. Each value is
+	// represented by an IP address (1.2.3.4), an IP address in
+	// CIDR notation (1.2.3.4/8), a domain name, or a special DNS label (*).
+	// A domain name matches that name and all subdomains.
+	// A single asterisk (*) indicates that no proxying should be done.
+	// A best effort is made to parse the string and errors are ignored.
+	NoProxy string `json:"no_proxy,omitempty"`
 }
 
 const (
