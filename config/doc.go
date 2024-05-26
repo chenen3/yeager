@@ -57,7 +57,8 @@ Example client config:
 			"cipher": "aes-256-gcm",
 			"secret": "examplepass"
 		},
-	]
+	],
+	"no_proxy": "localhost,127.0.0.1,192.168.1.1/16"
 }
 
 Example server config:
