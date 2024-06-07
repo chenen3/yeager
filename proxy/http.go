@@ -43,7 +43,7 @@ func (h *httpHandler) serveHTTPConnect(proxyResp http.ResponseWriter, proxyReq *
 	stream, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
-		logger.Error.Print(err)
+		logger.Error.Printf("connect %s: %s", proxyReq.Host, err)
 		return
 	}
 	defer stream.Close()

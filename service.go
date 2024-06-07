@@ -45,7 +45,7 @@ func start(cfg config.Config) (stop func(), err error) {
 		if len(cfg.Transport) == 0 {
 			return nil, errors.New("missing transport config")
 		}
-		d, err := newStreamDialers(cfg.Transport, cfg.NoProxy)
+		d, err := newStreamDialers(cfg.Transport, cfg.Bypass, cfg.Block)
 		if err != nil {
 			return nil, err
 		}
@@ -168,18 +168,25 @@ type dialerGroup struct {
 	mu         sync.RWMutex
 	transport  config.ServerConfig
 	dialer     transport.StreamDialer
-	noProxy    *noProxyConfig
+	bypass     *hostMatcher
+	block      *hostMatcher
 }
 
 // newStreamDialers returns a new stream dialer.
 // Given multiple transport config, it creates a dialer group to
 // perform periodic health checks and switch server if necessary.
-func newStreamDialers(transports []config.ServerConfig, noProxy string) (transport.StreamDialer, error) {
+func newStreamDialers(transports []config.ServerConfig, bypass, block string) (transport.StreamDialer, error) {
 	if len(transports) == 0 {
 		return nil, errors.New("missing transport config")
 	}
 
-	g := &dialerGroup{noProxy: parseNoProxy(noProxy)}
+	g := new(dialerGroup)
+	if block != "" {
+		g.block = parseHostMatcher(block)
+	}
+	if bypass != "" {
+		g.bypass = parseHostMatcher(bypass)
+	}
 	if len(transports) == 1 {
 		d, err := newStreamDialer(transports[0])
 		if err != nil {
@@ -258,13 +265,17 @@ func (g *dialerGroup) pick() {
 func (g *dialerGroup) Dial(ctx context.Context, address string) (transport.Stream, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	if g.noProxy.contains(address) {
+
+	if g.block != nil && g.block.match(address) {
+		return nil, errors.New("host was blocked")
+	}
+	if g.bypass != nil && g.bypass.match(address) {
 		var d net.Dialer
 		conn, err := d.DialContext(ctx, "tcp", address)
 		if err != nil {
 			return nil, err
 		}
-		logger.Debug.Printf("connected to %s, no proxy", address)
+		logger.Debug.Printf("connected to %s, bypass proxy", address)
 		return conn.(*net.TCPConn), nil
 	}
 	if g.dialer == nil {
@@ -292,46 +303,49 @@ func (g *dialerGroup) Close() error {
 	return nil
 }
 
-type noProxyConfig struct {
+type hostMatcher struct {
 	ipMatchers     []matcher
 	domainMatchers []matcher
 }
 
-func parseNoProxy(noProxy string) *noProxyConfig {
-	var cfg noProxyConfig
-	for _, p := range strings.Split(noProxy, ",") {
-		p = strings.ToLower(strings.TrimSpace(p))
-		if len(p) == 0 {
+func parseHostMatcher(s string) *hostMatcher {
+	if s == "" {
+		return nil
+	}
+	var h hostMatcher
+	for _, host := range strings.Split(s, ",") {
+		host = strings.ToLower(strings.TrimSpace(host))
+		if len(host) == 0 {
 			continue
 		}
 
-		if p == "*" {
-			cfg.ipMatchers = []matcher{allMatch{}}
-			cfg.domainMatchers = []matcher{allMatch{}}
+		if host == "*" {
+			h.ipMatchers = []matcher{allMatch{}}
+			h.domainMatchers = []matcher{allMatch{}}
 			break
 		}
 
 		// IP/CIDR
-		if _, pnet, err := net.ParseCIDR(p); err == nil {
-			cfg.ipMatchers = append(cfg.ipMatchers, cidrMatch{cidr: pnet})
+		if _, pnet, err := net.ParseCIDR(host); err == nil {
+			h.ipMatchers = append(h.ipMatchers, cidrMatch{cidr: pnet})
 			continue
 		}
 
 		// IP
-		if pip := net.ParseIP(p); pip != nil {
-			cfg.ipMatchers = append(cfg.ipMatchers, ipMatch{ip: pip})
+		if pip := net.ParseIP(host); pip != nil {
+			h.ipMatchers = append(h.ipMatchers, ipMatch{ip: pip})
 			continue
 		}
 
 		// domain name
-		phost := strings.TrimPrefix(p, "*.")
-		cfg.domainMatchers = append(cfg.domainMatchers, domainMatch{host: phost})
+		phost := strings.TrimPrefix(host, "*.")
+		h.domainMatchers = append(h.domainMatchers, domainMatch{host: phost})
 	}
-	return &cfg
+	return &h
 }
 
-func (c *noProxyConfig) contains(addr string) bool {
-	if len(addr) == 0 || len(c.ipMatchers)+len(c.domainMatchers) == 0 {
+func (h *hostMatcher) match(addr string) bool {
+	if len(addr) == 0 || len(h.ipMatchers)+len(h.domainMatchers) == 0 {
 		return false
 	}
 	host, _, err := net.SplitHostPort(addr)
@@ -341,7 +355,7 @@ func (c *noProxyConfig) contains(addr string) bool {
 	ip := net.ParseIP(host)
 
 	if ip != nil {
-		for _, m := range c.ipMatchers {
+		for _, m := range h.ipMatchers {
 			if m.match("", ip) {
 				return true
 			}
@@ -349,7 +363,7 @@ func (c *noProxyConfig) contains(addr string) bool {
 		return false
 	}
 
-	for _, m := range c.domainMatchers {
+	for _, m := range h.domainMatchers {
 		if m.match(host, nil) {
 			return true
 		}

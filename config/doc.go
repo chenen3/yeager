@@ -58,7 +58,7 @@ Example client config:
 			"secret": "examplepass"
 		},
 	],
-	"no_proxy": "localhost,127.0.0.1,192.168.1.1/16"
+	"bypass": "localhost,127.0.0.1,192.168.1.1/16"
 }
 
 Example server config:
