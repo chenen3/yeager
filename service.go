@@ -204,6 +204,9 @@ func newStreamDialers(transports []config.ServerConfig, bypass, block string) (t
 
 func (g *dialerGroup) healthCheck() {
 	for range g.ticker.C {
+		if g.transport.Address == "" {
+			continue
+		}
 		conn, err := net.DialTimeout("tcp", g.transport.Address, 5*time.Second)
 		if err != nil {
 			logger.Debug.Printf("health check: %s", err)
@@ -282,6 +285,9 @@ func (g *dialerGroup) Dial(ctx context.Context, address string) (transport.Strea
 		g.mu.RUnlock()
 		g.pick()
 		g.mu.RLock()
+		if g.dialer == nil {
+			return nil, errors.New("no valid dialer")
+		}
 	}
 	stream, err := g.dialer.Dial(ctx, address)
 	if err != nil {
