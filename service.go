@@ -204,9 +204,6 @@ func newStreamDialers(transports []config.ServerConfig, bypass, block string) (t
 
 func (g *dialerGroup) healthCheck() {
 	for range g.ticker.C {
-		if g.transport.Address == "" {
-			continue
-		}
 		conn, err := net.DialTimeout("tcp", g.transport.Address, 5*time.Second)
 		if err != nil {
 			logger.Debug.Printf("health check: %s", err)
