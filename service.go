@@ -197,34 +197,19 @@ func newStreamDialers(transports []config.ServerConfig, bypass, block string) (t
 	}
 
 	g.transports = transports
-	g.ticker = time.NewTicker(15 * time.Second)
-	go g.healthCheck()
-	return g, nil
-}
-
-func (g *dialerGroup) healthCheck() {
-	for range g.ticker.C {
-		conn, err := net.DialTimeout("tcp", g.transport.Address, 5*time.Second)
-		if err != nil {
-			logger.Debug.Printf("health check: %s", err)
+	g.ticker = time.NewTicker(30 * time.Second)
+	go func(){
+		for range g.ticker.C {
 			g.pick()
-			continue
 		}
-		conn.Close()
-	}
+	}()
+	return g, nil
 }
 
 // pick a healthy proxy server and set up the dialer, prioritizing low latency
 func (g *dialerGroup) pick() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
-	// If the current proxy server is working, don't change.
-	conn, err := net.DialTimeout("tcp", g.transport.Address, 5*time.Second)
-	if err == nil {
-		conn.Close()
-		return
-	}
 
 	var transport config.ServerConfig
 	var min int
@@ -247,6 +232,9 @@ func (g *dialerGroup) pick() {
 		logger.Error.Println("no healthy proxy server")
 		return
 	}
+	if transport.Address == g.transport.Address {
+		return
+	}
 
 	d, err := newStreamDialer(transport)
 	if err != nil {
@@ -258,7 +246,7 @@ func (g *dialerGroup) pick() {
 	}
 	g.dialer = d
 	g.transport = transport
-	logger.Info.Printf("pick transport: %s %s", transport.Protocol, transport.Address)
+	logger.Debug.Printf("pick transport: %s %s", transport.Protocol, transport.Address)
 }
 
 // implements interface transport.StreamDialer
