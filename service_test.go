@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/chenen3/yeager/config"
+	"github.com/chenen3/yeager/proxy"
+	"github.com/chenen3/yeager/transport"
+	"github.com/chenen3/yeager/transport/https"
 )
 
 func localAddr() string {
@@ -68,14 +71,9 @@ func TestProxyToGRPC(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("https2grpc", func(t *testing.T) {
-		pu, err := url.Parse("http://" + httpProxyAddr)
-		if err != nil {
-			t.Error(err)
-			return
-		}
 		client := http.Client{
 			Transport: &http.Transport{
-				Proxy:           http.ProxyURL(pu),
+				Proxy:           http.ProxyURL(&url.URL{Scheme: "http", Host: httpProxyAddr}),
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
 			Timeout: time.Second,
@@ -102,14 +100,9 @@ func TestProxyToGRPC(t *testing.T) {
 
 	// how it works: client request -> socks proxy -> grpc client -> grpc server -> http test server
 	t.Run("socks2grpc", func(t *testing.T) {
-		pu, err := url.Parse("socks5://" + socks5ProxyAddr)
-		if err != nil {
-			t.Error(err)
-			return
-		}
 		client := http.Client{
 			Transport: &http.Transport{
-				Proxy:           http.ProxyURL(pu),
+				Proxy:           http.ProxyURL(&url.URL{Scheme: "socks5", Host: socks5ProxyAddr}),
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
 			Timeout: time.Second,
@@ -134,4 +127,44 @@ func TestProxyToGRPC(t *testing.T) {
 			return
 		}
 	})
+}
+
+func TestHTTPTransport(t *testing.T) {
+	// client request -> [http proxy server A -> http transport] -> http proxy server B -> http test server
+	hostport := localAddr()
+	proxySrvA := &http.Server{Addr: localAddr(), Handler: proxy.NewHTTPHandler(&https.StreamDialer{HostPort: hostport})}
+	go proxySrvA.ListenAndServe()
+	defer proxySrvA.Close()
+
+	proxySrvB := &http.Server{Addr: hostport, Handler: proxy.NewHTTPHandler(transport.TCPStreamDialer{})}
+	go proxySrvB.ListenAndServe()
+	defer proxySrvB.Close()
+
+	testSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "1")
+	}))
+	defer testSrv.Close()
+
+	client := http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: proxySrvA.Addr}),
+		},
+		Timeout: time.Second,
+	}
+
+	// the proxy services may not started yet
+	time.Sleep(time.Millisecond)
+
+	resp, err := client.Get(testSrv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	bs, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(bs) != "1" {
+		t.Fatalf("want 1, got %s", bs)
+	}
 }

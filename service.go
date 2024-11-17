@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/chenen3/yeager/transport"
 	"github.com/chenen3/yeager/transport/grpc"
 	"github.com/chenen3/yeager/transport/http2"
+	"github.com/chenen3/yeager/transport/https"
 	"github.com/chenen3/yeager/transport/shadowsocks"
 )
 
@@ -156,6 +159,8 @@ func newStreamDialer(c config.ServerConfig) (transport.StreamDialer, error) {
 			return nil, err
 		}
 		dialer = d
+	case config.ProtoHTTP:
+		dialer = &https.StreamDialer{HostPort: c.Address}
 	default:
 		return nil, errors.New("unsupported transport protocol: " + c.Protocol)
 	}
@@ -198,7 +203,7 @@ func newStreamDialers(transports []config.ServerConfig, bypass, block string) (t
 
 	g.transports = transports
 	g.ticker = time.NewTicker(30 * time.Second)
-	go func(){
+	go func() {
 		for range g.ticker.C {
 			g.pick()
 		}
@@ -212,21 +217,29 @@ func (g *dialerGroup) pick() {
 	defer g.mu.Unlock()
 
 	var transport config.ServerConfig
-	var min int
+	var min int64
 	for _, t := range g.transports {
-		start := time.Now()
-		c, e := net.DialTimeout("tcp", t.Address, 5*time.Second)
-		if e != nil {
-			logger.Debug.Printf("tcp ping: %s", e)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		d, err := newStreamDialer(t)
+		if err != nil {
+			logger.Error.Printf("new stream dialer: %s", err)
 			continue
 		}
-		defer c.Close()
-		latency := time.Since(start)
-		if min == 0 || int(latency) < min {
-			transport = t
-			min = int(latency)
+		if v, ok := d.(io.Closer); ok {
+			defer v.Close()
 		}
-		logger.Debug.Printf("tcp ping %s, latency %dms", t.Address, latency.Milliseconds())
+
+		rtt, err := roundtripTime(ctx, d, "http://google.com/")
+		if err != nil {
+			logger.Error.Printf("test connect through %s: %s", t.Address, err)
+			continue
+		}
+		if transport.Address == "" || rtt.Milliseconds() < min {
+			transport = t
+			min = rtt.Milliseconds()
+		}
+		logger.Debug.Printf("test connect through %s %dms", t.Address, rtt.Milliseconds())
 	}
 	if transport.Address == "" {
 		logger.Error.Println("no healthy proxy server")
@@ -403,4 +416,36 @@ func (m domainMatch) match(host string, ip net.IP) bool {
 		return false
 	}
 	return before == "" || before[len(before)-1] == '.'
+}
+
+func roundtripTime(ctx context.Context, d transport.StreamDialer, url_ string) (time.Duration, error) {
+	start := time.Now()
+	u, err := url.Parse(url_)
+	if err != nil {
+		return 0, err
+	}
+	host := u.Host
+	if _, _, err = net.SplitHostPort(host); err != nil {
+		host = net.JoinHostPort(host, "80")
+	}
+	conn, err := d.Dial(ctx, host)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return 0, err
+	}
+	if err = req.Write(conn); err != nil {
+		return 0, err
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	if err != nil {
+		return 0, err
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	return time.Since(start), nil
 }
