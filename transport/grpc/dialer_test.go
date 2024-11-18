@@ -37,7 +37,7 @@ func TestTunnel(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := td.Dial(ctx, e.Listener.Addr().String())
+	stream, err := td.DialContext(ctx, "tcp", e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func BenchmarkThroughput(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := td.Dial(ctx, echo.Listener.Addr().String())
+	stream, err := td.DialContext(ctx, "tcp", echo.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}

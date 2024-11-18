@@ -19,13 +19,13 @@ type socks5Server struct {
 	mu         sync.Mutex
 	lis        net.Listener
 	activeConn map[net.Conn]struct{}
-	dialer     transport.StreamDialer
+	dialer     transport.Dialer
 }
 
 // NewSOCKS5Server returns a new SOCKS5 proxy server that intends
 // to be a local proxy and does not require authentication.
 // The call should call Close when finished.
-func NewSOCKS5Server(dialer transport.StreamDialer) *socks5Server {
+func NewSOCKS5Server(dialer transport.Dialer) *socks5Server {
 	return &socks5Server{dialer: dialer}
 }
 
@@ -63,18 +63,17 @@ func (s *socks5Server) handleConn(proxyConn net.Conn) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	stream, err := s.dialer.Dial(ctx, addr)
+	stream, err := s.dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		logger.Error.Printf("connect %s: %s", addr, err)
 		return
 	}
 	defer stream.Close()
 
-	go func() {
-		io.Copy(stream, proxyConn)
-		stream.CloseWrite()
-	}()
-	io.Copy(proxyConn, stream)
+	err = transport.Relay(proxyConn, stream)
+	if err != nil {
+		logger.Debug.Printf("relay: %s", err)
+	}
 }
 
 func (s *socks5Server) trackConn(c net.Conn, add bool) {

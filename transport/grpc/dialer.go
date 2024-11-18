@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -25,7 +27,7 @@ type streamDialer struct {
 	conns        []*grpc.ClientConn
 }
 
-var _ transport.StreamDialer = (*streamDialer)(nil)
+var _ transport.Dialer = (*streamDialer)(nil)
 
 // NewStreamDialer returns a new transport.StreamDialer that dials
 // through the provided proxy server's address. The caller should
@@ -85,7 +87,7 @@ func (d *streamDialer) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 
 const addressKey = "address"
 
-func (d *streamDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
+func (d *streamDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := d.getConn(ctx)
 	if err != nil {
 		return nil, errors.New("grpc connect: " + err.Error())
@@ -113,20 +115,25 @@ func (c *streamDialer) Close() error {
 	return nil
 }
 
-// clientStream implements transport.Stream.
-// To improve efficiency, clientStream implements both io.WriterTo and io.ReaderFrom.
+// clientStream implements net.Conn, io.WriterTo, and io.ReaderFrom.
 // This enables io.Copy to transfer data directly, eliminating the need for extra buffer allocation.
 type clientStream struct {
 	stream  pb.Tunnel_StreamClient
 	onClose func()
 	buf     []byte
+
+	readDeadline  time.Time
+	writeDeadline time.Time
 }
 
-var _ transport.Stream = (*clientStream)(nil)
+var _ net.Conn = (*clientStream)(nil)
 var _ io.WriterTo = (*clientStream)(nil)
 var _ io.ReaderFrom = (*clientStream)(nil)
 
 func (c *clientStream) Read(b []byte) (n int, err error) {
+	if !c.readDeadline.IsZero() && time.Now().After(c.readDeadline) {
+		return 0, os.ErrDeadlineExceeded
+	}
 	if len(c.buf) == 0 {
 		m, err := c.stream.Recv()
 		if err != nil {
@@ -140,6 +147,9 @@ func (c *clientStream) Read(b []byte) (n int, err error) {
 }
 
 func (c *clientStream) Write(b []byte) (n int, err error) {
+	if !c.writeDeadline.IsZero() && time.Now().After(c.writeDeadline) {
+		return 0, os.ErrDeadlineExceeded
+	}
 	if err = c.stream.Send(&pb.Message{Data: b}); err != nil {
 		return 0, err
 	}
@@ -218,4 +228,28 @@ func (c *clientStream) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 	bufPool.Put(buf)
 	return n, err
+}
+
+func (c *clientStream) LocalAddr() net.Addr {
+	return nil
+}
+
+func (c *clientStream) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (c *clientStream) SetDeadline(t time.Time) error {
+	c.readDeadline = t
+	c.writeDeadline = t
+	return nil
+}
+
+func (c *clientStream) SetReadDeadline(t time.Time) error {
+	c.readDeadline = t
+	return nil
+}
+
+func (c *clientStream) SetWriteDeadline(t time.Time) error {
+	c.writeDeadline = t
+	return nil
 }

@@ -10,28 +10,29 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/chenen3/yeager/transport"
 )
 
-type streamDialer struct {
-	proxyAddress string
-	username     string
-	password     string
-	client       *http.Client
+type dialer struct {
+	proxyAddr string
+	username  string
+	password  string
+	client    *http.Client
 }
 
-var _ transport.StreamDialer = (*streamDialer)(nil)
+var _ transport.Dialer = (*dialer)(nil)
 
 // NewStreamDialer returns a new transport.StreamDialer that dials through the provided
 // proxy server's address.
-func NewStreamDialer(addr string, cfg *tls.Config, username, password string) *streamDialer {
-	d := &streamDialer{
-		proxyAddress: addr,
-		username:     username,
-		password:     password,
+func NewStreamDialer(addr string, cfg *tls.Config, username, password string) *dialer {
+	d := &dialer{
+		proxyAddr: addr,
+		username:  username,
+		password:  password,
 	}
 
 	// mitigate website fingerprinting via multiplexing of HTTP/2 ,
@@ -57,9 +58,9 @@ func basicAuth(username, password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func (d *streamDialer) Dial(ctx context.Context, address string) (transport.Stream, error) {
+func (d *dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	pr, pw := io.Pipe()
-	req, err := http.NewRequestWithContext(ctx, http.MethodConnect, "https://"+d.proxyAddress, pr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodConnect, "https://"+d.proxyAddr, pr)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (d *streamDialer) Dial(ctx context.Context, address string) (transport.Stre
 	return &stream{writer: pw, reader: resp.Body}, nil
 }
 
-func (d *streamDialer) Close() error {
+func (d *dialer) Close() error {
 	d.client.CloseIdleConnections()
 	return nil
 }
@@ -91,13 +92,22 @@ func (d *streamDialer) Close() error {
 type stream struct {
 	writer *io.PipeWriter
 	reader io.ReadCloser
+
+	writeDeadline time.Time
+	readDeadline  time.Time
 }
 
 func (s *stream) Read(p []byte) (n int, err error) {
+	if !s.readDeadline.IsZero() && time.Now().After(s.readDeadline) {
+		return 0, os.ErrDeadlineExceeded
+	}
 	return s.reader.Read(p)
 }
 
 func (s *stream) Write(p []byte) (n int, err error) {
+	if !s.writeDeadline.IsZero() && time.Now().After(s.writeDeadline) {
+		return 0, os.ErrDeadlineExceeded
+	}
 	return s.writer.Write(p)
 }
 
@@ -118,6 +128,30 @@ func (s *stream) WriteTo(w io.Writer) (written int64, err error) {
 	return bufferedCopy(w, s.reader)
 }
 
+func (s *stream) SetDeadline(t time.Time) error {
+	s.readDeadline = t
+	s.writeDeadline = t
+	return nil
+}
+
+func (s *stream) SetReadDeadline(t time.Time) error {
+	s.readDeadline = t
+	return nil
+}
+
+func (s *stream) SetWriteDeadline(t time.Time) error {
+	s.writeDeadline = t
+	return nil
+}
+
+func (s *stream) LocalAddr() net.Addr {
+	return nil
+}
+
+func (s *stream) RemoteAddr() net.Addr {
+	return nil
+}
+
 var bufPool = sync.Pool{
 	New: func() any {
 		// refer to 16KB maxPlaintext in crypto/tls/common.go
@@ -126,7 +160,7 @@ var bufPool = sync.Pool{
 	},
 }
 
-// copy data from src to dst using buffer from pool
+// copy data from src to dst using buffer pool
 func bufferedCopy(dst io.Writer, src io.Reader) (written int64, err error) {
 	buf := bufPool.Get().(*[]byte)
 	for {

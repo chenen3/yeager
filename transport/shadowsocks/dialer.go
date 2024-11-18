@@ -2,24 +2,21 @@ package shadowsocks
 
 import (
 	"context"
-
-	"github.com/chenen3/yeager/transport"
+	"net"
 
 	sdk "github.com/Jigsaw-Code/outline-sdk/transport"
 	"github.com/Jigsaw-Code/outline-sdk/transport/shadowsocks"
 )
 
-type streamDialer struct {
-	dialer *shadowsocks.StreamDialer
+type adaptor struct {
+	*shadowsocks.StreamDialer
 }
 
-var _ transport.StreamDialer = (*streamDialer)(nil)
-
-func (d *streamDialer) Dial(ctx context.Context, raddr string) (transport.Stream, error) {
-	return d.dialer.DialStream(ctx, raddr)
+func (d *adaptor) DialContext(ctx context.Context, network, raddr string) (net.Conn, error) {
+	return d.DialStream(ctx, raddr)
 }
 
-func NewStreamDialer(address, cipherName, secret string) (*streamDialer, error) {
+func NewDialer(address, cipherName, secret string) (*adaptor, error) {
 	key, err := shadowsocks.NewEncryptionKey(cipherName, secret)
 	if err != nil {
 		return nil, err
@@ -29,5 +26,5 @@ func NewStreamDialer(address, cipherName, secret string) (*streamDialer, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &streamDialer{dialer}, nil
+	return &adaptor{dialer}, nil
 }

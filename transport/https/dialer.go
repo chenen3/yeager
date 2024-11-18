@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-
-	"github.com/chenen3/yeager/transport"
 )
 
-// StreamDialer establish a tunnel with HTTP CONNECT.
-type StreamDialer struct {
-	HostPort string
+// dialer establish a tunnel with HTTP CONNECT.
+type dialer struct {
+	proxyAddr string
 }
 
-// Dial dials a TCP connection using the tunnel.
-func (d *StreamDialer) Dial(ctx context.Context, addr string) (transport.Stream, error) {
-	proxyConn, err := net.Dial("tcp", d.HostPort)
+func NewDialer(proxyAddr string) *dialer {
+	return &dialer{proxyAddr: proxyAddr}
+}
+
+func (d *dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	proxyConn, err := net.Dial("tcp", d.proxyAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -45,5 +46,5 @@ func (d *StreamDialer) Dial(ctx context.Context, addr string) (transport.Stream,
 		proxyConn.Close()
 		return nil, fmt.Errorf("proxy connection failed with status code %d", resp.StatusCode)
 	}
-	return proxyConn.(*net.TCPConn), nil
+	return proxyConn, nil
 }

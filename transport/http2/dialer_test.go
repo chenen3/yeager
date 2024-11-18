@@ -13,7 +13,7 @@ import (
 	"github.com/chenen3/yeager/echo"
 )
 
-func run() (*http.Server, *streamDialer, error) {
+func run() (*http.Server, *dialer, error) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err
@@ -45,7 +45,7 @@ func TestHTTP2Connect(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := td.Dial(ctx, e.Listener.Addr().String())
+	stream, err := td.DialContext(ctx, "tcp", e.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestAuth(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := td.Dial(ctx, es.Listener.Addr().String())
+	stream, err := td.DialContext(ctx, "tcp", es.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestBadAuth(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, err = td.Dial(ctx, es.Listener.Addr().String())
+	_, err = td.DialContext(ctx, "tcp", es.Listener.Addr().String())
 	if err == nil {
 		t.Fatalf("expected error for mismatch auth")
 	}
@@ -154,7 +154,7 @@ func TestBadAuth(t *testing.T) {
 	td2 := NewStreamDialer(lis.Addr().String(), cliTLSConf, "", "")
 	defer td2.Close()
 	time.Sleep(time.Millisecond * 100)
-	_, err = td2.Dial(ctx, es.Listener.Addr().String())
+	_, err = td2.DialContext(ctx, "tcp", es.Listener.Addr().String())
 	if err == nil {
 		t.Fatalf("expected error for empty auth")
 	}
@@ -175,7 +175,7 @@ func BenchmarkThroughput(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	rwc, err := td.Dial(ctx, es.Listener.Addr().String())
+	rwc, err := td.DialContext(ctx, "tcp", es.Listener.Addr().String())
 	if err != nil {
 		b.Fatal(err)
 	}

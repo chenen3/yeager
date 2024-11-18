@@ -14,12 +14,12 @@ import (
 )
 
 type httpHandler struct {
-	dialer transport.StreamDialer
+	dialer transport.Dialer
 }
 
 // NewHTTPHandler creates a http.Handler that acts as a web proxy
 // to reach the destination using the given dialer.
-func NewHTTPHandler(dialer transport.StreamDialer) *httpHandler {
+func NewHTTPHandler(dialer transport.Dialer) *httpHandler {
 	return &httpHandler{dialer: dialer}
 }
 
@@ -40,7 +40,7 @@ func (h *httpHandler) serveHTTPConnect(proxyResp http.ResponseWriter, proxyReq *
 		http.Error(proxyResp, "missing port in address", http.StatusBadRequest)
 		return
 	}
-	stream, err := h.dialer.Dial(proxyReq.Context(), proxyReq.Host)
+	stream, err := h.dialer.DialContext(proxyReq.Context(), "tcp", proxyReq.Host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
 		logger.Error.Printf("connect %s: %s", proxyReq.Host, err)
@@ -64,12 +64,10 @@ func (h *httpHandler) serveHTTPConnect(proxyResp http.ResponseWriter, proxyReq *
 	// inform the client
 	proxyConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 
-	go func() {
-		io.Copy(stream, proxyConn)
-		// unblock subsequent read
-		stream.CloseWrite()
-	}()
-	io.Copy(proxyConn, stream)
+	err = transport.Relay(proxyConn, stream)
+	if err != nil {
+		logger.Debug.Printf("relay: %s", err)
+	}
 }
 
 func (h *httpHandler) serveHTTPForward(proxyResp http.ResponseWriter, proxyReq *http.Request) {
@@ -81,7 +79,7 @@ func (h *httpHandler) serveHTTPForward(proxyResp http.ResponseWriter, proxyReq *
 	if proxyReq.URL.Port() == "" {
 		host += ":80"
 	}
-	targetConn, err := h.dialer.Dial(proxyReq.Context(), host)
+	targetConn, err := h.dialer.DialContext(proxyReq.Context(), "tcp", host)
 	if err != nil {
 		http.Error(proxyResp, "Failed to connect target", http.StatusServiceUnavailable)
 		logger.Error.Print(err)

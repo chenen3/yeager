@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"testing"
 	"time"
-
-	"github.com/chenen3/yeager/transport"
 )
 
 func TestSocksProxy(t *testing.T) {
@@ -24,7 +22,7 @@ func TestSocksProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
-	s := NewSOCKS5Server(new(transport.TCPStreamDialer))
+	s := NewSOCKS5Server(new(net.Dialer))
 	defer s.Close()
 	go func() {
 		close(ready)

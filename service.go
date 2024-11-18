@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -40,15 +38,15 @@ func start(cfg config.Config) (stop func(), err error) {
 		return nil, errors.New("missing client and server config")
 	}
 
-	var dialer transport.StreamDialer
-	getDialer := func() (transport.StreamDialer, error) {
+	var dialer transport.Dialer
+	getDialer := func() (transport.Dialer, error) {
 		if dialer != nil {
 			return dialer, nil
 		}
 		if len(cfg.Transport) == 0 {
 			return nil, errors.New("missing transport config")
 		}
-		d, err := newStreamDialers(cfg.Transport, cfg.Bypass, cfg.Block)
+		d, err := newDialerGroup(cfg.Transport, cfg.Bypass, cfg.Block)
 		if err != nil {
 			return nil, err
 		}
@@ -134,8 +132,8 @@ func start(cfg config.Config) (stop func(), err error) {
 	return stop, nil
 }
 
-func newStreamDialer(c config.ServerConfig) (transport.StreamDialer, error) {
-	var dialer transport.StreamDialer
+func newStreamDialer(c config.ServerConfig) (transport.Dialer, error) {
+	var dialer transport.Dialer
 	switch c.Protocol {
 	case config.ProtoGRPC:
 		tlsConf, err := c.ClientTLS()
@@ -154,13 +152,13 @@ func newStreamDialer(c config.ServerConfig) (transport.StreamDialer, error) {
 			dialer = http2.NewStreamDialer(c.Address, tlsConf, "", "")
 		}
 	case config.ProtoShadowsocks:
-		d, err := shadowsocks.NewStreamDialer(c.Address, c.Cipher, c.Secret)
+		d, err := shadowsocks.NewDialer(c.Address, c.Cipher, c.Secret)
 		if err != nil {
 			return nil, err
 		}
 		dialer = d
 	case config.ProtoHTTP:
-		dialer = &https.StreamDialer{HostPort: c.Address}
+		dialer = https.NewDialer(c.Address)
 	default:
 		return nil, errors.New("unsupported transport protocol: " + c.Protocol)
 	}
@@ -172,15 +170,15 @@ type dialerGroup struct {
 	ticker     *time.Ticker
 	mu         sync.RWMutex
 	transport  config.ServerConfig
-	dialer     transport.StreamDialer
+	dialer     transport.Dialer
 	bypass     *hostMatcher
 	block      *hostMatcher
 }
 
-// newStreamDialers returns a new stream dialer.
+// newDialerGroup returns a new stream dialer.
 // Given multiple transport config, it creates a dialer group to
 // perform periodic health checks and switch server if necessary.
-func newStreamDialers(transports []config.ServerConfig, bypass, block string) (transport.StreamDialer, error) {
+func newDialerGroup(transports []config.ServerConfig, bypass, block string) (transport.Dialer, error) {
 	if len(transports) == 0 {
 		return nil, errors.New("missing transport config")
 	}
@@ -217,10 +215,8 @@ func (g *dialerGroup) pick() {
 	defer g.mu.Unlock()
 
 	var transport config.ServerConfig
-	var min int64
+	var min time.Duration
 	for _, t := range g.transports {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 		d, err := newStreamDialer(t)
 		if err != nil {
 			logger.Error.Printf("new stream dialer: %s", err)
@@ -230,19 +226,19 @@ func (g *dialerGroup) pick() {
 			defer v.Close()
 		}
 
-		rtt, err := roundtripTime(ctx, d, "http://google.com/")
+		duration, err := testConnection(d)
 		if err != nil {
-			logger.Error.Printf("test connect through %s: %s", t.Address, err)
+			logger.Error.Printf("test connection through %s: %s", t.Address, err)
 			continue
 		}
-		if transport.Address == "" || rtt.Milliseconds() < min {
+		if transport.Address == "" || duration < min {
 			transport = t
-			min = rtt.Milliseconds()
+			min = duration
 		}
-		logger.Debug.Printf("test connect through %s %dms", t.Address, rtt.Milliseconds())
+		logger.Debug.Printf("test connection through %s %dms", t.Address, duration.Milliseconds())
 	}
 	if transport.Address == "" {
-		logger.Error.Println("no healthy proxy server")
+		logger.Error.Println("all proxies are unreachable")
 		return
 	}
 	if transport.Address == g.transport.Address {
@@ -263,7 +259,7 @@ func (g *dialerGroup) pick() {
 }
 
 // implements interface transport.StreamDialer
-func (g *dialerGroup) Dial(ctx context.Context, address string) (transport.Stream, error) {
+func (g *dialerGroup) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
@@ -287,7 +283,7 @@ func (g *dialerGroup) Dial(ctx context.Context, address string) (transport.Strea
 			return nil, errors.New("no valid dialer")
 		}
 	}
-	stream, err := g.dialer.Dial(ctx, address)
+	stream, err := g.dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return nil, err
 	}
@@ -418,34 +414,23 @@ func (m domainMatch) match(host string, ip net.IP) bool {
 	return before == "" || before[len(before)-1] == '.'
 }
 
-func roundtripTime(ctx context.Context, d transport.StreamDialer, url_ string) (time.Duration, error) {
+func testConnection(d transport.Dialer) (time.Duration, error) {
+	client := &http.Client{
+		Transport: &http.Transport{DialContext: d.DialContext},
+		Timeout:   5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// make client don't follow the redirect
+			return http.ErrUseLastResponse
+		},
+	}
+	defer client.CloseIdleConnections()
 	start := time.Now()
-	u, err := url.Parse(url_)
+	resp, err := client.Get("http://google.com/")
 	if err != nil {
 		return 0, err
 	}
-	host := u.Host
-	if _, _, err = net.SplitHostPort(host); err != nil {
-		host = net.JoinHostPort(host, "80")
-	}
-	conn, err := d.Dial(ctx, host)
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
-	if err != nil {
-		return 0, err
-	}
-	if err = req.Write(conn); err != nil {
-		return 0, err
-	}
-	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
-	if err != nil {
-		return 0, err
-	}
+	elapsed := time.Since(start)
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
-	return time.Since(start), nil
+	return elapsed, nil
 }
