@@ -167,9 +167,7 @@ func newStreamDialer(c config.ServerConfig) (transport.Dialer, error) {
 
 type dialerGroup struct {
 	transports []config.ServerConfig
-	ticker     *time.Ticker
 	mu         sync.RWMutex
-	transport  config.ServerConfig
 	dialer     transport.Dialer
 	bypass     *hostMatcher
 	block      *hostMatcher
@@ -200,21 +198,22 @@ func newDialerGroup(transports []config.ServerConfig, bypass, block string) (tra
 	}
 
 	g.transports = transports
-	g.ticker = time.NewTicker(30 * time.Second)
-	go func() {
-		for range g.ticker.C {
-			g.pick()
-		}
-	}()
 	return g, nil
 }
 
-// pick a healthy proxy server and set up the dialer, prioritizing low latency
-func (g *dialerGroup) pick() {
+func (g *dialerGroup) fallback() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	var transport config.ServerConfig
+	if g.dialer != nil {
+		_, err := testConnection(g.dialer)
+		if err == nil {
+			return
+		}
+	}
+
+	var winner transport.Dialer
+	var winnerCfg config.ServerConfig
 	var min time.Duration
 	for _, t := range g.transports {
 		d, err := newStreamDialer(t)
@@ -222,40 +221,41 @@ func (g *dialerGroup) pick() {
 			logger.Error.Printf("new stream dialer: %s", err)
 			continue
 		}
-		if v, ok := d.(io.Closer); ok {
-			defer v.Close()
-		}
 
-		duration, err := testConnection(d)
+		du, err := testConnection(d)
 		if err != nil {
 			logger.Error.Printf("test connection through %s: %s", t.Address, err)
 			continue
 		}
-		if transport.Address == "" || duration < min {
-			transport = t
-			min = duration
+
+		if winner == nil {
+			min = du
+			winner = d
+			winnerCfg = t
+		} else if du < min {
+			if v, ok := winner.(io.Closer); ok {
+				v.Close()
+			}
+			min = du
+			winner = d
+			winnerCfg = t
+		} else {
+			if v, ok := d.(io.Closer); ok {
+				v.Close()
+			}
 		}
-		logger.Debug.Printf("test connection through %s %dms", t.Address, duration.Milliseconds())
+		logger.Debug.Printf("test connection through %s %dms", t.Address, du.Milliseconds())
 	}
-	if transport.Address == "" {
-		logger.Error.Println("all proxies are unreachable")
-		return
-	}
-	if transport.Address == g.transport.Address {
+	if winner == nil {
+		logger.Error.Println("unable to find a valid transport")
 		return
 	}
 
-	d, err := newStreamDialer(transport)
-	if err != nil {
-		logger.Error.Printf("new stream dialer: %s", err)
-		return
-	}
 	if v, ok := g.dialer.(io.Closer); ok {
 		v.Close()
 	}
-	g.dialer = d
-	g.transport = transport
-	logger.Debug.Printf("pick transport: %s %s", transport.Protocol, transport.Address)
+	g.dialer = winner
+	logger.Debug.Printf("pick transport: %s %s", winnerCfg.Protocol, winnerCfg.Address)
 }
 
 // implements interface transport.StreamDialer
@@ -277,7 +277,7 @@ func (g *dialerGroup) DialContext(ctx context.Context, network, address string) 
 	}
 	if g.dialer == nil {
 		g.mu.RUnlock()
-		g.pick()
+		g.fallback()
 		g.mu.RLock()
 		if g.dialer == nil {
 			return nil, errors.New("no valid dialer")
@@ -285,6 +285,9 @@ func (g *dialerGroup) DialContext(ctx context.Context, network, address string) 
 	}
 	stream, err := g.dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
+		g.mu.RUnlock()
+		g.fallback()
+		g.mu.RLock()
 		return nil, err
 	}
 	logger.Debug.Printf("connected to %s", address)
@@ -294,9 +297,6 @@ func (g *dialerGroup) DialContext(ctx context.Context, network, address string) 
 func (g *dialerGroup) Close() error {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	if g.ticker != nil {
-		g.ticker.Stop()
-	}
 	if v, ok := g.dialer.(io.Closer); ok {
 		return v.Close()
 	}
@@ -417,20 +417,19 @@ func (m domainMatch) match(host string, ip net.IP) bool {
 func testConnection(d transport.Dialer) (time.Duration, error) {
 	client := &http.Client{
 		Transport: &http.Transport{DialContext: d.DialContext},
-		Timeout:   5 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// make client don't follow the redirect
-			return http.ErrUseLastResponse
-		},
+		Timeout:   3 * time.Second,
 	}
 	defer client.CloseIdleConnections()
 	start := time.Now()
-	resp, err := client.Get("http://google.com/")
+	resp, err := client.Get("http://www.gstatic.com/generate_204")
 	if err != nil {
 		return 0, err
 	}
+	defer resp.Body.Close()
 	elapsed := time.Since(start)
+	if resp.StatusCode != http.StatusNoContent {
+		return 0, errors.New("unexpected status code: " + resp.Status)
+	}
 	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
 	return elapsed, nil
 }
