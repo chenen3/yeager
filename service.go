@@ -171,6 +171,7 @@ type dialerGroup struct {
 	dialer     transport.Dialer
 	bypass     *hostMatcher
 	block      *hostMatcher
+	ticker     *time.Ticker
 }
 
 // newDialerGroup returns a new stream dialer.
@@ -198,20 +199,17 @@ func newDialerGroup(transports []config.ServerConfig, bypass, block string) (tra
 	}
 
 	g.transports = transports
+	g.ticker = time.NewTicker(30 * time.Second)
+	go func() {
+		g.pick()
+		for range g.ticker.C {
+			g.pick()
+		}
+	}()
 	return g, nil
 }
 
-func (g *dialerGroup) fallback() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if g.dialer != nil {
-		_, err := testConnection(g.dialer)
-		if err == nil {
-			return
-		}
-	}
-
+func (g *dialerGroup) pick() {
 	var winner transport.Dialer
 	var winnerCfg config.ServerConfig
 	var min time.Duration
@@ -254,7 +252,9 @@ func (g *dialerGroup) fallback() {
 	if v, ok := g.dialer.(io.Closer); ok {
 		v.Close()
 	}
+	g.mu.Lock()
 	g.dialer = winner
+	g.mu.Unlock()
 	logger.Debug.Printf("pick transport: %s %s", winnerCfg.Protocol, winnerCfg.Address)
 }
 
@@ -276,18 +276,10 @@ func (g *dialerGroup) DialContext(ctx context.Context, network, address string) 
 		return conn.(*net.TCPConn), nil
 	}
 	if g.dialer == nil {
-		g.mu.RUnlock()
-		g.fallback()
-		g.mu.RLock()
-		if g.dialer == nil {
-			return nil, errors.New("no valid dialer")
-		}
+		return nil, errors.New("no valid dialer")
 	}
 	stream, err := g.dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		g.mu.RUnlock()
-		g.fallback()
-		g.mu.RLock()
 		return nil, err
 	}
 	logger.Debug.Printf("connected to %s", address)
@@ -297,6 +289,9 @@ func (g *dialerGroup) DialContext(ctx context.Context, network, address string) 
 func (g *dialerGroup) Close() error {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
+	if g.ticker != nil {
+		g.ticker.Stop()
+	}
 	if v, ok := g.dialer.(io.Closer); ok {
 		return v.Close()
 	}
