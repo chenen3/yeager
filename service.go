@@ -222,7 +222,7 @@ func (g *dialerGroup) pick() {
 
 		du, err := testConnection(d)
 		if err != nil {
-			logger.Error.Printf("test connection through %s: %s", t.Address, err)
+			logger.Debug.Printf("test connection through %s: %s", t.Address, err)
 			continue
 		}
 
